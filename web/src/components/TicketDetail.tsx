@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { actingUserId, fetchMeta, fetchTicket, patchTicket, postComment } from '../api';
+import {
+  actingUserId, draftReply, fetchMeta, fetchSuggestions, fetchTicket,
+  patchTicket, postComment,
+} from '../api';
 import { fmtDateTime } from '../format';
 import { SnoozeDialog } from './SnoozeDialog';
 
@@ -25,6 +28,16 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
   const comment = useMutation({
     mutationFn: () => postComment(ticketId, reply, visibility),
     onSuccess: () => { setReply(''); invalidate(); },
+  });
+
+  const { data: suggestions } = useQuery({
+    queryKey: ['suggestions', ticketId],
+    queryFn: () => fetchSuggestions(ticketId),
+    staleTime: 300_000,
+  });
+  const draft = useMutation({
+    mutationFn: () => draftReply(ticketId),
+    onSuccess: (d) => { setVisibility('public'); setReply(d.draft); },
   });
 
   if (!t) return <div className="ticket-detail">Loading…</div>;
@@ -73,10 +86,34 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
               />
               Internal note
             </label>
+            <button className="btn" disabled={draft.isPending} onClick={() => draft.mutate()}>
+              {draft.isPending ? 'Drafting…' : '✨ Draft reply'}
+            </button>
             <button className="btn primary" disabled={!reply.trim() || comment.isPending} onClick={() => comment.mutate()}>
               {visibility === 'public' ? 'Send reply' : 'Add note'}
             </button>
           </div>
+
+          {(suggestions?.articles.length || suggestions?.similarTickets.length) ? (
+            <div className="suggestions-panel">
+              {suggestions.articles.length > 0 && (
+                <div>
+                  <span className="suggestions-title">Suggested articles</span>
+                  {suggestions.articles.map((a) => (
+                    <span key={a.id} className="kb-chip" title={a.snippet}>{a.title}</span>
+                  ))}
+                </div>
+              )}
+              {suggestions.similarTickets.length > 0 && (
+                <div>
+                  <span className="suggestions-title">Similar resolved</span>
+                  {suggestions.similarTickets.map((s) => (
+                    <span key={s.id} className="kb-chip" title={s.subject}>{s.number}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : null}
         </div>
 
         <button className="activity-toggle" onClick={() => setShowActivity((v) => !v)}>

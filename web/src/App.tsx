@@ -19,6 +19,8 @@ import {
 } from './api';
 import { MODES, type Mode } from './board';
 import { BulkBar } from './components/BulkBar';
+import { Dashboard } from './components/Dashboard';
+import { KnowledgeBase } from './components/KnowledgeBase';
 import { NewTicketDialog } from './components/NewTicketDialog';
 import { ActionRail, AgentRail } from './components/Rail';
 import { SnoozeDialog } from './components/SnoozeDialog';
@@ -41,6 +43,7 @@ export default function App() {
   const [draggingId, setDraggingId] = useState<number | null>(null);
   const [snoozeIds, setSnoozeIds] = useState<number[] | null>(null);
   const [newTicketOpen, setNewTicketOpen] = useState(false);
+  const [page, setPage] = useState<'queue' | 'dashboards' | 'kb'>('queue');
   const [userId, setUserId] = useState(actingUserId());
   const [theme, setTheme] = useState(() => localStorage.getItem('mets-theme') ?? 'light');
 
@@ -139,10 +142,10 @@ export default function App() {
       <header className="menubar">
         <div className="logo">MET<span>S</span></div>
         <nav>
-          <a className="active" href="#">Queue</a>
-          <a href="#">Dashboards</a>
-          <a href="#">Knowledge Base</a>
-          <a href="#">Admin</a>
+          <a className={page === 'queue' ? 'active' : ''} href="#" onClick={(e) => { e.preventDefault(); setPage('queue'); }}>Queue</a>
+          <a className={page === 'dashboards' ? 'active' : ''} href="#" onClick={(e) => { e.preventDefault(); setPage('dashboards'); }}>Dashboards</a>
+          <a className={page === 'kb' ? 'active' : ''} href="#" onClick={(e) => { e.preventDefault(); setPage('kb'); }}>Knowledge Base</a>
+          <a href="#" title="Admin screens land on Day 7" onClick={(e) => e.preventDefault()}>Admin</a>
         </nav>
         <div className="spacer" />
         <button className="btn accent new-ticket-btn" onClick={() => setNewTicketOpen(true)}>
@@ -176,6 +179,10 @@ export default function App() {
         </button>
       </header>
 
+      {page === 'dashboards' && <Dashboard />}
+      {page === 'kb' && <KnowledgeBase />}
+
+      {page === 'queue' && (<>
       <div className="modebar">
         {MODES.map((m) => (
           <button
@@ -271,6 +278,7 @@ export default function App() {
         )}
         <ActionRail mode={mode} meta={meta} />
       </div>
+      </>)}
 
       <DragOverlay dropAnimation={null} modifiers={[snapCenterToCursor]} style={{ width: 'max-content', height: 'auto' }}>
         {draggingId && (

@@ -24,6 +24,10 @@
   --ink-fill: #16324f;   /* navy fills (buttons, avatars) — stays dark in both themes */
   --row-hover: #f6f9fc;
 
+  /* chart data colors — validated (lightness band, chroma, CVD, contrast) */
+  --chart-1: #2f74c0;
+  --chart-2: #c96a00;
+
   --font-ui: 'Space Grotesk', 'Segoe UI', system-ui, sans-serif;
   --font-data: 'JetBrains Mono', Consolas, monospace;
 
@@ -51,6 +55,9 @@
 
   --ink-fill: #1d3c5e;
   --row-hover: #1b3450;
+
+  --chart-1: #4f92d1;
+  --chart-2: #cd7d14;
 
   color-scheme: dark;
 }

@@ -4,8 +4,11 @@ import { sql } from 'drizzle-orm';
 import { env } from './config.js';
 import { db } from './db/index.js';
 import { aiRoutes } from './routes/ai.js';
+import { dashboardRoutes } from './routes/dashboard.js';
+import { kbRoutes } from './routes/kb.js';
 import { metaRoutes } from './routes/meta.js';
 import { ticketRoutes } from './routes/tickets.js';
+import { ensureKbEmbeddings } from './services/kb/kbService.js';
 import { startSlaSweep } from './services/sla/slaService.js';
 
 declare module 'fastify' {
@@ -44,10 +47,16 @@ app.get('/api/health', async () => {
 await app.register(metaRoutes);
 await app.register(ticketRoutes);
 await app.register(aiRoutes);
+await app.register(kbRoutes);
+await app.register(dashboardRoutes);
 
 try {
   await app.listen({ port: env.port, host: '0.0.0.0' });
   startSlaSweep((msg) => app.log.info(msg));
+  // Embed KB articles in the background (first run downloads the model).
+  ensureKbEmbeddings((msg) => app.log.info(msg)).catch((err) =>
+    app.log.warn({ err }, 'kb embedding failed — search degrades to FTS-only'),
+  );
 } catch (err) {
   app.log.error(err);
   process.exit(1);

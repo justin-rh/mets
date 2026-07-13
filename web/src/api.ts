@@ -125,3 +125,35 @@ export const dismissEnrichment = (id: number) =>
 
 export const createTicket = (data: { subject: string; description: string; type?: string; priority?: number }) =>
   api<{ id: number; number: string }>('/api/tickets', { method: 'POST', body: JSON.stringify(data) });
+
+// --- Dashboard & KB ---
+
+export type DashboardData = {
+  tiles: {
+    open_count: string; created_30: string; resolved_30: string;
+    median_mttr_hours: number | null; median_frt_hours: number | null;
+    sla_attainment_pct: string | null;
+  };
+  daily: { day: string; created: string; resolved: string }[];
+  backlogAge: { bucket: string; count: string }[];
+  openByQueue: { name: string; count: string }[];
+  leaderboard: { name: string; tp: string; resolved: string }[];
+};
+
+export const fetchDashboard = () => api<DashboardData>('/api/dashboard');
+
+export type KbHit = { id: number; title: string; snippet: string; score: number };
+export type KbIndex = { results: KbHit[] | null; articles: { id: number; title: string; updatedAt: string }[] | null };
+export type KbArticle = { id: number; title: string; bodyText: string; updatedAt: string };
+
+export const searchKb = (q: string) => api<KbIndex>(`/api/kb${q ? `?q=${encodeURIComponent(q)}` : ''}`);
+export const fetchArticle = (id: number) => api<KbArticle>(`/api/kb/${id}`);
+
+export type Suggestions = {
+  articles: KbHit[];
+  similarTickets: { id: number; number: string; subject: string; resolved_at: string }[];
+};
+export const fetchSuggestions = (ticketId: number) => api<Suggestions>(`/api/tickets/${ticketId}/suggestions`);
+
+export const draftReply = (ticketId: number) =>
+  api<{ draft: string; groundedIn: string[] }>(`/api/tickets/${ticketId}/draft-reply`, { method: 'POST', body: '{}' });

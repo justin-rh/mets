@@ -40,8 +40,24 @@ export type TriageOutcome = {
   outputTokens: number;
 };
 
+export type DraftInput = {
+  subject: string;
+  description: string;
+  requesterName: string;
+  thread: { author: string; visibility: string; body: string }[];
+  articles: { title: string; content: string }[];
+};
+
+export type DraftOutcome = {
+  draft: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+};
+
 export interface AIProvider {
   triage(input: TriageInput, ctx: TriageContext): Promise<TriageOutcome>;
+  draftReply(input: DraftInput): Promise<DraftOutcome>;
 }
 
 // ---------------------------------------------------------------------------
@@ -123,6 +139,60 @@ ${input.description.slice(0, 4000)}`,
       outputTokens: response.usage.output_tokens,
     };
   }
+
+  async draftReply(input: DraftInput): Promise<DraftOutcome> {
+    const articles = input.articles.length
+      ? input.articles.map((a, i) => `[${i + 1}] ${a.title}\n${a.content}`).join('\n\n')
+      : '(none found)';
+    const thread = input.thread
+      .map((c) => `${c.author}${c.visibility === 'internal' ? ' (internal note)' : ''}: ${c.body}`)
+      .join('\n---\n');
+
+    const response = await this.client.messages.create({
+      model: env.aiModel,
+      max_tokens: 1200,
+      system: `You draft helpdesk replies for Master Electronics IT agents. The
+agent reviews and edits before sending — write the reply body only, no
+subject line, no signature block.
+
+Rules:
+- Ground the reply in the knowledge-base excerpts when relevant, and name the
+  article you drew from ("per the guide 'How to connect to the VPN'…").
+- If no excerpt is relevant, say what you'd try next in plain terms — do NOT
+  invent procedures, systems, or policies.
+- Address the requester by first name. Plain, direct, friendly; no filler.
+- If the thread shows the issue is already solved, draft a confirmation/close
+  message instead.`,
+      messages: [
+        {
+          role: 'user',
+          content: `Ticket: ${input.subject}
+Requester: ${input.requesterName}
+Description: ${input.description.slice(0, 2000)}
+
+Thread so far:
+${thread || '(no replies yet)'}
+
+Knowledge-base excerpts:
+${articles}
+
+Draft the reply.`,
+        },
+      ],
+    });
+
+    const draft = response.content
+      .filter((b): b is Extract<typeof response.content[number], { type: 'text' }> => b.type === 'text')
+      .map((b) => b.text)
+      .join('\n')
+      .trim();
+    return {
+      draft,
+      model: response.model,
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+    };
+  }
 }
 
 /** Keyword-based mock for offline dev and as a demo fallback. */
@@ -159,6 +229,15 @@ class MockProvider implements AIProvider {
       model: 'mock',
       inputTokens: 0,
       outputTokens: 0,
+    };
+  }
+
+  async draftReply(input: DraftInput): Promise<DraftOutcome> {
+    const first = input.requesterName.split(' ')[0];
+    const cite = input.articles[0]?.title;
+    return {
+      draft: `Hi ${first},\n\nThanks for reporting this. ${cite ? `Per the guide "${cite}", please try the steps there first. ` : ''}I'm looking into it and will follow up shortly.\n`,
+      model: 'mock', inputTokens: 0, outputTokens: 0,
     };
   }
 }
