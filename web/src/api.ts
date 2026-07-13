@@ -4,7 +4,10 @@ export type AgentInfo = {
   id: number; name: string; openCount: number; maxOpen: number; isAvailable: boolean;
   teamIds: number[]; leadOf: number[]; skills: { name: string; level: number }[];
 };
-export type Meta = { statuses: StatusInfo[]; queues: QueueInfo[]; agents: AgentInfo[]; tags: { id: number; name: string }[] };
+export type Meta = {
+  statuses: StatusInfo[]; queues: QueueInfo[]; agents: AgentInfo[];
+  tags: { id: number; name: string }[]; categories: { id: number; name: string }[];
+};
 
 export type SlaInfo = { state: 'running' | 'paused' | 'completed' | 'breached'; targetAt: string; warnAt: string | null };
 
@@ -122,6 +125,23 @@ export const acceptEnrichment = (id: number, fields?: { category?: boolean; queu
 
 export const dismissEnrichment = (id: number) =>
   api(`/api/ai/enrichments/${id}/dismiss`, { method: 'POST', body: JSON.stringify({}) });
+
+export const correctEnrichment = (id: number, fix: { categoryId?: number; queueId?: number; priority?: number }) =>
+  api(`/api/ai/enrichments/${id}/correct`, { method: 'POST', body: JSON.stringify(fix) });
+
+export type AiDecision = {
+  enrichment: Enrichment & { feedback: { original: any; corrected: any } | null };
+  ticket: { id: number; number: string; subject: string; priority: number };
+  currentQueue: string;
+  currentCategory: string | null;
+};
+export type AiDecisionStats = {
+  total: string; auto_applied: string; accepted: string;
+  corrected: string; dismissed: string; pending: string;
+};
+
+export const fetchDecisions = () =>
+  api<{ decisions: AiDecision[]; stats: AiDecisionStats }>('/api/ai/decisions');
 
 export const createTicket = (data: { subject: string; description: string; type?: string; priority?: number }) =>
   api<{ id: number; number: string }>('/api/tickets', { method: 'POST', body: JSON.stringify(data) });

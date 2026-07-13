@@ -18,24 +18,55 @@ async function getThresholds() {
   return row ? { ...DEFAULT_THRESHOLDS, ...(row.value as object) } : DEFAULT_THRESHOLDS;
 }
 
-let ctxCache: { ctx: TriageContext; at: number } | null = null;
+let ctxCache: { ctx: Omit<TriageContext, 'corrections'>; at: number } | null = null;
 
 async function getTriageContext(): Promise<TriageContext> {
-  if (ctxCache && Date.now() - ctxCache.at < 300_000) return ctxCache.ctx;
-  const queueRows = await db.select().from(teams);
-  const catRows = await db.select().from(categories);
-  const queueById = new Map(queueRows.map((q) => [q.id, q]));
-  const ctx: TriageContext = {
-    queues: queueRows.map((q) => ({ slug: q.slug, name: q.name, description: q.description })),
-    categories: catRows.map((c) => ({
-      name: c.name,
-      description: c.description,
-      // seed maps categories to queues by design doc; derive from name match fallback IT
-      queueSlug: queueById.get(guessQueueId(c.name, queueRows))?.slug ?? 'it-support',
-    })),
-  };
-  ctxCache = { ctx, at: Date.now() };
-  return ctx;
+  if (!ctxCache || Date.now() - ctxCache.at >= 300_000) {
+    const queueRows = await db.select().from(teams);
+    const catRows = await db.select().from(categories);
+    const queueById = new Map(queueRows.map((q) => [q.id, q]));
+    ctxCache = {
+      ctx: {
+        queues: queueRows.map((q) => ({ slug: q.slug, name: q.name, description: q.description })),
+        categories: catRows.map((c) => ({
+          name: c.name,
+          description: c.description,
+          // seed maps categories to queues by design doc; derive from name match fallback IT
+          queueSlug: queueById.get(guessQueueId(c.name, queueRows))?.slug ?? 'it-support',
+        })),
+      },
+      at: Date.now(),
+    };
+  }
+  // Corrections are never cached — new feedback applies to the very next call.
+  return { ...ctxCache.ctx, corrections: await recentCorrections() };
+}
+
+/** Latest agent corrections, formatted as few-shot patterns for the prompt. */
+async function recentCorrections(limit = 8) {
+  const rows = await db
+    .select({
+      subject: tickets.subject,
+      result: aiEnrichments.result,
+      feedback: aiEnrichments.feedback,
+    })
+    .from(aiEnrichments)
+    .innerJoin(tickets, eq(tickets.id, aiEnrichments.ticketId))
+    .where(and(eq(aiEnrichments.feature, 'triage'), eq(aiEnrichments.status, 'corrected')))
+    .orderBy(desc(aiEnrichments.createdAt))
+    .limit(limit);
+  return rows.map((r) => {
+    const original = (r.result as any) ?? {};
+    const corrected = (r.feedback as any)?.corrected ?? {};
+    const fmt = (v: { category?: string; queueSlug?: string; priority?: number }) =>
+      [v.category, v.queueSlug && `queue ${v.queueSlug}`, v.priority && `P${v.priority}`]
+        .filter(Boolean).join(', ');
+    return {
+      subject: r.subject.slice(0, 90),
+      aiChose: fmt(original) || 'unknown',
+      agentCorrectedTo: fmt(corrected) || 'unknown',
+    };
+  });
 }
 
 // Category → owning queue mapping mirrors seed-data CATEGORIES.
@@ -227,4 +258,84 @@ export async function acceptEnrichment(enrichmentId: number, actorId: number, fi
 export async function dismissEnrichment(enrichmentId: number) {
   await db.update(aiEnrichments).set({ status: 'dismissed' }).where(eq(aiEnrichments.id, enrichmentId));
   return { ok: true };
+}
+
+/**
+ * Agent overrides an AI decision with the right values. Applies the fix to
+ * the ticket and stores the labeled correction — which feeds the next
+ * triage prompts as a pattern to follow.
+ */
+export async function correctEnrichment(
+  enrichmentId: number,
+  actorId: number,
+  fix: { categoryId?: number; queueId?: number; priority?: number },
+) {
+  const [e] = await db.select().from(aiEnrichments).where(eq(aiEnrichments.id, enrichmentId));
+  if (!e) throw Object.assign(new Error('enrichment not found'), { statusCode: 404 });
+
+  const changes: TicketChanges = {};
+  if (fix.categoryId) changes.categoryId = fix.categoryId;
+  if (fix.queueId) changes.queueId = fix.queueId;
+  if (fix.priority) changes.priority = fix.priority;
+  if (Object.keys(changes).length > 0) {
+    await applyTicketChanges(e.ticketId, { id: actorId }, changes);
+  }
+
+  const [cat] = fix.categoryId
+    ? await db.select({ name: categories.name }).from(categories).where(eq(categories.id, fix.categoryId))
+    : [undefined];
+  const [q] = fix.queueId
+    ? await db.select({ slug: teams.slug }).from(teams).where(eq(teams.id, fix.queueId))
+    : [undefined];
+
+  const r = e.result as any;
+  await db.update(aiEnrichments).set({
+    status: 'corrected',
+    feedback: {
+      original: { category: r?.category, queueSlug: r?.queueSlug, priority: r?.priority },
+      corrected: { category: cat?.name, queueSlug: q?.slug, priority: fix.priority },
+      byUserId: actorId,
+      at: new Date().toISOString(),
+    },
+  }).where(eq(aiEnrichments.id, enrichmentId));
+
+  await db.insert(schema.ticketEvents).values({
+    ticketId: e.ticketId, actorId, actorType: 'user', eventType: 'ai_corrected',
+    oldValue: [r?.category, r?.queueSlug, r?.priority && `P${r.priority}`].filter(Boolean).join(' / '),
+    newValue: [cat?.name, q?.slug, fix.priority && `P${fix.priority}`].filter(Boolean).join(' / '),
+  });
+
+  return { ok: true };
+}
+
+/** Recent AI routing decisions + outcome stats — the triage transparency log. */
+export async function listDecisions(limit = 50) {
+  const rows = await db
+    .select({
+      enrichment: aiEnrichments,
+      ticket: { id: tickets.id, number: tickets.number, subject: tickets.subject, priority: tickets.priority },
+      currentQueue: teams.name,
+      currentCategory: categories.name,
+    })
+    .from(aiEnrichments)
+    .innerJoin(tickets, eq(tickets.id, aiEnrichments.ticketId))
+    .innerJoin(teams, eq(teams.id, tickets.queueId))
+    .leftJoin(categories, eq(categories.id, tickets.categoryId))
+    .where(eq(aiEnrichments.feature, 'triage'))
+    .orderBy(desc(aiEnrichments.createdAt))
+    .limit(limit);
+
+  const [stats] = (await db.execute(sql`
+    select
+      count(*) as total,
+      count(*) filter (where status = 'auto_applied') as auto_applied,
+      count(*) filter (where status = 'applied') as accepted,
+      count(*) filter (where status = 'corrected') as corrected,
+      count(*) filter (where status = 'dismissed') as dismissed,
+      count(*) filter (where status = 'pending') as pending
+    from ai_enrichments
+    where feature = 'triage' and created_at > now() - interval '30 days'
+  `)).rows as any[];
+
+  return { decisions: rows, stats };
 }

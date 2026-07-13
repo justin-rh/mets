@@ -35,13 +35,18 @@ queues. Hover a truncated subject. Flip dark/light.
   leads see all snoozed tickets and the SLA clock keeps running — hiding a
   ticket can't defuse it."
 
-**3. AI Triage (2 min).**
+**3. AI Triage (2–3 min).**
 Open the AI Triage tab (cards pre-run). Walk one card: current → suggested
 category/queue/priority with per-field confidence, sentiment flag, the
 agent-ready summary. Find one with a **priority correction** (P1 → P2:
 "requesters over- and under-state priority; the AI judges business impact").
-Accept one card, then **Accept all high-confidence**. "Below the gate,
-nothing is touched — corrections train the thresholds."
+Accept one card, then **Accept all high-confidence**.
+
+Then the **decision log** below: every routing decision with its confidence
+and outcome, plus the agreement rate. **Flag & correct** one ("this was
+really Facilities") → then create a similar ticket and expand it: the AI
+follows the agent's correction on the very next classification. "Agents
+teach it in one click — corrections become patterns it applies immediately."
 
 **4. Create a ticket live (90s).**
 + New Ticket. No category picker, no queue picker — type a vague-but-real

@@ -1,6 +1,9 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { acceptEnrichment, batchTriage, dismissEnrichment, listTriageSuggestions } from '../services/ai/enrichment.js';
+import {
+  acceptEnrichment, batchTriage, correctEnrichment, dismissEnrichment,
+  listDecisions, listTriageSuggestions,
+} from '../services/ai/enrichment.js';
 
 export async function aiRoutes(app: FastifyInstance) {
   // Run AI triage over untriaged open tickets (or specific ones). Synchronous
@@ -28,5 +31,20 @@ export async function aiRoutes(app: FastifyInstance) {
   app.post('/api/ai/enrichments/:id/dismiss', async (req) => {
     const id = z.coerce.number().parse((req.params as any).id);
     return dismissEnrichment(id);
+  });
+
+  // The AI decision log: how tickets were routed and what agents did about it.
+  app.get('/api/ai/decisions', async () => listDecisions());
+
+  // Flag & correct: the labeled feedback that future triage prompts learn from.
+  app.post('/api/ai/enrichments/:id/correct', async (req) => {
+    const id = z.coerce.number().parse((req.params as any).id);
+    const fix = z.object({
+      categoryId: z.number().optional(),
+      queueId: z.number().optional(),
+      priority: z.number().min(1).max(4).optional(),
+    }).refine((f) => f.categoryId || f.queueId || f.priority, { message: 'at least one correction required' })
+      .parse(req.body);
+    return correctEnrichment(id, req.userId, fix);
   });
 }

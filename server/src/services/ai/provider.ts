@@ -28,9 +28,17 @@ export type TriageInput = {
   statedPriority: number;
 };
 
+export type TriageCorrection = {
+  subject: string;
+  aiChose: string;
+  agentCorrectedTo: string;
+};
+
 export type TriageContext = {
   categories: { name: string; description: string | null; queueSlug: string }[];
   queues: { slug: string; name: string; description: string | null }[];
+  /** Recent agent corrections — injected as patterns to follow. */
+  corrections: TriageCorrection[];
 };
 
 export type TriageOutcome = {
@@ -117,7 +125,12 @@ class ClaudeProvider implements AIProvider {
       messages: [
         {
           role: 'user',
-          content: `Triage this ticket:
+          // Corrections ride in the user turn (not the system block) so the
+          // cached static prompt prefix survives new feedback.
+          content: `${ctx.corrections.length ? `Agents recently corrected these AI classifications — follow these patterns when similar tickets appear:
+${ctx.corrections.map((c) => `- "${c.subject}": AI chose ${c.aiChose}; agents corrected to ${c.agentCorrectedTo}`).join('\n')}
+
+` : ''}Triage this ticket:
 Subject: ${input.subject}
 Requester department: ${input.requesterDepartment ?? 'unknown'}${input.requesterIsVip ? ' (VIP/executive)' : ''}
 Source: ${input.source}

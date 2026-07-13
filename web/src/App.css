@@ -1099,3 +1099,45 @@ select, textarea, input[type='text'], .modal input {
   background: var(--row-hover);
 }
 .queue-card.active strong { color: var(--ink); }
+
+/* ===== AI decision log ===== */
+
+.triage-stats { font-size: 12px; color: var(--text-muted); }
+.triage-stats strong { color: var(--ok); font-family: var(--font-data); }
+
+.decision-list { display: flex; flex-direction: column; gap: 4px; }
+
+.decision-row {
+  background: var(--surface-card);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 7px 12px;
+}
+.decision-main { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.decision-subject {
+  flex: 1; min-width: 120px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 13px;
+}
+.decision-flag { font-size: 11.5px; white-space: nowrap; }
+
+.outcome {
+  font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.4px;
+  white-space: nowrap;
+}
+.outcome em { font-style: normal; font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--text-muted); }
+.outcome-auto { color: var(--accent-dark); }
+.outcome-accepted { color: var(--ok); }
+.outcome-pending { color: var(--text-muted); }
+.outcome-dismissed { color: var(--text-muted); }
+.outcome-corrected { color: var(--alarm); }
+
+.correction-form {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: var(--surface-sunken);
+  border-radius: var(--r);
+}
+.correction-label { font-size: 12px; font-weight: 600; color: var(--text-muted); }

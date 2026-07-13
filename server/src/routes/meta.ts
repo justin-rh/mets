@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { eq, sql } from 'drizzle-orm';
 import { db, schema } from '../db/index.js';
 
-const { users, teams, statuses, tags, teamMemberships, agentSkills, skills } = schema;
+const { users, teams, statuses, tags, teamMemberships, agentSkills, skills, categories } = schema;
 
 /** Board bootstrap: statuses, queues with open counts, agents with load + skills, tags. */
 export async function metaRoutes(app: FastifyInstance) {
@@ -51,8 +51,10 @@ export async function metaRoutes(app: FastifyInstance) {
     }));
 
     const tagRows = await db.select().from(tags).orderBy(tags.name);
+    const categoryRows = await db.select({ id: categories.id, name: categories.name })
+      .from(categories).orderBy(categories.name);
 
-    return { statuses: statusRows, queues: queueRows, agents, tags: tagRows };
+    return { statuses: statusRows, queues: queueRows, agents, tags: tagRows, categories: categoryRows };
   });
 
   app.get('/api/me', async (req) => {

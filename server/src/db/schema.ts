@@ -357,10 +357,12 @@ export const aiEnrichments = pgTable(
     id: bigserial('id', { mode: 'number' }).primaryKey(),
     ticketId: bigint('ticket_id', { mode: 'number' }).notNull().references(() => tickets.id),
     feature: text('feature').notNull().default('triage'), // triage | summary
-    // pending → applied/dismissed by an agent; auto_applied when confidence
-    // cleared the threshold. Accept/dismiss decisions are the labeled
-    // feedback loop for prompt tuning.
+    // pending → applied/dismissed/corrected by an agent; auto_applied when
+    // confidence cleared the threshold. Agent decisions are the labeled
+    // feedback loop — corrections are injected into future triage prompts.
     status: text('status').notNull().default('pending'),
+    // { original: {category, queueSlug, priority}, corrected: {...}, byUserId, at }
+    feedback: jsonb('feedback'),
     model: text('model').notNull(),
     promptVersion: text('prompt_version').notNull(),
     result: jsonb('result').notNull(), // {category, queueSlug, priority, sentiment, summary}
