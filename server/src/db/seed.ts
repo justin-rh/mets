@@ -247,6 +247,13 @@ async function main() {
     }
     agentsByTeam.set(team.id, members);
   });
+  // The admin works tickets too — give him team homes so My Categories
+  // and skills-based views have content for the default demo user.
+  const admin = allUsers.find((u) => u.role === 'admin')!;
+  membershipRows.push(
+    { userId: admin.id, teamId: teamBySlug['it-support']!.id, role: 'member' },
+    { userId: admin.id, teamId: teamBySlug['merp']!.id, role: 'member' },
+  );
   await db.insert(teamMemberships).values(membershipRows);
 
   const skillLinks: (typeof agentSkills.$inferInsert)[] = [];

@@ -103,6 +103,25 @@ select, textarea, input[type='text'], .modal input {
 .queue-list { flex: 1; min-width: 0; }
 
 .ticket-list { display: flex; flex-direction: column; gap: 4px; }
+
+.list-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 2px 10px 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.list-header-spacer { width: 18px; }
+.list-header-label { user-select: none; }
+
+.ticket-row input[type='checkbox'],
+.list-header input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--me-navy);
+  cursor: pointer;
+}
 .ticket-list.fetching { opacity: 0.6; }
 
 .empty {

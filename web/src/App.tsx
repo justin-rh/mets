@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   DndContext, DragOverlay, PointerSensor, pointerWithin, rectIntersection,
   useSensor, useSensors,
@@ -15,7 +15,7 @@ const cursorFirst: CollisionDetection = (args) => {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   actingUserId, bulkTickets, fetchMeta, fetchTickets, setActingUserId,
-  type TicketChanges,
+  type ListParams, type TicketChanges,
 } from './api';
 import { MODES, type Mode } from './board';
 import { BulkBar } from './components/BulkBar';
@@ -48,8 +48,12 @@ export default function App() {
     return () => clearTimeout(t);
   }, [search]);
 
-  const view = showSnoozed ? 'snoozed' : mode === 'My Queue' ? 'mine' : 'open';
-  const params = { view: view as 'open' | 'mine' | 'snoozed', queueId, sort, search: debouncedSearch };
+  const view = showSnoozed ? 'snoozed'
+    : mode === 'My Queue' ? 'mine'
+    : mode === 'Unassigned' ? 'unassigned'
+    : mode === 'My Categories' ? 'my_queues'
+    : 'open';
+  const params = { view: view as ListParams['view'], queueId, sort, search: debouncedSearch };
 
   const { data: meta } = useQuery({ queryKey: ['meta'], queryFn: fetchMeta });
   const { data: ticketList, isFetching } = useQuery({
@@ -103,6 +107,24 @@ export default function App() {
   const draggingCount = draggingId ? dragTargets(draggingId).length : 0;
   const draggingTicket = ticketRows.find((t) => t.id === draggingId);
 
+  const allSelected = ticketRows.length > 0 && ticketRows.every((t) => selection.has(t.id));
+  const someSelected = ticketRows.some((t) => selection.has(t.id));
+  const selectAllRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (selectAllRef.current) selectAllRef.current.indeterminate = someSelected && !allSelected;
+  }, [someSelected, allSelected]);
+
+  const toggleSelectAll = () => {
+    setSelection((prev) => {
+      if (allSelected) {
+        const next = new Set(prev);
+        ticketRows.forEach((t) => next.delete(t.id));
+        return next;
+      }
+      return new Set([...prev, ...ticketRows.map((t) => t.id)]);
+    });
+  };
+
   return (
     <DndContext sensors={sensors} collisionDetection={cursorFirst} onDragStart={onDragStart} onDragEnd={onDragEnd}>
       <header className="menubar">
@@ -142,7 +164,7 @@ export default function App() {
         {MODES.map((m) => (
           <button
             key={m}
-            className={m === mode ? (m === 'Triage' ? 'active accent' : 'active') : ''}
+            className={m === mode ? (m === 'AI Triage' ? 'active accent' : 'active') : ''}
             onClick={() => { setMode(m); setShowSnoozed(false); }}
           >
             {m}
@@ -150,8 +172,10 @@ export default function App() {
         ))}
         <span className="mode-hint">
           {mode === 'All Tickets' && 'Drag tickets onto an agent (left) or a queue (right)'}
+          {mode === 'Unassigned' && 'Open tickets with no assignee'}
+          {mode === 'My Categories' && 'Tickets in the queues your teams own'}
           {mode === 'My Queue' && 'Your assigned tickets'}
-          {mode === 'Triage' && 'AI categorization, routing, and priority checks — accept or dismiss'}
+          {mode === 'AI Triage' && 'AI categorization, routing, and priority checks — accept or dismiss'}
         </span>
         <span className="spacer" />
         <label className="toolbar-field">
@@ -175,7 +199,7 @@ export default function App() {
 
       <div className="board">
         <AgentRail meta={meta} queueId={queueId} />
-        {mode === 'Triage' ? (
+        {mode === 'AI Triage' ? (
           <main className="queue-list">
             <TriagePanel />
           </main>
@@ -193,6 +217,19 @@ export default function App() {
               onClear={() => setSelection(new Set())}
             />
           )}
+          <div className="list-header">
+            <span className="list-header-spacer" />
+            <input
+              ref={selectAllRef}
+              type="checkbox"
+              checked={allSelected}
+              onChange={toggleSelectAll}
+              title="Select all tickets in this view"
+            />
+            <span className="list-header-label">
+              {selection.size > 0 ? `${selection.size} selected` : `Select all (${ticketRows.length})`}
+            </span>
+          </div>
           <div className={`ticket-list ${isFetching ? 'fetching' : ''}`}>
             {ticketRows.map((t) => (
               <TicketRow

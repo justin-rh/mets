@@ -9,7 +9,7 @@ import { enrichTicket } from '../services/ai/enrichment.js';
 const { tickets, statuses, teams, users, ticketTags, tags, slaInstances, ticketComments, ticketEvents, categories } = schema;
 
 const listQuery = z.object({
-  view: z.enum(['open', 'mine', 'snoozed', 'all']).default('open'),
+  view: z.enum(['open', 'mine', 'unassigned', 'my_queues', 'snoozed', 'all']).default('open'),
   queueId: z.coerce.number().optional(),
   sort: z.enum(['date', 'score', 'priority', 'requester', 'description', 'random']).default('date'),
   search: z.string().trim().max(200).optional(),
@@ -33,11 +33,17 @@ export async function ticketRoutes(app: FastifyInstance) {
     const q = listQuery.parse(req.query);
 
     const conds: SQL[] = [];
-    if (q.view === 'open' || q.view === 'mine') {
+    if (q.view === 'open' || q.view === 'mine' || q.view === 'unassigned' || q.view === 'my_queues') {
       conds.push(sql`${statuses.category} not in ('resolved','closed')`);
       conds.push(sql`(${tickets.snoozedUntil} is null or ${tickets.snoozedUntil} <= now())`);
     }
     if (q.view === 'mine') conds.push(eq(tickets.assigneeId, req.userId));
+    if (q.view === 'unassigned') conds.push(sql`${tickets.assigneeId} is null`);
+    if (q.view === 'my_queues') {
+      conds.push(sql`${tickets.queueId} in (
+        select team_id from team_memberships where user_id = ${req.userId}
+      )`);
+    }
     if (q.view === 'snoozed') {
       conds.push(sql`${statuses.category} not in ('resolved','closed')`);
       conds.push(sql`${tickets.snoozedUntil} > now()`);

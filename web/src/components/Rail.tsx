@@ -69,7 +69,7 @@ export function ActionRail({ mode, meta }: { mode: Mode; meta: Meta | undefined 
         </DropCard>
       ))}
 
-      {mode === 'Triage' && (
+      {mode === 'AI Triage' && (
         <div className="rail-info">
           <div className="rail-title">AI Triage</div>
           <p>
