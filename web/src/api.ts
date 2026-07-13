@@ -226,6 +226,20 @@ export const removeAgentSkill = (userId: number, skillId: number) =>
 export const syncSkills = () =>
   api<{ qualified: number; revoked: number }>('/api/admin/skills/sync', { method: 'POST', body: '{}' });
 
+// --- Notifications ---
+
+export type NotificationPrefs = {
+  assignedToMe: boolean; slaAlerts: boolean; queueActivity: boolean; emailReplies: boolean;
+};
+export type NotificationItem = {
+  id: number; type: string; number: string; subject: string; at: string;
+};
+
+export const fetchNotifications = () =>
+  api<{ prefs: NotificationPrefs; items: NotificationItem[] }>('/api/notifications');
+export const saveNotificationPrefs = (prefs: NotificationPrefs) =>
+  api('/api/me/notification-prefs', { method: 'PUT', body: JSON.stringify(prefs) });
+
 // --- Mail simulator ---
 
 export type MailboxThread = {

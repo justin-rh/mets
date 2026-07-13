@@ -1218,3 +1218,92 @@ select, textarea, input[type='text'], .modal input {
 }
 .fit-avatar:hover { transform: scale(1.12); }
 .fit-avatar.fit-weak { opacity: 0.5; }
+
+/* ===== notifications bell ===== */
+
+.notif-wrap { position: relative; }
+.notif-bell { position: relative; }
+.notif-badge {
+  position: absolute;
+  top: -5px;
+  right: -6px;
+  background: var(--accent);
+  color: #fff;
+  font-family: var(--font-data);
+  font-size: 9.5px;
+  font-weight: 700;
+  border-radius: 8px;
+  padding: 1px 5px;
+  border: 2px solid var(--ink-deep);
+}
+
+.notif-panel {
+  position: absolute;
+  top: 42px;
+  right: 0;
+  width: 400px;
+  max-height: 480px;
+  overflow-y: auto;
+  background: var(--surface-card);
+  border: 1px solid var(--line-strong);
+  border-top: 3px solid var(--accent);
+  border-radius: var(--r);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.35);
+  z-index: 60;
+  color: var(--text);
+}
+
+.notif-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13.5px;
+}
+
+.notif-prefs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-sunken);
+}
+.notif-prefs label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.notif-list { display: flex; flex-direction: column; }
+.notif-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--line);
+  text-decoration: none;
+  color: var(--text);
+}
+.notif-item:last-child { border-bottom: none; }
+.notif-item:hover { background: var(--row-hover); }
+.notif-icon { font-size: 14px; }
+.notif-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.notif-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-muted);
+}
+.notif-label + .notif-subject {
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.notif-age { font-family: var(--font-data); font-size: 10.5px; color: var(--text-muted); }
+.notif-empty { padding: 24px; text-align: center; color: var(--text-muted); font-size: 12.5px; }

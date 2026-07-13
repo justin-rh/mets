@@ -59,6 +59,8 @@ export const users = pgTable(
     isActive: boolean('is_active').notNull().default(true), // deactivate, never delete
     isAvailable: boolean('is_available').notNull().default(true), // agent OOO toggle
     maxOpenAssignments: integer('max_open_assignments').notNull().default(25),
+    // { assignedToMe, slaAlerts, queueActivity, emailReplies } — all default true
+    notificationPrefs: jsonb('notification_prefs'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex('users_email_idx').on(t.email)],

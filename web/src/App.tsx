@@ -24,6 +24,7 @@ import { Dashboard } from './components/Dashboard';
 import { EmailSimulator } from './components/EmailSimulator';
 import { KnowledgeBase } from './components/KnowledgeBase';
 import { NewTicketDialog } from './components/NewTicketDialog';
+import { NotificationsBell } from './components/NotificationsBell';
 import { ActionRail, AgentRail } from './components/Rail';
 import { SnoozeDialog } from './components/SnoozeDialog';
 import { TicketRow } from './components/TicketRow';
@@ -287,6 +288,7 @@ export default function App() {
         >
           {meta?.agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
         </select>
+        <NotificationsBell key={userId} />
         <button
           className="theme-toggle"
           title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}

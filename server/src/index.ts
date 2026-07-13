@@ -9,6 +9,7 @@ import { dashboardRoutes } from './routes/dashboard.js';
 import { kbRoutes } from './routes/kb.js';
 import { mailRoutes } from './routes/mail.js';
 import { metaRoutes } from './routes/meta.js';
+import { notificationRoutes } from './routes/notifications.js';
 import { ticketRoutes } from './routes/tickets.js';
 import { ensureKbEmbeddings } from './services/kb/kbService.js';
 import { startSkillsSync } from './services/skills.js';
@@ -54,6 +55,7 @@ await app.register(kbRoutes);
 await app.register(dashboardRoutes);
 await app.register(mailRoutes);
 await app.register(adminRoutes);
+await app.register(notificationRoutes);
 
 try {
   await app.listen({ port: env.port, host: '0.0.0.0' });
