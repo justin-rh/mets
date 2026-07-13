@@ -231,14 +231,16 @@ async function main() {
   const requesters = allUsers.filter((u) => u.role === 'requester');
   const vips = requesters.filter((u) => u.isVip);
 
-  // Spread agents across queues: 2-3 per queue, one lead each; some agents in two queues.
+  // Rotate agents across queues so everyone is on at least one team; the
+  // wrap-around gives a couple of agents dual membership. One lead per queue.
   const membershipRows: (typeof teamMemberships.$inferInsert)[] = [];
   const agentsByTeam = new Map<number, typeof agents>();
+  let agentPtr = 0;
   teamRows.forEach((team, ti) => {
-    const size = ti === 0 ? 4 : int(2, 3); // IT Support is the biggest team
+    const size = ti === 0 ? 4 : 3; // IT Support is the biggest team
     const members: typeof agents = [];
     for (let i = 0; i < size; i++) {
-      const agent = agents[(ti * 3 + i * 5 + int(0, 2)) % agents.length]!;
+      const agent = agents[agentPtr++ % agents.length]!;
       if (members.includes(agent)) continue;
       members.push(agent);
       membershipRows.push({ userId: agent.id, teamId: team.id, role: i === 0 ? 'lead' : 'member' });

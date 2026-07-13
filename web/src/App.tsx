@@ -1,26 +1,100 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
+  type DragEndEvent, type DragStartEvent,
+} from '@dnd-kit/core';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  actingUserId, bulkTickets, fetchMeta, fetchTickets, setActingUserId,
+  type TicketChanges,
+} from './api';
+import { MODES, type Mode } from './board';
+import { BulkBar } from './components/BulkBar';
+import { Rail } from './components/Rail';
+import { SnoozeDialog } from './components/SnoozeDialog';
+import { TicketRow } from './components/TicketRow';
 import './App.css';
 
-const MODES = ['My Queue', 'Assign', 'Move', 'Triage'] as const;
-type Mode = (typeof MODES)[number];
+const SORTS = ['date', 'score', 'priority', 'requester', 'description', 'random'] as const;
 
 export default function App() {
-  const [mode, setMode] = useState<Mode>('My Queue');
-  const [health, setHealth] = useState<'checking' | 'ok' | 'down'>('checking');
+  const qc = useQueryClient();
+  const [mode, setMode] = useState<Mode>('Assign');
+  const [sort, setSort] = useState<string>('score');
+  const [queueId, setQueueId] = useState<number | undefined>();
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [showSnoozed, setShowSnoozed] = useState(false);
+  const [selection, setSelection] = useState<Set<number>>(new Set());
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [draggingId, setDraggingId] = useState<number | null>(null);
+  const [snoozeIds, setSnoozeIds] = useState<number[] | null>(null);
+  const [userId, setUserId] = useState(actingUserId());
 
   useEffect(() => {
-    fetch('/api/health')
-      .then((r) => r.json())
-      .then((d) => setHealth(d.ok ? 'ok' : 'down'))
-      .catch(() => setHealth('down'));
-  }, []);
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const view = showSnoozed ? 'snoozed' : mode === 'My Queue' ? 'mine' : 'open';
+  const params = { view: view as 'open' | 'mine' | 'snoozed', queueId, sort, search: debouncedSearch };
+
+  const { data: meta } = useQuery({ queryKey: ['meta'], queryFn: fetchMeta });
+  const { data: ticketList, isFetching } = useQuery({
+    queryKey: ['tickets', params],
+    queryFn: () => fetchTickets(params),
+  });
+  const ticketRows = ticketList ?? [];
+
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ['tickets'] });
+    qc.invalidateQueries({ queryKey: ['meta'] });
+    qc.invalidateQueries({ queryKey: ['ticket'] });
+  };
+
+  const bulk = useMutation({
+    mutationFn: ({ ids, action, changes }: { ids: number[]; action: 'update' | 'auto_assign'; changes?: TicketChanges }) =>
+      bulkTickets(ids, action, changes),
+    onSuccess: () => { setSelection(new Set()); invalidate(); },
+  });
+
+  const act = (ids: number[], changes: TicketChanges) => bulk.mutate({ ids, action: 'update', changes });
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+
+  const dragTargets = (dragged: number): number[] =>
+    selection.has(dragged) ? [...selection] : [dragged];
+
+  function onDragStart(e: DragStartEvent) {
+    setDraggingId((e.active.data.current as any)?.ticketId ?? null);
+  }
+
+  function onDragEnd(e: DragEndEvent) {
+    setDraggingId(null);
+    const ticketId = (e.active.data.current as any)?.ticketId as number | undefined;
+    const target = e.over?.id as string | undefined;
+    if (!ticketId || !target) return;
+    const ids = dragTargets(ticketId);
+
+    if (target === 'assign-me') act(ids, { assigneeId: userId });
+    else if (target === 'assign-auto') bulk.mutate({ ids, action: 'auto_assign' });
+    else if (target === 'snooze-zone') setSnoozeIds(ids);
+    else if (target.startsWith('agent-')) act(ids, { assigneeId: Number(target.slice(6)) });
+    else if (target.startsWith('queue-')) act(ids, { queueId: Number(target.slice(6)) });
+  }
+
+  const resolvedStatus = useMemo(
+    () => meta?.statuses.find((s) => s.category === 'resolved'),
+    [meta],
+  );
+
+  const draggingCount = draggingId ? dragTargets(draggingId).length : 0;
+  const draggingTicket = ticketRows.find((t) => t.id === draggingId);
 
   return (
-    <>
+    <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
       <header className="menubar">
-        <div className="logo">
-          MET<span>S</span>
-        </div>
+        <div className="logo">MET<span>S</span></div>
         <nav>
           <a className="active" href="#">Queue</a>
           <a href="#">Dashboards</a>
@@ -28,7 +102,25 @@ export default function App() {
           <a href="#">Admin</a>
         </nav>
         <div className="spacer" />
-        <input className="search" placeholder="Search tickets… (T-10042, requester, text)" />
+        <input
+          className="search"
+          placeholder="Search tickets… (T-10042, subject)"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <select
+          className="user-switcher"
+          title="Acting as (dev auth)"
+          value={userId}
+          onChange={(e) => {
+            const id = Number(e.target.value);
+            setActingUserId(id);
+            setUserId(id);
+            qc.invalidateQueries();
+          }}
+        >
+          {meta?.agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+        </select>
       </header>
 
       <div className="modebar">
@@ -36,24 +128,94 @@ export default function App() {
           <button
             key={m}
             className={m === mode ? (m === 'Triage' ? 'active accent' : 'active') : ''}
-            onClick={() => setMode(m)}
+            onClick={() => { setMode(m); setShowSnoozed(false); }}
           >
             {m}
           </button>
         ))}
+        <span className="mode-hint">
+          {mode === 'Assign' && 'Drag tickets onto an agent — or use bulk select'}
+          {mode === 'Move' && 'Drag tickets onto a queue'}
+          {mode === 'My Queue' && 'Your assigned tickets'}
+          {mode === 'Triage' && 'AI suggestions — coming Day 4'}
+        </span>
+        <span className="spacer" />
+        <label className="toolbar-field">
+          Queue
+          <select value={queueId ?? ''} onChange={(e) => setQueueId(e.target.value ? Number(e.target.value) : undefined)}>
+            <option value="">All queues</option>
+            {meta?.queues.map((q) => <option key={q.id} value={q.id}>{q.name} ({q.openCount})</option>)}
+          </select>
+        </label>
+        <label className="toolbar-field">
+          Sort
+          <select value={sort} onChange={(e) => setSort(e.target.value)}>
+            {SORTS.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </label>
+        <label className="toolbar-check">
+          <input type="checkbox" checked={showSnoozed} onChange={(e) => setShowSnoozed(e.target.checked)} />
+          Snoozed
+        </label>
       </div>
 
-      <main className="queue-area">
-        <div className="queue-panel">
-          <h2>Ticket queue</h2>
-          <p>
-            Mode: <strong>{mode}</strong> — queue board lands here (Day 2–3).
-          </p>
-          <span className={`status-pill ${health === 'ok' ? 'ok' : 'down'}`}>
-            API {health === 'checking' ? 'checking…' : health === 'ok' ? 'connected' : 'unreachable'}
-          </span>
-        </div>
-      </main>
-    </>
+      <div className="board">
+        <main className="queue-list">
+          {selection.size > 0 && (
+            <BulkBar
+              count={selection.size}
+              meta={meta}
+              onAssignMe={() => act([...selection], { assigneeId: userId })}
+              onAutoAssign={() => bulk.mutate({ ids: [...selection], action: 'auto_assign' })}
+              onMove={(qid) => act([...selection], { queueId: qid })}
+              onSnooze={() => setSnoozeIds([...selection])}
+              onClose={() => resolvedStatus && act([...selection], { statusId: resolvedStatus.id })}
+              onClear={() => setSelection(new Set())}
+            />
+          )}
+          <div className={`ticket-list ${isFetching ? 'fetching' : ''}`}>
+            {ticketRows.map((t) => (
+              <TicketRow
+                key={t.id}
+                ticket={t}
+                selected={selection.has(t.id)}
+                expanded={expandedId === t.id}
+                onToggleSelect={(id) => {
+                  setSelection((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(id)) next.delete(id); else next.add(id);
+                    return next;
+                  });
+                }}
+                onToggleExpand={(id) => setExpandedId((cur) => (cur === id ? null : id))}
+              />
+            ))}
+            {ticketRows.length === 0 && !isFetching && (
+              <div className="empty">No tickets match this view.</div>
+            )}
+          </div>
+        </main>
+        <Rail mode={mode} meta={meta} queueId={queueId} />
+      </div>
+
+      <DragOverlay dropAnimation={null}>
+        {draggingId && (
+          <div className="drag-ghost">
+            {draggingCount > 1 ? `${draggingCount} tickets` : draggingTicket?.number ?? ''}
+          </div>
+        )}
+      </DragOverlay>
+
+      {snoozeIds && (
+        <SnoozeDialog
+          count={snoozeIds.length}
+          onCancel={() => setSnoozeIds(null)}
+          onConfirm={(until, reason) => {
+            act(snoozeIds, { snooze: { until, reason } });
+            setSnoozeIds(null);
+          }}
+        />
+      )}
+    </DndContext>
   );
 }

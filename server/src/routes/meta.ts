@@ -1,0 +1,62 @@
+import type { FastifyInstance } from 'fastify';
+import { eq, sql } from 'drizzle-orm';
+import { db, schema } from '../db/index.js';
+
+const { users, teams, statuses, tags, teamMemberships, agentSkills, skills } = schema;
+
+/** Board bootstrap: statuses, queues with open counts, agents with load + skills, tags. */
+export async function metaRoutes(app: FastifyInstance) {
+  app.get('/api/meta', async () => {
+    const statusRows = await db.select().from(statuses).orderBy(statuses.position);
+
+    const queueRows = await db
+      .select({
+        id: teams.id, name: teams.name, slug: teams.slug,
+        assignmentPolicy: teams.assignmentPolicy,
+        openCount: sql<number>`(
+          select count(*) from tickets t join statuses s on s.id = t.status_id
+          where t.queue_id = teams.id and s.category not in ('resolved','closed')
+        )`.mapWith(Number),
+      })
+      .from(teams)
+      .orderBy(teams.id);
+
+    const agentRows = await db
+      .select({
+        id: users.id, name: users.name,
+        openCount: sql<number>`(
+          select count(*) from tickets t join statuses s on s.id = t.status_id
+          where t.assignee_id = users.id and s.category not in ('resolved','closed')
+        )`.mapWith(Number),
+        maxOpen: users.maxOpenAssignments,
+        isAvailable: users.isAvailable,
+      })
+      .from(users)
+      .where(sql`${users.role} in ('agent','admin') and ${users.isActive}`)
+      .orderBy(users.name);
+
+    const memberships = await db
+      .select({ userId: teamMemberships.userId, teamId: teamMemberships.teamId, role: teamMemberships.role })
+      .from(teamMemberships);
+    const skillRows = await db
+      .select({ userId: agentSkills.userId, skill: skills.name, level: agentSkills.level })
+      .from(agentSkills)
+      .innerJoin(skills, eq(skills.id, agentSkills.skillId));
+
+    const agents = agentRows.map((a) => ({
+      ...a,
+      teamIds: memberships.filter((m) => m.userId === a.id).map((m) => m.teamId),
+      leadOf: memberships.filter((m) => m.userId === a.id && m.role === 'lead').map((m) => m.teamId),
+      skills: skillRows.filter((s) => s.userId === a.id).map((s) => ({ name: s.skill, level: s.level })),
+    }));
+
+    const tagRows = await db.select().from(tags).orderBy(tags.name);
+
+    return { statuses: statusRows, queues: queueRows, agents, tags: tagRows };
+  });
+
+  app.get('/api/me', async (req) => {
+    const [me] = await db.select().from(users).where(eq(users.id, req.userId));
+    return me ?? null;
+  });
+}
