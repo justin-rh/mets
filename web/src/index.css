@@ -21,10 +21,38 @@
   --text-muted: #5a6b7e;
   --text-on-dark: #f2f5f8;
 
+  --ink-fill: #16324f;   /* navy fills (buttons, avatars) — stays dark in both themes */
+  --row-hover: #f6f9fc;
+
   --font-ui: 'Space Grotesk', 'Segoe UI', system-ui, sans-serif;
   --font-data: 'JetBrains Mono', Consolas, monospace;
 
   --r: 2px; /* corners are square-ish by design */
+}
+
+/* Dark theme: same structure, tokens inverted. --ink flips to a light
+   navy-tint for text/structure; --ink-fill keeps fills deep navy. */
+[data-theme='dark'] {
+  --ink: #b9d2e8;
+  --ink-deep: #0a1521;
+  --ink-soft: #7fa3c4;
+  --accent-dark: #f0a13a;
+  --alarm: #e05a3a;
+  --ok: #4fb583;
+
+  --surface: #0e1c2b;
+  --surface-card: #162a3f;
+  --surface-sunken: #0c1826;
+  --line: #26405b;
+  --line-strong: #3a5876;
+
+  --text: #dde6ee;
+  --text-muted: #8ba0b5;
+
+  --ink-fill: #1d3c5e;
+  --row-hover: #1b3450;
+
+  color-scheme: dark;
 }
 
 * {

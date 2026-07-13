@@ -42,6 +42,12 @@ export default function App() {
   const [snoozeIds, setSnoozeIds] = useState<number[] | null>(null);
   const [newTicketOpen, setNewTicketOpen] = useState(false);
   const [userId, setUserId] = useState(actingUserId());
+  const [theme, setTheme] = useState(() => localStorage.getItem('mets-theme') ?? 'light');
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem('mets-theme', theme);
+  }, [theme]);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 300);
@@ -158,6 +164,13 @@ export default function App() {
         >
           {meta?.agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
         </select>
+        <button
+          className="theme-toggle"
+          title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+          onClick={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}
+        >
+          {theme === 'light' ? '☾' : '☀'}
+        </button>
       </header>
 
       <div className="modebar">

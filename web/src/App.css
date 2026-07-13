@@ -179,7 +179,7 @@ select, textarea, input[type='text'], .modal input {
   padding: 7px 10px;
   cursor: pointer;
 }
-.ticket-row:hover { background: #f6f9fc; }
+.ticket-row:hover { background: var(--row-hover); }
 
 .drag-handle {
   cursor: grab;
@@ -312,7 +312,7 @@ select, textarea, input[type='text'], .modal input {
 .assignee {
   width: 26px; height: 26px;
   border-radius: var(--r);
-  background: var(--ink);
+  background: var(--ink-fill);
   color: #fff;
   display: inline-flex; align-items: center; justify-content: center;
   font-family: var(--font-data);
@@ -403,7 +403,7 @@ select, textarea, input[type='text'], .modal input {
 }
 .btn:hover { border-color: var(--ink); }
 .btn:disabled { opacity: 0.5; cursor: default; }
-.btn.primary { background: var(--ink); border-color: var(--ink); color: #fff; }
+.btn.primary { background: var(--ink-fill); border-color: var(--ink-fill); color: #fff; }
 .btn.accent { background: var(--accent); border-color: var(--accent-dark); color: #fff; }
 .btn.ghost { border: none; background: none; color: var(--text-muted); }
 
@@ -413,7 +413,7 @@ select, textarea, input[type='text'], .modal input {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: var(--ink);
+  background: var(--ink-fill);
   color: var(--text-on-dark);
   border-radius: var(--r);
   padding: 8px 14px;
@@ -477,7 +477,7 @@ select, textarea, input[type='text'], .modal input {
   width: 30px; height: 30px;
   border-radius: var(--r);
   flex-shrink: 0;
-  background: var(--ink);
+  background: var(--ink-fill);
   color: #fff;
   display: inline-flex; align-items: center; justify-content: center;
   font-family: var(--font-data);
@@ -604,7 +604,7 @@ select, textarea, input[type='text'], .modal input {
 .ai-badge {
   font-family: var(--font-data);
   font-size: 9.5px; font-weight: 700;
-  background: var(--ink); color: #fff;
+  background: var(--ink-fill); color: #fff;
   border-radius: var(--r); padding: 2px 6px;
 }
 .ai-summary { flex: 1; min-width: 200px; line-height: 1.4; }
@@ -633,3 +633,43 @@ select, textarea, input[type='text'], .modal input {
 .modal-hint { margin: 0; font-size: 12px; color: var(--text-muted); line-height: 1.45; }
 .modal label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-muted); }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* ===== dark theme overrides for tinted surfaces ===== */
+
+[data-theme='dark'] .type-incident { color: #9fc0dd; border-color: #2e4d6e; background: #1c3450; }
+[data-theme='dark'] .type-request { color: #7fc5a2; border-color: #2c5a45; background: #16352a; }
+[data-theme='dark'] .type-change { color: #b8a5d8; border-color: #4a3d63; background: #2b2440; }
+
+[data-theme='dark'] .comment { background: #122335; }
+[data-theme='dark'] .comment.internal { background: #2e2410; border-color: #54431e; }
+[data-theme='dark'] .internal-badge { background: #3a2d12; }
+
+[data-theme='dark'] .actor-user { background: #1c3450; color: #9fc0dd; }
+[data-theme='dark'] .actor-rule { background: #2b2440; color: #b8a5d8; }
+[data-theme='dark'] .actor-ai { background: #3a2d12; }
+
+[data-theme='dark'] .sla-breach .sla-meter { background: #3d1d14; }
+
+[data-theme='dark'] .triage-working { background: #2e2410; border-color: #54431e; }
+[data-theme='dark'] .suggestion.conf-high { background: #132e21; border-color: #265240; }
+[data-theme='dark'] .suggestion.conf-mid { background: #332711; border-color: #5a4520; }
+[data-theme='dark'] .suggestion.sentiment { background: #38160e; border-color: #5f2a1c; color: #ef7a5a; }
+
+[data-theme='dark'] .ai-panel { background: #132639; border-color: #2b455f; }
+[data-theme='dark'] .ticket.expanded { box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5); }
+[data-theme='dark'] .modal-backdrop { background: rgba(0, 0, 0, 0.6); }
+
+/* ===== theme toggle ===== */
+
+.theme-toggle {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-on-dark);
+  border: 1px solid var(--ink-soft);
+  border-radius: var(--r);
+  width: 34px;
+  height: 32px;
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+}
+.theme-toggle:hover { background: var(--ink-soft); }
