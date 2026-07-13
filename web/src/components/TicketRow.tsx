@@ -56,10 +56,23 @@ export function TicketRow({ ticket: t, selected, expanded, onToggleSelect, onTog
           {t.subject}
           {t.snoozedUntil && <span className="snooze-flag" title={`Snoozed: ${t.snoozeReason ?? ''}`}> ⏸</span>}
         </span>
-        <span className="ticket-tags">
-          {t.tags.slice(0, 2).map((tag) => (
+        <span
+          className={`ticket-tags ${expanded ? 'expanded' : ''}`}
+          title={t.tags.length ? t.tags.join(', ') : undefined}
+        >
+          {(expanded ? t.tags : t.tags.slice(0, 1)).map((tag) => (
             <span key={tag} className="tag">{tag}</span>
           ))}
+          {!expanded && t.tags.length > 1 && <span className="tag tag-more">+{t.tags.length - 1}</span>}
+        </span>
+        <span
+          className="queue-cell"
+          title={`Queue: ${t.queue.name}${t.category ? ` · Category: ${t.category}` : ''}`}
+        >
+          <span className="queue-cell-queue">{t.queue.name}</span>
+          {t.category !== t.queue.name && (
+            <span className="queue-cell-category">{t.category ?? 'uncategorized'}</span>
+          )}
         </span>
         <span className="ticket-requester" title={t.requester.name}>
           {t.requester.name}

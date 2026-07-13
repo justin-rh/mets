@@ -171,6 +171,14 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
           <dd>{t.requester.name}{t.requester.isVip ? ' ★' : ''} · {t.requester.department ?? '—'}</dd>
           <dt>Category</dt>
           <dd>{t.category ?? '—'}</dd>
+          {t.tags.length > 0 && (
+            <>
+              <dt>Tags</dt>
+              <dd className="detail-tags">
+                {t.tags.map((tag) => <span key={tag} className="tag">{tag}</span>)}
+              </dd>
+            </>
+          )}
           <dt>Source</dt>
           <dd>{t.source}</dd>
           <dt>Created</dt>

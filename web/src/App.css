@@ -173,7 +173,7 @@ select, textarea, input[type='text'], .modal input {
 
 .ticket-row {
   display: grid;
-  grid-template-columns: 18px 18px 36px 88px minmax(120px, 1fr) minmax(0, 84px) 104px 30px 34px 38px 102px 96px 28px;
+  grid-template-columns: 18px 18px 36px 88px minmax(110px, 1fr) minmax(0, 74px) 112px 96px 30px 34px 38px 102px 88px 28px;
   align-items: center;
   gap: 7px;
   padding: 7px 10px;
@@ -977,3 +977,43 @@ select, textarea, input[type='text'], .modal input {
 .mail-sent { border-left-color: var(--chart-1); }
 .mail-reply { border-left-color: var(--accent); background: var(--row-hover); }
 .mail-ack { border-left-color: var(--line-strong); opacity: 0.8; font-size: 12px; }
+
+/* queue + category cell */
+.queue-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.queue-cell-queue {
+  font-size: 11px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.queue-cell-category {
+  font-size: 9.5px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tag-more {
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  color: var(--text-muted);
+}
+.ticket-tags .tag:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.ticket-tags.expanded { flex-wrap: wrap; overflow: visible; }
+.ticket-tags.expanded .tag { overflow: visible; }
+.detail-tags { display: flex; flex-wrap: wrap; gap: 4px; }
