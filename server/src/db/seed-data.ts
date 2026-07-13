@@ -25,10 +25,10 @@ export const DEPARTMENTS = [
 
 export const LOCATIONS = ['Phoenix HQ', 'the Phoenix warehouse', 'the Germantown warehouse', 'the Chicago branch', 'the Wisconsin warehouse', 'remote'];
 
-export const APPS = ['MERP', 'Salesforce', 'Power BI', 'Excel', 'Outlook', 'Teams', 'SharePoint', 'Concur', 'ADP'];
+export const APPS = ['MERP', 'Salesforce', 'Power BI', 'Excel', 'Outlook', 'Zoom', 'Slack', 'TungstenPDF', 'Keeper', 'Concur', 'ADP'];
 export const VENDORS = ['TTI', 'Arrow', 'Digi-Key', 'a key supplier', 'our freight carrier'];
-export const DEVICES = ['Dell Latitude laptop', 'desktop', 'second monitor', 'docking station', 'Surface Pro', 'desk phone'];
-export const PRINTERS = ['the Sales floor Ricoh', 'the Accounting HP printer', 'the shipping label Zebra ZT411', 'the receiving-dock Zebra'];
+export const DEVICES = ['Dell Latitude laptop', 'Lenovo ThinkPad', 'Dell desktop', 'second monitor', 'Dell docking station', 'Lenovo docking station', 'desk phone'];
+export const PRINTERS = ['the Sales floor HP LaserJet', 'the Accounting Brother printer', 'the shipping label Zebra ZT411', 'the receiving-dock Zebra'];
 export const REPORTS = ['open orders report', 'daily bookings dashboard', 'inventory aging report', 'commissions report', 'backlog by supplier report'];
 
 // Consolidated from ~52 ServiceNow queues. Owning queue is single by design;
@@ -56,8 +56,8 @@ export const QUEUES = [
 // Descriptions double as AI-classifier prompt content later.
 export const CATEGORIES: { name: string; queue: string; description: string }[] = [
   { name: 'Hardware', queue: 'it-support', description: 'Laptops, desktops, monitors, docks, peripherals — breakage, replacement, new equipment requests' },
-  { name: 'Software', queue: 'it-support', description: 'Application installs, licenses, updates, errors in desktop software' },
-  { name: 'Email & Collaboration', queue: 'it-support', description: 'Outlook, Teams, SharePoint, calendars, distribution lists' },
+  { name: 'Software', queue: 'it-support', description: 'Application installs, licenses, updates, errors in desktop software (Office, TungstenPDF, Keeper, NinjaOne agent, etc.)' },
+  { name: 'Email & Collaboration', queue: 'it-support', description: 'Outlook/Microsoft 365 email, Zoom meetings and conference rooms, Slack, SharePoint, calendars, distribution lists' },
   { name: 'Printing & Labels', queue: 'it-support', description: 'Office printers and warehouse label printers (Zebra), print queues, toner' },
   { name: 'Phones & Mobile', queue: 'it-support', description: 'Desk phones, softphones, company mobile devices' },
   { name: 'Onboarding & Offboarding', queue: 'it-support', description: 'New hire setup, departures, equipment provisioning, account lifecycle' },
@@ -66,10 +66,10 @@ export const CATEGORIES: { name: string; queue: string; description: string }[] 
   { name: 'MERP', queue: 'merp', description: 'MERP, the in-house ERP: order entry, inventory, pricing, EDI transactions, user accounts, patches and performance' },
   { name: 'Business Apps', queue: 'apps-erp', description: 'Salesforce, quoting tools, and integrations between business systems (excluding MERP itself)' },
   { name: 'Access & Accounts', queue: 'security-access', description: 'Password resets, account lockouts, permission/share access requests, group membership' },
-  { name: 'Security', queue: 'security-access', description: 'Phishing reports, suspicious activity, MFA problems, security policy questions' },
+  { name: 'Security', queue: 'security-access', description: 'Phishing reports, suspicious activity, MFA problems, CrowdStrike alerts and quarantines, Keeper vault issues, security policy questions' },
   { name: 'Data & Reporting', queue: 'data-reporting', description: 'Report requests and fixes, dashboards, data extracts, Power BI access' },
   { name: 'Product & Pricing', queue: 'product-pricing', description: 'Part data corrections, pricing updates, product content, catalog and cross-reference issues' },
-  { name: 'AI & Enablement', queue: 'ai-enablement', description: 'AI tool access and questions, automation requests, process enablement projects' },
+  { name: 'AI & Enablement', queue: 'ai-enablement', description: 'AI tool access and questions (ChatGPT, Claude), automation requests, process enablement projects' },
   { name: 'Warehouse Operations', queue: 'warehouse-ops', description: 'Operational warehouse work at any site: receiving discrepancies, shipping problems, inventory counts, LTL, value-add jobs (not warehouse IT equipment)' },
   { name: 'Supply Chain & Logistics', queue: 'supply-chain', description: 'Carrier and freight issues, supplier logistics, import/export compliance and documentation' },
   { name: 'DC Solutions', queue: 'dc-solutions', description: 'DC Connect and DC Solutions programs: orders, quotes, and support' },
@@ -93,9 +93,13 @@ export const TAGS = [
   'amat', 'ukg', 'export',
 ];
 
+// Manual skill vocabulary — the tools we actually run. Auto skills are
+// derived from resolution history (category names) on top of these.
 export const SKILLS = [
   'Windows', 'Networking', 'VPN', 'MERP', 'EDI', 'Salesforce', 'Power BI',
-  'M365', 'Security', 'Zebra Printers', 'RF Scanners', 'Telephony',
+  'Microsoft 365', 'Zoom', 'Slack', 'Keeper', 'NinjaOne', 'CrowdStrike',
+  'Dell Hardware', 'Lenovo Hardware', 'HP/Brother Printers', 'Zebra Printers',
+  'RF Scanners', 'UPS/FedEx Shipping', 'AI Tools', 'Telephony', 'Security',
 ];
 
 // Tag affinities: ops categories get site/region/function tags instead of
@@ -131,11 +135,16 @@ export const TEMPLATES: Record<string, TicketTemplate[]> = {
     { s: 'Adobe Acrobat can\'t combine PDFs', d: 'Getting an error when combining supplier datasheets into one PDF: "operation could not be completed." Worked last week.', t: 'incident' },
     { s: 'Excel add-in missing after update', d: 'Our pricing add-in disappeared from Excel after Windows updates last night. The whole {dept} team uses this daily.', t: 'incident', pri: [5, 40, 45, 10] },
     { s: 'Software update approval for {app}', d: 'Vendor released a critical patch for {app}. Requesting change approval to deploy to all {dept} machines this week.', t: 'change', pri: [5, 45, 45, 5] },
+    { s: 'Keeper vault not syncing', d: 'My Keeper vault shows different records on desktop vs the browser extension, and a shared folder from {dept} is missing entirely.', t: 'incident', pri: [5, 35, 50, 10] },
+    { s: 'TungstenPDF license expired', d: 'TungstenPDF is showing a license-expired banner and blocking saves. I mark up supplier drawings daily.', t: 'incident', pri: [0, 30, 55, 15] },
+    { s: 'NinjaOne agent offline on my laptop', d: 'IT mentioned my {device} shows offline in NinjaOne so I can\'t get remote support. It has internet otherwise.', t: 'incident', pri: [0, 15, 60, 25] },
   ],
   'Email & Collaboration': [
     { s: 'Not receiving external emails', d: 'Customers say emails to me bounce with "recipient inbox full" but my mailbox looks fine. Missing quotes from {vendor} because of this.', t: 'incident', pri: [10, 45, 40, 5] },
     { s: 'Shared mailbox access request', d: 'I need access to the sales@ shared mailbox to cover for a teammate on leave. Manager approved.', t: 'request' },
-    { s: 'Teams meeting audio cutting out', d: 'In every Teams call today my audio drops for a few seconds each minute. Wired connection at {loc}. Customers noticing.', t: 'incident' },
+    { s: 'Zoom meeting audio cutting out', d: 'In every Zoom call today my audio drops for a few seconds each minute. Wired connection at {loc}. Customers noticing.', t: 'incident' },
+    { s: 'Slack notifications not coming through', d: 'I stopped getting Slack notifications on desktop since yesterday — missing time-sensitive messages from the warehouse channel.', t: 'incident', pri: [0, 25, 60, 15] },
+    { s: 'Conference room Zoom controller frozen', d: 'The Zoom Rooms controller in the {loc} conference room is frozen on the wallpaper screen. Meeting with a supplier in an hour.', t: 'incident', pri: [5, 40, 45, 10] },
     { s: 'Distribution list update', d: 'Please add the three new {dept} hires to the {dept} distribution list and remove two people who left last month.', t: 'request', pri: [0, 5, 50, 45] },
     { s: 'Calendar delegation not working', d: 'I was set up as a delegate for my VP\'s calendar but can\'t see or create events. Permissions look right on my end.', t: 'incident' },
     { s: 'SharePoint site read-only for team', d: 'Our {dept} SharePoint site suddenly shows read-only for the whole team. We can\'t update the quote tracker.', t: 'incident', pri: [10, 40, 45, 5] },
@@ -196,6 +205,8 @@ export const TEMPLATES: Record<string, TicketTemplate[]> = {
     { s: 'MFA prompts not arriving', d: 'Authenticator push notifications stopped arriving on my phone. Can\'t approve sign-ins; using backup codes for now.', t: 'incident', pri: [5, 45, 45, 5] },
     { s: 'New phone — MFA transfer', d: 'Got a new phone and need to move my authenticator enrollment over before my old phone gets wiped.', t: 'request', pri: [0, 25, 60, 15] },
     { s: 'USB port policy exception', d: '{dept} needs a policy exception to use a vendor-provided USB tool for firmware updates on test equipment.', t: 'change', pri: [0, 25, 55, 20] },
+    { s: 'CrowdStrike quarantined a file I need', d: 'CrowdStrike quarantined the {vendor} pricing tool installer as suspicious. It came from their official portal — can it be reviewed and released?', t: 'incident', pri: [5, 40, 45, 10] },
+    { s: 'Locked out of Keeper', d: 'Keeper is rejecting my master password after the update and I\'m locked out of all my work credentials.', t: 'incident', pri: [10, 50, 35, 5] },
   ],
   'Data & Reporting': [
     { s: '{report} showing wrong numbers', d: 'The {report} totals don\'t match MERP for yesterday — off by about 4%. Leadership reviews this every morning.', t: 'incident', pri: [10, 50, 35, 5] },
@@ -211,7 +222,8 @@ export const TEMPLATES: Record<string, TicketTemplate[]> = {
     { s: 'Datasheet links broken on product pages', d: 'Datasheet links for several part families 404 after the vendor reorganized their site. Customers are asking sales for PDFs.', t: 'incident', pri: [0, 25, 60, 15] },
   ],
   'AI & Enablement': [
-    { s: 'Access to AI assistant for {dept}', d: 'Our {dept} team wants access to the AI assistant pilot. Manager approved — how do we get licenses and the usage guidelines?', t: 'request' },
+    { s: 'Claude access for {dept}', d: 'Our {dept} team wants access to Claude for drafting and analysis. Manager approved — how do we get licenses and the usage guidelines?', t: 'request' },
+    { s: 'ChatGPT usage policy question', d: 'Can we paste customer part lists into ChatGPT for cleanup, or is that against the data policy? Need a ruling before the team keeps doing it.', t: 'request', pri: [5, 35, 50, 10] },
     { s: 'Automate the {report} distribution', d: 'We manually export and email the {report} every Monday. Can this be automated end to end?', t: 'request', pri: [0, 15, 55, 30] },
     { s: 'AI summary quality issue', d: 'The AI-generated call summaries are missing action items about half the time for our team. Can the prompt or process be tuned?', t: 'incident', pri: [0, 20, 60, 20] },
   ],
@@ -221,11 +233,13 @@ export const TEMPLATES: Record<string, TicketTemplate[]> = {
     { s: 'Cycle count variance in aisle 12', d: 'Cycle count shows a 200-piece variance on a high-running part. Need inventory review before tomorrow\'s wave.', t: 'incident', pri: [5, 45, 45, 5] },
     { s: 'Value-add job routing question', d: 'The cut-tape order for {vendor} parts has conflicting instructions between the traveler and the sales order. Which one wins?', t: 'incident', pri: [0, 30, 55, 15] },
     { s: 'Extra staging space for month-end', d: 'Requesting temporary staging space and a second shift overlap for month-end shipping volume next week.', t: 'request', pri: [0, 25, 60, 15] },
+    { s: 'UPS WorldShip won\'t print labels', d: 'UPS WorldShip at the {loc} shipping station errors on every label since this morning. FedEx station still works, but UPS shipments are stacking up.', t: 'incident', pri: [15, 50, 30, 5] },
   ],
   'Supply Chain & Logistics': [
     { s: 'Export docs for {vendor} shipment', d: 'International shipment needs an ECCN review and export documentation before it can leave. Freight is booked for Friday.', t: 'request', pri: [5, 45, 45, 5] },
     { s: 'Carrier billing dispute', d: 'The freight bill for last week\'s inbound is double the quote. Need the carrier invoice disputed and the accrual corrected.', t: 'incident', pri: [0, 25, 55, 20] },
     { s: 'Supplier shipment stuck in customs', d: 'A {vendor} shipment has been held in customs for four days. Two customer orders are waiting on this material.', t: 'incident', pri: [15, 50, 30, 5] },
+    { s: 'FedEx rate quotes failing in shipping software', d: 'FedEx rate lookups are timing out in the shipping software, so everything is defaulting to UPS even when FedEx is cheaper.', t: 'incident', pri: [5, 40, 45, 10] },
   ],
   'DC Solutions': [
     { s: 'DC Connect order stuck in review', d: 'A DC Connect order has been sitting in review for two days and the customer is calling. Can someone release or reject it?', t: 'incident', pri: [10, 50, 35, 5] },
@@ -302,7 +316,7 @@ export const KB_ARTICLES: { title: string; body: string }[] = [
   },
   {
     title: 'Resetting your password with self-service',
-    body: 'Go to passwordreset.microsoftonline.com, enter your work email, and verify with your authenticator app or backup phone number. Choose a passphrase of at least 14 characters.\n\nAfter resetting, update the saved password on your mobile devices immediately — a stale saved password is the most common cause of account lockouts. If you are locked out, wait 15 minutes for the lockout to clear before trying the new password.',
+    body: 'Go to passwordreset.microsoftonline.com, enter your work email, and verify with your authenticator app or backup phone number. Choose a passphrase of at least 14 characters and store it in Keeper — never in a browser\'s built-in password manager.\n\nAfter resetting, update the saved password on your mobile devices immediately — a stale saved password is the most common cause of account lockouts. If you are locked out, wait 15 minutes for the lockout to clear before trying the new password. Keeper master password resets require a Security ticket with manager verification.',
   },
   {
     title: 'Mapping an office printer',
@@ -329,8 +343,8 @@ export const KB_ARTICLES: { title: string; body: string }[] = [
     body: 'EDI failures appear in the EDI error queue with a reason code. For data errors (missing part cross-reference, bad unit of measure), correct the source record and requeue the transaction. For connection errors, verify the trading-partner status page before retrying.\n\nASN (856) failures are time-sensitive because partners require them before receipt — treat these as high priority and include the partner name and PO numbers in the ticket.',
   },
   {
-    title: 'Teams call quality checklist',
-    body: 'Use a wired headset where possible, and if on Wi-Fi, sit within sight of an access point. Check Teams > Settings > Devices to confirm the right microphone is selected — laptop mics pick up keyboard noise.\n\nIf calls degrade at the same times daily, note the pattern in your ticket; scheduled backups and large file syncs are common causes the network team can shift.',
+    title: 'Zoom call quality checklist',
+    body: 'Use a wired headset where possible, and if on Wi-Fi, sit within sight of an access point. Check Zoom > Settings > Audio to confirm the right microphone is selected — laptop mics pick up keyboard noise.\n\nFor conference rooms, restart the Zoom Rooms controller from its settings menu if it freezes. If calls degrade at the same times daily, note the pattern in your ticket; scheduled backups and large file syncs are common causes the network team can shift.',
   },
   {
     title: 'New hire IT setup: what to request and when',
