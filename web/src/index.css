@@ -1,0 +1,35 @@
+/* METS theme — Master Electronics palette:
+   dark blue primary, grey/white surfaces, orange accents. */
+:root {
+  --me-navy: #16324f;
+  --me-navy-deep: #0e2237;
+  --me-navy-soft: #23486e;
+  --me-orange: #f7941d;
+  --me-orange-dark: #d97b0a;
+  --surface: #f4f6f8;
+  --surface-card: #ffffff;
+  --border: #d9dee4;
+  --text: #1c2733;
+  --text-muted: #5c6b7a;
+  --text-on-dark: #f4f6f8;
+  --danger: #c0392b;
+  --ok: #2e7d52;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 14px;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}

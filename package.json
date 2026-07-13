@@ -1,0 +1,22 @@
+{
+  "name": "mets",
+  "private": true,
+  "version": "0.1.0",
+  "description": "METS — Master Electronics Ticketing System",
+  "workspaces": [
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "dev": "npm-run-all --parallel dev:server dev:web",
+    "dev:server": "npm run dev -w server",
+    "dev:web": "npm run dev -w web",
+    "db:up": "docker compose up -d db",
+    "db:push": "npm run db:push -w server",
+    "db:seed": "npm run db:seed -w server",
+    "build": "npm run build -w server && npm run build -w web"
+  },
+  "devDependencies": {
+    "npm-run-all": "^4.1.5"
+  }
+}

@@ -1,0 +1,122 @@
+.menubar {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  background: var(--me-navy);
+  color: var(--text-on-dark);
+  padding: 0 20px;
+  height: 52px;
+}
+
+.menubar .logo {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.menubar .logo span {
+  color: var(--me-orange);
+}
+
+.menubar nav {
+  display: flex;
+  gap: 4px;
+}
+
+.menubar nav a {
+  color: var(--text-on-dark);
+  text-decoration: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  opacity: 0.85;
+}
+
+.menubar nav a:hover,
+.menubar nav a.active {
+  background: var(--me-navy-soft);
+  opacity: 1;
+}
+
+.menubar .spacer {
+  flex: 1;
+}
+
+.menubar .search {
+  background: var(--me-navy-deep);
+  border: 1px solid var(--me-navy-soft);
+  border-radius: 4px;
+  color: var(--text-on-dark);
+  padding: 6px 10px;
+  width: 260px;
+}
+
+.modebar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface-card);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 20px;
+}
+
+.modebar button {
+  border: 1px solid var(--border);
+  background: var(--surface-card);
+  color: var(--text);
+  padding: 6px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.modebar button:hover {
+  border-color: var(--me-navy);
+}
+
+.modebar button.active {
+  background: var(--me-navy);
+  border-color: var(--me-navy);
+  color: var(--text-on-dark);
+}
+
+.modebar button.active.accent {
+  background: var(--me-orange);
+  border-color: var(--me-orange-dark);
+}
+
+.queue-area {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  padding: 24px 20px;
+}
+
+.queue-panel {
+  width: 100%;
+  max-width: 1100px;
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 40px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.status-pill {
+  display: inline-block;
+  margin-top: 12px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.status-pill.ok {
+  background: #e2f2e9;
+  color: var(--ok);
+}
+
+.status-pill.down {
+  background: #fae4e1;
+  color: var(--danger);
+}
