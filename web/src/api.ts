@@ -157,3 +157,20 @@ export const fetchSuggestions = (ticketId: number) => api<Suggestions>(`/api/tic
 
 export const draftReply = (ticketId: number) =>
   api<{ draft: string; groundedIn: string[] }>(`/api/tickets/${ticketId}/draft-reply`, { method: 'POST', body: '{}' });
+
+// --- Mail simulator ---
+
+export type MailboxThread = {
+  number: string; subject: string; status: string; category: string | null;
+  entries: { kind: 'sent' | 'ack' | 'reply'; from: string; at: string; body: string }[];
+};
+
+export const fetchSenders = () =>
+  api<{ name: string; email: string; department: string | null }[]>('/api/mail/senders');
+
+export const fetchMailbox = (email: string) =>
+  api<{ email: string; threads: MailboxThread[] }>(`/api/mail/mailbox?email=${encodeURIComponent(email)}`);
+
+export const sendInboundEmail = (data: { from: string; subject: string; body: string }) =>
+  api<{ action: 'created' | 'appended'; ticketId: number; number: string }>(
+    '/api/mail/inbound', { method: 'POST', body: JSON.stringify(data) });

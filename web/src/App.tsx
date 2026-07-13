@@ -20,6 +20,7 @@ import {
 import { MODES, type Mode } from './board';
 import { BulkBar } from './components/BulkBar';
 import { Dashboard } from './components/Dashboard';
+import { EmailSimulator } from './components/EmailSimulator';
 import { KnowledgeBase } from './components/KnowledgeBase';
 import { NewTicketDialog } from './components/NewTicketDialog';
 import { ActionRail, AgentRail } from './components/Rail';
@@ -43,7 +44,7 @@ export default function App() {
   const [draggingId, setDraggingId] = useState<number | null>(null);
   const [snoozeIds, setSnoozeIds] = useState<number[] | null>(null);
   const [newTicketOpen, setNewTicketOpen] = useState(false);
-  const [page, setPage] = useState<'queue' | 'dashboards' | 'kb'>('queue');
+  const [page, setPage] = useState<'queue' | 'dashboards' | 'kb' | 'email'>('queue');
   const [userId, setUserId] = useState(actingUserId());
   const [theme, setTheme] = useState(() => localStorage.getItem('mets-theme') ?? 'light');
 
@@ -145,6 +146,7 @@ export default function App() {
           <a className={page === 'queue' ? 'active' : ''} href="#" onClick={(e) => { e.preventDefault(); setPage('queue'); }}>Queue</a>
           <a className={page === 'dashboards' ? 'active' : ''} href="#" onClick={(e) => { e.preventDefault(); setPage('dashboards'); }}>Dashboards</a>
           <a className={page === 'kb' ? 'active' : ''} href="#" onClick={(e) => { e.preventDefault(); setPage('kb'); }}>Knowledge Base</a>
+          <a className={page === 'email' ? 'active' : ''} href="#" onClick={(e) => { e.preventDefault(); setPage('email'); }}>Email</a>
           <a href="#" title="Admin screens land on Day 7" onClick={(e) => e.preventDefault()}>Admin</a>
         </nav>
         <div className="spacer" />
@@ -181,6 +183,7 @@ export default function App() {
 
       {page === 'dashboards' && <Dashboard />}
       {page === 'kb' && <KnowledgeBase />}
+      {page === 'email' && <EmailSimulator />}
 
       {page === 'queue' && (<>
       <div className="modebar">

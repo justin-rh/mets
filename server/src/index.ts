@@ -6,6 +6,7 @@ import { db } from './db/index.js';
 import { aiRoutes } from './routes/ai.js';
 import { dashboardRoutes } from './routes/dashboard.js';
 import { kbRoutes } from './routes/kb.js';
+import { mailRoutes } from './routes/mail.js';
 import { metaRoutes } from './routes/meta.js';
 import { ticketRoutes } from './routes/tickets.js';
 import { ensureKbEmbeddings } from './services/kb/kbService.js';
@@ -49,6 +50,7 @@ await app.register(ticketRoutes);
 await app.register(aiRoutes);
 await app.register(kbRoutes);
 await app.register(dashboardRoutes);
+await app.register(mailRoutes);
 
 try {
   await app.listen({ port: env.port, host: '0.0.0.0' });

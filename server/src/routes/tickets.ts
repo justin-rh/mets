@@ -3,10 +3,9 @@ import { and, asc, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-o
 import { alias } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import { db, schema } from '../db/index.js';
-import { applyTicketChanges, autoAssign, type TicketChanges } from '../services/ticketService.js';
+import { applyTicketChanges, autoAssign, createTicketCore, type TicketChanges } from '../services/ticketService.js';
 import { enrichTicket } from '../services/ai/enrichment.js';
-import { applyRoutingRules } from '../services/routing.js';
-import { attachSlas, completeFirstResponse } from '../services/sla/slaService.js';
+import { completeFirstResponse } from '../services/sla/slaService.js';
 
 const { tickets, statuses, teams, users, ticketTags, tags, slaInstances, ticketComments, ticketEvents, categories } = schema;
 
@@ -178,7 +177,7 @@ export async function ticketRoutes(app: FastifyInstance) {
     return { ...t, comments, events, sla, tags: tagRows.map((r) => r.name), ai: ai ?? null };
   });
 
-  app.post('/api/tickets', async (req, reply) => {
+  app.post('/api/tickets', async (req) => {
     const body = z.object({
       subject: z.string().trim().min(3).max(300),
       description: z.string().trim().min(1).max(20_000),
@@ -186,40 +185,14 @@ export async function ticketRoutes(app: FastifyInstance) {
       priority: z.number().min(1).max(4).default(3),
     }).parse(req.body);
 
-    const [defaultStatus] = await db.select().from(statuses)
-      .where(eq(statuses.isDefault, true)).limit(1);
-    const [defaultQueue] = await db.select().from(teams).orderBy(teams.id).limit(1);
-    if (!defaultStatus || !defaultQueue) {
-      return reply.status(500).send({ error: 'no default status/queue configured' });
-    }
-
-    const [created] = await db.insert(tickets).values({
-      subject: body.subject,
-      description: body.description,
-      type: body.type,
-      priority: body.priority,
-      statusId: defaultStatus.id,
-      queueId: defaultQueue.id,
-      requesterId: req.userId,
-      source: 'portal',
-    }).returning();
-
-    await db.insert(schema.ticketEvents).values({
-      ticketId: created!.id, actorId: req.userId, actorType: 'user', eventType: 'created',
+    const created = await createTicketCore({
+      ...body, requesterId: req.userId, source: 'portal',
     });
-
-    // Routing rules first (may move queue / raise priority, logged as rule
-    // events), then SLAs attach against the post-routing priority.
-    await applyRoutingRules(created!.id).catch((err) =>
-      app.log.warn({ err, ticketId: created!.id }, 'routing rules failed'),
-    );
-    const [routed] = await db.select({ priority: tickets.priority }).from(tickets).where(eq(tickets.id, created!.id));
-    await attachSlas(db, created!.id, routed?.priority ?? created!.priority);
 
     // AI enrichment runs off the request path — categorization/queue/priority
     // land seconds later as audited 'ai' events (or a pending suggestion).
-    enrichTicket(created!.id, 'auto').catch((err) =>
-      app.log.warn({ err, ticketId: created!.id }, 'ai enrichment failed'),
+    enrichTicket(created.id, 'auto').catch((err) =>
+      app.log.warn({ err, ticketId: created.id }, 'ai enrichment failed'),
     );
 
     return created;

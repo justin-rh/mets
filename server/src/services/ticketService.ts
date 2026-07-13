@@ -147,6 +147,49 @@ export async function applyTicketChanges(ticketId: number, actor: Actor, changes
 }
 
 /**
+ * Create a ticket through the full intake pipeline: insert + created event,
+ * routing rules, SLA attachment. AI enrichment is fired by the caller
+ * (off the request path). Shared by the portal route and inbound email.
+ */
+export async function createTicketCore(input: {
+  subject: string;
+  description: string;
+  requesterId: number;
+  source: 'portal' | 'email' | 'agent' | 'api';
+  type?: 'incident' | 'request' | 'change';
+  priority?: number;
+}) {
+  const [defaultStatus] = await db.select().from(statuses).where(eq(statuses.isDefault, true)).limit(1);
+  const [defaultQueue] = await db.select().from(teams).orderBy(teams.id).limit(1);
+  if (!defaultStatus || !defaultQueue) throw new Error('no default status/queue configured');
+
+  const [created] = await db.insert(tickets).values({
+    subject: input.subject,
+    description: input.description,
+    type: input.type ?? 'incident',
+    priority: input.priority ?? 3,
+    statusId: defaultStatus.id,
+    queueId: defaultQueue.id,
+    requesterId: input.requesterId,
+    source: input.source,
+  }).returning();
+
+  await db.insert(ticketEvents).values({
+    ticketId: created!.id, actorId: input.requesterId, actorType: 'user', eventType: 'created',
+    field: 'source', newValue: input.source,
+  });
+
+  // Deferred imports avoid a routing/SLA <-> ticketService import cycle.
+  const { applyRoutingRules } = await import('./routing.js');
+  const { attachSlas } = await import('./sla/slaService.js');
+  await applyRoutingRules(created!.id).catch(() => {});
+  const [routed] = await db.select({ priority: tickets.priority }).from(tickets).where(eq(tickets.id, created!.id));
+  await attachSlas(db, created!.id, routed?.priority ?? created!.priority);
+
+  return created!;
+}
+
+/**
  * Round-robin auto-assign within each ticket's queue. Advisory lock per queue
  * protects the rotation pointer from concurrent assignment.
  */
