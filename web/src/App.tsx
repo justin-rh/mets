@@ -1,8 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
-  type DragEndEvent, type DragStartEvent,
+  DndContext, DragOverlay, PointerSensor, pointerWithin, rectIntersection,
+  useSensor, useSensors,
+  type CollisionDetection, type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core';
+import { snapCenterToCursor } from '@dnd-kit/modifiers';
+
+// The drop target is whatever is under the mouse cursor; rectangle overlap
+// only as a fallback when the pointer isn't inside any droppable.
+const cursorFirst: CollisionDetection = (args) => {
+  const hits = pointerWithin(args);
+  return hits.length > 0 ? hits : rectIntersection(args);
+};
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   actingUserId, bulkTickets, fetchMeta, fetchTickets, setActingUserId,
@@ -92,7 +101,7 @@ export default function App() {
   const draggingTicket = ticketRows.find((t) => t.id === draggingId);
 
   return (
-    <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+    <DndContext sensors={sensors} collisionDetection={cursorFirst} onDragStart={onDragStart} onDragEnd={onDragEnd}>
       <header className="menubar">
         <div className="logo">MET<span>S</span></div>
         <nav>
@@ -198,7 +207,7 @@ export default function App() {
         <ActionRail mode={mode} meta={meta} />
       </div>
 
-      <DragOverlay dropAnimation={null} style={{ width: 'max-content', height: 'auto' }}>
+      <DragOverlay dropAnimation={null} modifiers={[snapCenterToCursor]} style={{ width: 'max-content', height: 'auto' }}>
         {draggingId && (
           <div className="drag-ghost">
             {draggingCount > 1
