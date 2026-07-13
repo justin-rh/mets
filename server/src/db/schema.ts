@@ -37,9 +37,9 @@ export const slaState = pgEnum('sla_state', ['running', 'paused', 'completed', '
 export const kbStatus = pgEnum('kb_status', ['draft', 'published', 'archived']);
 export const approvalState = pgEnum('approval_state', ['pending', 'approved', 'rejected']);
 
-// Human-facing ticket numbers: T-10042. Single number space by design —
-// incident/request/change is a field, not a record class.
-export const ticketNumberSeq = pgSequence('ticket_number_seq', { startWith: 10000 });
+// Human-facing ticket numbers: T-1000042 (7 digits). Single number space by
+// design — incident/request/change is a field, not a record class.
+export const ticketNumberSeq = pgSequence('ticket_number_seq', { startWith: 1000000 });
 
 // ---------------------------------------------------------------------------
 // Identity

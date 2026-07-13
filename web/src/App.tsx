@@ -147,7 +147,7 @@ export default function App() {
         </button>
         <input
           className="search"
-          placeholder="Search tickets… (T-10042, subject)"
+          placeholder="Search tickets… (T-1000042, subject)"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -211,7 +211,7 @@ export default function App() {
       </div>
 
       <div className="board">
-        <AgentRail meta={meta} queueId={queueId} />
+        <AgentRail meta={meta} queueId={queueId} mode={mode} />
         {mode === 'AI Triage' ? (
           <main className="queue-list">
             <TriagePanel />

@@ -173,7 +173,7 @@ select, textarea, input[type='text'], .modal input {
 
 .ticket-row {
   display: grid;
-  grid-template-columns: 18px 18px 36px 74px minmax(120px, 1fr) minmax(0, 84px) 104px 30px 34px 38px 102px 96px 28px;
+  grid-template-columns: 18px 18px 36px 88px minmax(120px, 1fr) minmax(0, 84px) 104px 30px 34px 38px 102px 96px 28px;
   align-items: center;
   gap: 7px;
   padding: 7px 10px;
@@ -503,6 +503,15 @@ select, textarea, input[type='text'], .modal input {
 .rail-info p { margin: 6px 0 0; }
 
 .rail-spacer { flex: 1; min-height: 12px; }
+
+.rail-divider {
+  height: 1px;
+  background: var(--line-strong);
+  margin: 5px 2px;
+  flex-shrink: 0;
+}
+
+.agent-card.agent-me { border-left: 3px solid var(--accent); }
 
 .snooze-zone {
   border-style: dashed;

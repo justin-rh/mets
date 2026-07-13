@@ -123,7 +123,7 @@ async function main() {
       tags, categories, statuses, team_memberships, teams, users, app_config
     RESTART IDENTITY CASCADE
   `);
-  await db.execute(sql`ALTER SEQUENCE ticket_number_seq RESTART WITH 10000`);
+  await db.execute(sql`ALTER SEQUENCE ticket_number_seq RESTART WITH 1000000`);
 
   // --- reference data ---------------------------------------------------------
 

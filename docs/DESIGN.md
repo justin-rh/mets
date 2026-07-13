@@ -57,7 +57,7 @@ sprawl) instead of paying for it.
 | Assigning tickets to yourself is clunky | One-click **Assign to Me** on every ticket row + drag onto your own avatar in Assign mode |
 | Re-assigning to another group is painful | Drag ticket onto any queue (Move mode), or bulk-select → Move. AI suggests the correct queue when category looks wrong |
 | Misplaced priority (low marked high, vice versa) | AI priority check on every inbound ticket: flags mismatches between stated priority and content, suggests correction with one-click accept |
-| RITM and INC categories unnecessary; REQ ignored | **One ticket number space** (`T-10042`). `type` (incident / request / change) is just a field driving workflow differences, not a separate record class |
+| RITM and INC categories unnecessary; REQ ignored | **One ticket number space** (`T-1000042`). `type` (incident / request / change) is just a field driving workflow differences, not a separate record class |
 | Can't hide or delay tickets | **Snooze**: per-ticket, with wake date + reason, visible to leads (governance — snoozed ≠ vanished). Snoozed tickets leave your queue view and return automatically |
 | (implicit) Wrong-category submissions | AI auto-categorization at creation; requester's category choice is a *hint*, not law |
 
@@ -189,7 +189,7 @@ custom fields; append-only events for history.
 
 ```
 tickets
-  id bigint PK · number text (T-10042, from sequence)
+  id bigint PK · number text (T-1000042, from sequence)
   type enum(incident|request|change)
   subject · description
   status_id FK · priority smallint(1-4) · score int (computed, cached)
@@ -340,7 +340,7 @@ stored in `ai_enrichments` with model + prompt_version provenance.
   scheduled renewal job + resubscribe on lifecycle events. 2–5 min fallback
   poll regardless.
 - **Threading**: (1) store Message-ID of every mail sent/received keyed to
-  ticket; match inbound In-Reply-To/References. (2) Fallback: `[T-10042]`
+  ticket; match inbound In-Reply-To/References. (2) Fallback: `[T-1000042]`
   subject token. (3) No conservative-fuzzy matching in v1 — false merges are
   worse than duplicates.
 - **Loop prevention**: RFC 3834 headers outbound; drop auto-submitted inbound;
@@ -463,7 +463,7 @@ never cut — they are the demo.
    snooze duration?
 3. Change approvals — single approver (manager) in v1 (default), or demo a
    two-step chain?
-4. Ticket number format — `T-10042` (default) vs typed prefixes
+4. Ticket number format — `T-1000042` (default) vs typed prefixes
    (`INC-`/`REQ-`) which the pain points suggest killing?
 5. Demo data — generate synthetic Master-Electronics-flavored tickets
    (default), or can you export a real anonymized ServiceNow sample?

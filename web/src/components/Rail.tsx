@@ -1,5 +1,5 @@
 import { useDroppable } from '@dnd-kit/core';
-import type { Meta } from '../api';
+import type { AgentInfo, Meta } from '../api';
 import { actingUserId, type Mode } from '../board';
 import { initials } from '../format';
 
@@ -12,42 +12,63 @@ function DropCard({ id, className, children }: { id: string; className?: string;
   );
 }
 
-/** Left rail: agents as drop targets. */
-export function AgentRail({ meta, queueId }: { meta: Meta | undefined; queueId?: number }) {
+function AgentCard({ a, isMe }: { a: AgentInfo; isMe: boolean }) {
+  return (
+    <DropCard id={`agent-${a.id}`} className={`agent-card ${isMe ? 'agent-me' : ''}`}>
+      <span className="avatar">{initials(a.name)}</span>
+      <span className="agent-info">
+        <strong>{a.name}{isMe ? ' (you)' : ''}</strong>
+        <span className="loadbar">
+          <span className="loadbar-fill" style={{ width: `${Math.min(100, (a.openCount / a.maxOpen) * 100)}%` }} />
+        </span>
+        <span className="rail-sub">
+          {a.openCount} open
+          {a.skills.length > 0 && ` · ${a.skills.slice(0, 3).map((s) => s.name).join(', ')}`}
+        </span>
+      </span>
+    </DropCard>
+  );
+}
+
+/** Left rail: you first, divider, then other agents alphabetically. */
+export function AgentRail({ meta, queueId, mode }: { meta: Meta | undefined; queueId?: number; mode: Mode }) {
   if (!meta) return <aside className="rail rail-left" />;
   const me = actingUserId();
+  const myAgent = meta.agents.find((a) => a.id === me);
+  const myTeamIds = new Set(myAgent?.teamIds ?? []);
 
-  const agents = meta.agents
-    .filter((a) => (queueId ? a.teamIds.includes(queueId) : true))
-    .sort((a, b) => a.openCount - b.openCount);
+  let others = meta.agents.filter((a) => a.id !== me);
+  if (queueId) others = others.filter((a) => a.teamIds.includes(queueId));
+  // My Categories: only teammates — agents who share a queue with you.
+  if (mode === 'My Categories') others = others.filter((a) => a.teamIds.some((t) => myTeamIds.has(t)));
+  others.sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <aside className="rail rail-left">
-      <div className="rail-title">Agents{queueId ? ' in queue' : ''} — drop to assign</div>
+      <div className="rail-title">Agents — drop to assign</div>
       <div className="agent-list">
-        {agents.map((a) => (
-          <DropCard key={a.id} id={`agent-${a.id}`} className="agent-card">
-            <span className="avatar">{initials(a.name)}</span>
-            <span className="agent-info">
-              <strong>{a.name}{a.id === me ? ' (you)' : ''}</strong>
-              <span className="loadbar">
-                <span className="loadbar-fill" style={{ width: `${Math.min(100, (a.openCount / a.maxOpen) * 100)}%` }} />
-              </span>
-              <span className="rail-sub">
-                {a.openCount} open
-                {a.skills.length > 0 && ` · ${a.skills.slice(0, 3).map((s) => s.name).join(', ')}`}
-              </span>
-            </span>
-          </DropCard>
-        ))}
+        {myAgent && <AgentCard a={myAgent} isMe />}
+        {myAgent && others.length > 0 && <div className="rail-divider" />}
+        {others.map((a) => <AgentCard key={a.id} a={a} isMe={false} />)}
       </div>
     </aside>
   );
 }
 
-/** Right rail: everything else — quick assigns, queues, holding area. */
+/** Right rail: quick assigns, then your queues / divider / other queues, holding area. */
 export function ActionRail({ mode, meta }: { mode: Mode; meta: Meta | undefined }) {
   if (!meta) return <aside className="rail rail-right" />;
+  const myTeamIds = new Set(meta.agents.find((a) => a.id === actingUserId())?.teamIds ?? []);
+  const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name);
+  const myQueues = meta.queues.filter((q) => myTeamIds.has(q.id)).sort(byName);
+  const otherQueues = meta.queues.filter((q) => !myTeamIds.has(q.id)).sort(byName);
+
+  const queueCard = (q: Meta['queues'][number]) => (
+    <DropCard key={q.id} id={`queue-${q.id}`} className="queue-card">
+      <strong>{q.name}</strong>
+      <span className="rail-sub">{q.openCount} open · {q.assignmentPolicy.replace('_', ' ')}</span>
+    </DropCard>
+  );
 
   return (
     <aside className="rail rail-right">
@@ -62,12 +83,9 @@ export function ActionRail({ mode, meta }: { mode: Mode; meta: Meta | undefined 
       </DropCard>
 
       <div className="rail-title">Queues — drop to move</div>
-      {meta.queues.map((q) => (
-        <DropCard key={q.id} id={`queue-${q.id}`} className="queue-card">
-          <strong>{q.name}</strong>
-          <span className="rail-sub">{q.openCount} open · {q.assignmentPolicy.replace('_', ' ')}</span>
-        </DropCard>
-      ))}
+      {myQueues.map(queueCard)}
+      {myQueues.length > 0 && otherQueues.length > 0 && <div className="rail-divider" />}
+      {otherQueues.map(queueCard)}
 
       {mode === 'AI Triage' && (
         <div className="rail-info">
