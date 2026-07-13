@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import type { TicketListItem } from '../api';
 import { TYPE_LABEL, age, initials, slaView } from '../format';
@@ -18,12 +19,28 @@ export function TicketRow({ ticket: t, selected, expanded, onToggleSelect, onTog
   });
   const sla = slaView(t.sla);
 
+  // Drag starts anywhere on the row (>6px movement); a plain click expands.
+  // After a drop, the browser still fires a click on the row — swallow it.
+  const justDragged = useRef(false);
+  useEffect(() => {
+    if (isDragging) justDragged.current = true;
+  }, [isDragging]);
+
   return (
     <div className={`ticket ${isDragging ? 'dragging' : ''} ${expanded ? 'expanded' : ''}`} ref={setNodeRef}>
-      <div className="ticket-row" onClick={() => onToggleExpand(t.id)}>
-        <span className="drag-handle" {...listeners} {...attributes} onClick={(e) => e.stopPropagation()}>
-          ⠿
-        </span>
+      <div
+        className="ticket-row"
+        {...listeners}
+        {...attributes}
+        onClick={() => {
+          if (justDragged.current) {
+            justDragged.current = false;
+            return;
+          }
+          onToggleExpand(t.id);
+        }}
+      >
+        <span className="drag-handle" title="Drag to assign, move, or snooze">⠿</span>
         <input
           type="checkbox"
           checked={selected}

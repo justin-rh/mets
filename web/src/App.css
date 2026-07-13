@@ -391,6 +391,10 @@ select, textarea, input[type='text'], .modal input {
   font-size: 13px;
   box-shadow: 0 6px 18px rgba(14, 34, 55, 0.35);
   cursor: grabbing;
+  max-width: 280px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ===== modal ===== */

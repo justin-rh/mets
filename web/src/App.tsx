@@ -198,10 +198,12 @@ export default function App() {
         <ActionRail mode={mode} meta={meta} />
       </div>
 
-      <DragOverlay dropAnimation={null}>
+      <DragOverlay dropAnimation={null} style={{ width: 'max-content', height: 'auto' }}>
         {draggingId && (
           <div className="drag-ghost">
-            {draggingCount > 1 ? `${draggingCount} tickets` : draggingTicket?.number ?? ''}
+            {draggingCount > 1
+              ? `${draggingCount} tickets`
+              : `${draggingTicket?.number ?? ''} · ${draggingTicket?.subject ?? ''}`}
           </div>
         )}
       </DragOverlay>
