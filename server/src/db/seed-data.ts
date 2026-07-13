@@ -25,7 +25,7 @@ export const DEPARTMENTS = [
 
 export const LOCATIONS = ['Phoenix HQ', 'Phoenix Warehouse', 'remote', 'the Dallas branch office'];
 
-export const APPS = ['Epicor', 'Salesforce', 'Power BI', 'Excel', 'Outlook', 'Teams', 'SharePoint', 'Concur', 'ADP'];
+export const APPS = ['MERP', 'Salesforce', 'Power BI', 'Excel', 'Outlook', 'Teams', 'SharePoint', 'Concur', 'ADP'];
 export const VENDORS = ['TTI', 'Arrow', 'Digi-Key', 'a key supplier', 'our freight carrier'];
 export const DEVICES = ['Dell Latitude laptop', 'desktop', 'second monitor', 'docking station', 'Surface Pro', 'desk phone'];
 export const PRINTERS = ['the Sales floor Ricoh', 'the Accounting HP printer', 'the shipping label Zebra ZT411', 'the receiving-dock Zebra'];
@@ -35,7 +35,8 @@ export const REPORTS = ['open orders report', 'daily bookings dashboard', 'inven
 export const QUEUES = [
   { slug: 'it-support', name: 'IT Support', description: 'General helpdesk: hardware, software, email, printing, phones', policy: 'round_robin' },
   { slug: 'infra-network', name: 'Infrastructure & Network', description: 'Network, VPN, servers, warehouse wireless and RF equipment', policy: 'load_based' },
-  { slug: 'apps-erp', name: 'Applications & ERP', description: 'Epicor ERP, EDI, Salesforce, integrations', policy: 'manual' },
+  { slug: 'merp', name: 'MERP', description: 'MERP — the in-house ERP: order entry, inventory, pricing, EDI, patches', policy: 'manual' },
+  { slug: 'apps-erp', name: 'Business Applications', description: 'Salesforce, quoting tools, and other business applications and integrations', policy: 'manual' },
   { slug: 'security-access', name: 'Security & Access', description: 'Account access, permissions, MFA, security incidents', policy: 'round_robin' },
   { slug: 'data-reporting', name: 'Data & Reporting', description: 'Reports, dashboards, data extracts, Power BI', policy: 'manual' },
   { slug: 'facilities', name: 'Facilities', description: 'Badges, desks, HVAC, office equipment moves', policy: 'manual' },
@@ -51,7 +52,8 @@ export const CATEGORIES: { name: string; queue: string; description: string }[] 
   { name: 'Onboarding & Offboarding', queue: 'it-support', description: 'New hire setup, departures, equipment provisioning, account lifecycle' },
   { name: 'Network & VPN', queue: 'infra-network', description: 'Connectivity, Wi-Fi, VPN access and performance, site-to-site links' },
   { name: 'Warehouse Tech', queue: 'infra-network', description: 'RF scanners, warehouse wireless, label print stations, conveyor-adjacent systems' },
-  { name: 'ERP & Business Apps', queue: 'apps-erp', description: 'Epicor ERP, EDI transactions, Salesforce, quoting tools, integrations between systems' },
+  { name: 'MERP', queue: 'merp', description: 'MERP, the in-house ERP: order entry, inventory, pricing, EDI transactions, user accounts, patches and performance' },
+  { name: 'Business Apps', queue: 'apps-erp', description: 'Salesforce, quoting tools, and integrations between business systems (excluding MERP itself)' },
   { name: 'Access & Accounts', queue: 'security-access', description: 'Password resets, account lockouts, permission/share access requests, group membership' },
   { name: 'Security', queue: 'security-access', description: 'Phishing reports, suspicious activity, MFA problems, security policy questions' },
   { name: 'Data & Reporting', queue: 'data-reporting', description: 'Report requests and fixes, dashboards, data extracts, Power BI access' },
@@ -59,13 +61,13 @@ export const CATEGORIES: { name: string; queue: string; description: string }[] 
 ];
 
 export const TAGS = [
-  'vpn', 'onboarding', 'printer', 'erp', 'edi', 'rf-scanner', 'salesforce',
+  'vpn', 'onboarding', 'printer', 'merp', 'edi', 'rf-scanner', 'salesforce',
   'phishing', 'new-hire', 'hardware-refresh', 'project-falcon', 'warehouse',
   'exec-visibility', 'recurring',
 ];
 
 export const SKILLS = [
-  'Windows', 'Networking', 'VPN', 'Epicor', 'EDI', 'Salesforce', 'Power BI',
+  'Windows', 'Networking', 'VPN', 'MERP', 'EDI', 'Salesforce', 'Power BI',
   'M365', 'Security', 'Zebra Printers', 'RF Scanners', 'Telephony',
 ];
 
@@ -130,14 +132,18 @@ export const TEMPLATES: Record<string, TicketTemplate[]> = {
     { s: 'New pack station setup', d: 'Adding a pack station at {loc} — needs a workstation, {printer} connection, and scale integration.', t: 'request' },
     { s: 'Scanner OS update rollout', d: 'Vendor recommends firmware update for all RF scanners to fix the roaming bug. Requesting change window Sunday night.', t: 'change', pri: [5, 40, 50, 5] },
   ],
-  'ERP & Business Apps': [
-    { s: 'Epicor slow during order entry', d: 'Order entry screens in Epicor taking 15-20 seconds per save since yesterday. Whole {dept} team affected during peak entry.', t: 'incident', pri: [25, 50, 25, 0] },
+  MERP: [
+    { s: 'MERP slow during order entry', d: 'Order entry screens in MERP taking 15-20 seconds per save since yesterday. Whole {dept} team affected during peak entry.', t: 'incident', pri: [25, 50, 25, 0] },
     { s: 'EDI 856 failing to {vendor}', d: 'ASNs to {vendor} failing since last night — 14 orders stuck in the EDI error queue. They require ASN before receipt.', t: 'incident', pri: [30, 50, 20, 0] },
-    { s: 'Salesforce opportunity sync stuck', d: 'Opportunities updated in Salesforce aren\'t syncing to Epicor. Sync log shows errors since about 7am.', t: 'incident', pri: [10, 50, 35, 5] },
-    { s: 'New Epicor user setup', d: 'Please set up an Epicor account for a new {dept} member — mirror the permissions of their teammates.', t: 'request' },
-    { s: 'Quote tool rounding wrong', d: 'The quoting tool rounds extended prices differently than Epicor, causing pennies-off discrepancies on large-quantity quotes.', t: 'incident', pri: [0, 30, 55, 15] },
-    { s: 'Epicor patch deployment', d: 'Requesting approval to apply the latest Epicor service pack in the Sunday maintenance window. Tested in the sandbox.', t: 'change', pri: [5, 50, 40, 5] },
+    { s: 'New MERP user setup', d: 'Please set up a MERP account for a new {dept} member — mirror the permissions of their teammates.', t: 'request' },
+    { s: 'MERP patch deployment', d: 'Requesting approval to apply the latest MERP service pack in the Sunday maintenance window. Tested in the sandbox.', t: 'change', pri: [5, 50, 40, 5] },
     { s: 'Price list import failed', d: 'The {vendor} price list import failed at row 8,000 with a data type error. New pricing goes live Monday.', t: 'incident', pri: [10, 50, 35, 5] },
+  ],
+  'Business Apps': [
+    { s: 'Salesforce opportunity sync stuck', d: 'Opportunities updated in Salesforce aren\'t syncing to MERP. Sync log shows errors since about 7am.', t: 'incident', pri: [10, 50, 35, 5] },
+    { s: 'Quote tool rounding wrong', d: 'The quoting tool rounds extended prices differently than MERP, causing pennies-off discrepancies on large-quantity quotes.', t: 'incident', pri: [0, 30, 55, 15] },
+    { s: 'Concur expense report stuck in approval', d: 'An expense report has been sitting in Pending Approval for two weeks; the listed approver left the company last month.', t: 'incident', pri: [0, 20, 55, 25] },
+    { s: 'Salesforce access for new rep', d: 'New {dept} team member needs a Salesforce license and addition to the regional sharing group.', t: 'request' },
   ],
   'Access & Accounts': [
     { s: 'Account locked out', d: 'Locked out of my account after password change on my phone. Can\'t log into anything. Calling from a teammate\'s desk.', t: 'incident', pri: [10, 45, 40, 5] },
@@ -154,7 +160,7 @@ export const TEMPLATES: Record<string, TicketTemplate[]> = {
     { s: 'USB port policy exception', d: '{dept} needs a policy exception to use a vendor-provided USB tool for firmware updates on test equipment.', t: 'change', pri: [0, 25, 55, 20] },
   ],
   'Data & Reporting': [
-    { s: '{report} showing wrong numbers', d: 'The {report} totals don\'t match Epicor for yesterday — off by about 4%. Leadership reviews this every morning.', t: 'incident', pri: [10, 50, 35, 5] },
+    { s: '{report} showing wrong numbers', d: 'The {report} totals don\'t match MERP for yesterday — off by about 4%. Leadership reviews this every morning.', t: 'incident', pri: [10, 50, 35, 5] },
     { s: 'New dashboard request', d: '{dept} would like a Power BI dashboard for the {report}, refreshed daily, filterable by branch and salesperson.', t: 'request' },
     { s: 'Power BI access request', d: 'Requesting Power BI access to view the {report}. My whole team has it; I was missed in the last batch.', t: 'request', pri: [0, 5, 50, 45] },
     { s: 'Scheduled report stopped sending', d: 'The 6am {report} email hasn\'t arrived for three days. It drives our morning {dept} standup.', t: 'incident', pri: [5, 45, 45, 5] },
@@ -227,7 +233,7 @@ export const KB_ARTICLES: { title: string; body: string }[] = [
     body: 'If external senders report bounces, check your mailbox size under File > Tools > Mailbox Cleanup — a full mailbox rejects mail. Archive or empty Deleted Items to free space quickly.\n\nIf a specific sender\'s mail never arrives, check Junk Email and ask them to verify the exact address. For anything mentioning quarantine, forward the notification to a ticket so the security team can release legitimate messages.',
   },
   {
-    title: 'Epicor: resolving stuck EDI transactions',
+    title: 'MERP: resolving stuck EDI transactions',
     body: 'EDI failures appear in the EDI error queue with a reason code. For data errors (missing part cross-reference, bad unit of measure), correct the source record and requeue the transaction. For connection errors, verify the trading-partner status page before retrying.\n\nASN (856) failures are time-sensitive because partners require them before receipt — treat these as high priority and include the partner name and PO numbers in the ticket.',
   },
   {
@@ -236,7 +242,7 @@ export const KB_ARTICLES: { title: string; body: string }[] = [
   },
   {
     title: 'New hire IT setup: what to request and when',
-    body: 'Submit onboarding tickets at least 5 business days before the start date. Include: start date, department, manager, desk location, and any non-standard software. Standard setup includes a laptop, account, email, phone extension, and badge.\n\nEpicor, Salesforce, and Power BI access are provisioned separately and need the role or a teammate to mirror. Late requests are handled best-effort and often mean a loaner laptop for week one.',
+    body: 'Submit onboarding tickets at least 5 business days before the start date. Include: start date, department, manager, desk location, and any non-standard software. Standard setup includes a laptop, account, email, phone extension, and badge.\n\nMERP, Salesforce, and Power BI access are provisioned separately and need the role or a teammate to mirror. Late requests are handled best-effort and often mean a loaner laptop for week one.',
   },
   {
     title: 'Reporting a phishing or suspicious email',
@@ -244,7 +250,7 @@ export const KB_ARTICLES: { title: string; body: string }[] = [
   },
   {
     title: 'Requesting a new report or dashboard',
-    body: 'Include the business question, the audience, the needed refresh frequency, and an example (even a rough spreadsheet) of the desired output. Name the source systems if known — Epicor, Salesforce, or both.\n\nOne-time extracts are usually turned around within 2-3 business days. Recurring dashboards go through a short scoping conversation to confirm definitions (what counts as an "open order" differs by team more than you would expect).',
+    body: 'Include the business question, the audience, the needed refresh frequency, and an example (even a rough spreadsheet) of the desired output. Name the source systems if known — MERP, Salesforce, or both.\n\nOne-time extracts are usually turned around within 2-3 business days. Recurring dashboards go through a short scoping conversation to confirm definitions (what counts as an "open order" differs by team more than you would expect).',
   },
   {
     title: 'Badge access: requests and issues',

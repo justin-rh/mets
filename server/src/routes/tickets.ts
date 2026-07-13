@@ -4,6 +4,7 @@ import { alias } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import { db, schema } from '../db/index.js';
 import { applyTicketChanges, autoAssign, type TicketChanges } from '../services/ticketService.js';
+import { enrichTicket } from '../services/ai/enrichment.js';
 
 const { tickets, statuses, teams, users, ticketTags, tags, slaInstances, ticketComments, ticketEvents, categories } = schema;
 
@@ -161,8 +162,51 @@ export async function ticketRoutes(app: FastifyInstance) {
     const tagRows = await db.select({ name: tags.name })
       .from(ticketTags).innerJoin(tags, eq(tags.id, ticketTags.tagId))
       .where(eq(ticketTags.ticketId, id));
+    const [ai] = await db.select().from(schema.aiEnrichments)
+      .where(and(eq(schema.aiEnrichments.ticketId, id), eq(schema.aiEnrichments.feature, 'triage')))
+      .orderBy(desc(schema.aiEnrichments.createdAt))
+      .limit(1);
 
-    return { ...t, comments, events, sla, tags: tagRows.map((r) => r.name) };
+    return { ...t, comments, events, sla, tags: tagRows.map((r) => r.name), ai: ai ?? null };
+  });
+
+  app.post('/api/tickets', async (req, reply) => {
+    const body = z.object({
+      subject: z.string().trim().min(3).max(300),
+      description: z.string().trim().min(1).max(20_000),
+      type: z.enum(['incident', 'request', 'change']).default('incident'),
+      priority: z.number().min(1).max(4).default(3),
+    }).parse(req.body);
+
+    const [defaultStatus] = await db.select().from(statuses)
+      .where(eq(statuses.isDefault, true)).limit(1);
+    const [defaultQueue] = await db.select().from(teams).orderBy(teams.id).limit(1);
+    if (!defaultStatus || !defaultQueue) {
+      return reply.status(500).send({ error: 'no default status/queue configured' });
+    }
+
+    const [created] = await db.insert(tickets).values({
+      subject: body.subject,
+      description: body.description,
+      type: body.type,
+      priority: body.priority,
+      statusId: defaultStatus.id,
+      queueId: defaultQueue.id,
+      requesterId: req.userId,
+      source: 'portal',
+    }).returning();
+
+    await db.insert(schema.ticketEvents).values({
+      ticketId: created!.id, actorId: req.userId, actorType: 'user', eventType: 'created',
+    });
+
+    // AI enrichment runs off the request path — categorization/queue/priority
+    // land seconds later as audited 'ai' events (or a pending suggestion).
+    enrichTicket(created!.id, 'auto').catch((err) =>
+      app.log.warn({ err, ticketId: created!.id }, 'ai enrichment failed'),
+    );
+
+    return created;
   });
 
   app.patch('/api/tickets/:id', async (req) => {

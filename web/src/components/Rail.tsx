@@ -58,7 +58,7 @@ export function ActionRail({ mode, meta }: { mode: Mode; meta: Meta | undefined 
       </DropCard>
       <DropCard id="assign-auto" className="assign-auto">
         <strong>Auto-assign</strong>
-        <span className="rail-sub">round-robin now · AI on Day 4</span>
+        <span className="rail-sub">round-robin, load-capped</span>
       </DropCard>
 
       <div className="rail-title">Queues — drop to move</div>
@@ -73,8 +73,9 @@ export function ActionRail({ mode, meta }: { mode: Mode; meta: Meta | undefined 
         <div className="rail-info">
           <div className="rail-title">AI Triage</div>
           <p>
-            AI categorization, priority checks, and queue suggestions land here
-            on Day 4 — auto-applied when confident, one-click when not.
+            Claude classifies category, queue, and priority with per-field
+            confidence. High confidence auto-applies on new tickets (logged as
+            AI events, revertible); everything else is one click here.
           </p>
         </div>
       )}

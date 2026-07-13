@@ -397,6 +397,86 @@ select, textarea, input[type='text'], .modal input {
   text-overflow: ellipsis;
 }
 
+/* ===== triage panel ===== */
+
+.new-ticket-btn { white-space: nowrap; }
+
+.triage-panel { display: flex; flex-direction: column; gap: 10px; }
+
+.triage-toolbar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
+.triage-working {
+  padding: 10px 14px;
+  background: #fdf6ea;
+  border: 1px solid #ecd9b4;
+  border-radius: 6px;
+  color: var(--me-orange-dark);
+  font-weight: 600;
+}
+
+.triage-list { display: flex; flex-direction: column; gap: 8px; }
+
+.triage-card {
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--me-orange);
+  border-radius: 6px;
+  padding: 10px 14px;
+}
+
+.triage-head { display: flex; gap: 10px; align-items: baseline; }
+.triage-subject {
+  font-weight: 600; flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.triage-summary { margin: 6px 0; color: var(--text-muted); font-size: 13px; }
+
+.triage-suggestions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+
+.suggestion {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 600;
+  border-radius: 4px; padding: 3px 8px;
+  border: 1px solid var(--border);
+}
+.suggestion em { font-style: normal; font-weight: 400; opacity: 0.7; font-size: 11px; }
+.suggestion.conf-high { background: #e2f2e9; border-color: #b9dcc9; color: var(--ok); }
+.suggestion.conf-mid { background: #fdeed7; border-color: #ecd9b4; color: var(--me-orange-dark); }
+.suggestion.conf-low { background: #eef1f4; color: var(--text-muted); }
+.suggestion.unchanged { opacity: 0.6; font-weight: 400; }
+.suggestion.sentiment { background: #fae4e1; border-color: #ecc0ba; color: var(--danger); }
+
+.triage-actions { display: flex; gap: 8px; }
+
+/* ===== AI panel in detail ===== */
+
+.ai-panel {
+  display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  background: #f6f9fc;
+  border: 1px solid #d6e4f0;
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+.ai-badge {
+  font-size: 10px; font-weight: 700;
+  background: var(--me-navy); color: #fff;
+  border-radius: 3px; padding: 2px 6px;
+}
+.ai-summary { flex: 1; min-width: 200px; }
+.ai-meta { color: var(--text-muted); font-size: 11px; }
+
+.modal-wide { width: 480px; }
+.modal textarea { resize: vertical; }
+
 /* ===== modal ===== */
 
 .modal-backdrop {

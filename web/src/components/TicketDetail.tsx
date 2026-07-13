@@ -28,10 +28,21 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
   });
 
   if (!t) return <div className="ticket-detail">Loading…</div>;
+  const ai = (t as any).ai;
 
   return (
     <div className="ticket-detail" onClick={(e) => e.stopPropagation()}>
       <div className="detail-main">
+        {ai && (
+          <div className="ai-panel">
+            <span className="ai-badge">✨ AI</span>
+            <span className="ai-summary">{ai.result.summary}</span>
+            <span className="ai-meta">
+              {ai.result.category} · {ai.result.sentiment !== 'neutral' ? `${ai.result.sentiment} · ` : ''}
+              {ai.status.replace('_', ' ')}
+            </span>
+          </div>
+        )}
         <p className="description">{t.description}</p>
 
         <div className="comments">

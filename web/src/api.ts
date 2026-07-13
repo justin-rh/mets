@@ -86,3 +86,42 @@ export const bulkTickets = (ticketIds: number[], action: 'update' | 'auto_assign
 
 export const postComment = (id: number, bodyText: string, visibility: 'public' | 'internal') =>
   api(`/api/tickets/${id}/comments`, { method: 'POST', body: JSON.stringify({ bodyText, visibility }) });
+
+// --- AI ---
+
+export type TriageResult = {
+  category: string; queueSlug: string; priority: number;
+  sentiment: string; summary: string;
+  confidence: { category: number; queue: number; priority: number };
+};
+
+export type Enrichment = {
+  id: number; ticketId: number; feature: string; status: string;
+  model: string; promptVersion: string;
+  result: TriageResult; confidence: TriageResult['confidence'];
+  createdAt: string;
+};
+
+export type TriageSuggestion = {
+  enrichment: Enrichment;
+  ticket: { id: number; number: string; subject: string; priority: number; score: number; createdAt: string; queueId: number; categoryId: number | null };
+  queueName: string;
+  categoryName: string | null;
+  requesterName: string;
+};
+
+export const runTriage = (limit = 10) =>
+  api<{ ticketId: number; ok: boolean; error?: string }[]>('/api/ai/triage', {
+    method: 'POST', body: JSON.stringify({ limit }),
+  });
+
+export const fetchTriage = () => api<TriageSuggestion[]>('/api/ai/triage');
+
+export const acceptEnrichment = (id: number, fields?: { category?: boolean; queue?: boolean; priority?: boolean }) =>
+  api(`/api/ai/enrichments/${id}/accept`, { method: 'POST', body: JSON.stringify(fields ?? {}) });
+
+export const dismissEnrichment = (id: number) =>
+  api(`/api/ai/enrichments/${id}/dismiss`, { method: 'POST', body: JSON.stringify({}) });
+
+export const createTicket = (data: { subject: string; description: string; type?: string; priority?: number }) =>
+  api<{ id: number; number: string }>('/api/tickets', { method: 'POST', body: JSON.stringify(data) });

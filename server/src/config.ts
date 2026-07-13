@@ -13,6 +13,6 @@ export const env = {
   aiProvider: process.env.AI_PROVIDER ?? 'mock',
   storageProvider: process.env.STORAGE_PROVIDER ?? 'local',
   anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? '',
-  aiModel: process.env.AI_MODEL ?? 'claude-haiku-4-5-20251001',
+  aiModel: process.env.AI_MODEL ?? 'claude-opus-4-8',
   aiDailyTokenBudget: Number(process.env.AI_DAILY_TOKEN_BUDGET ?? 2_000_000),
 };

@@ -19,9 +19,11 @@ import {
 } from './api';
 import { MODES, type Mode } from './board';
 import { BulkBar } from './components/BulkBar';
+import { NewTicketDialog } from './components/NewTicketDialog';
 import { ActionRail, AgentRail } from './components/Rail';
 import { SnoozeDialog } from './components/SnoozeDialog';
 import { TicketRow } from './components/TicketRow';
+import { TriagePanel } from './components/TriagePanel';
 import './App.css';
 
 const SORTS = ['date', 'score', 'priority', 'requester', 'description', 'random'] as const;
@@ -38,6 +40,7 @@ export default function App() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [draggingId, setDraggingId] = useState<number | null>(null);
   const [snoozeIds, setSnoozeIds] = useState<number[] | null>(null);
+  const [newTicketOpen, setNewTicketOpen] = useState(false);
   const [userId, setUserId] = useState(actingUserId());
 
   useEffect(() => {
@@ -111,6 +114,9 @@ export default function App() {
           <a href="#">Admin</a>
         </nav>
         <div className="spacer" />
+        <button className="btn accent new-ticket-btn" onClick={() => setNewTicketOpen(true)}>
+          + New Ticket
+        </button>
         <input
           className="search"
           placeholder="Search tickets… (T-10042, subject)"
@@ -145,7 +151,7 @@ export default function App() {
         <span className="mode-hint">
           {mode === 'All Tickets' && 'Drag tickets onto an agent (left) or a queue (right)'}
           {mode === 'My Queue' && 'Your assigned tickets'}
-          {mode === 'Triage' && 'AI suggestions — coming Day 4'}
+          {mode === 'Triage' && 'AI categorization, routing, and priority checks — accept or dismiss'}
         </span>
         <span className="spacer" />
         <label className="toolbar-field">
@@ -169,6 +175,11 @@ export default function App() {
 
       <div className="board">
         <AgentRail meta={meta} queueId={queueId} />
+        {mode === 'Triage' ? (
+          <main className="queue-list">
+            <TriagePanel />
+          </main>
+        ) : (
         <main className="queue-list">
           {selection.size > 0 && (
             <BulkBar
@@ -204,6 +215,7 @@ export default function App() {
             )}
           </div>
         </main>
+        )}
         <ActionRail mode={mode} meta={meta} />
       </div>
 
@@ -216,6 +228,8 @@ export default function App() {
           </div>
         )}
       </DragOverlay>
+
+      {newTicketOpen && <NewTicketDialog onClose={() => setNewTicketOpen(false)} />}
 
       {snoozeIds && (
         <SnoozeDialog

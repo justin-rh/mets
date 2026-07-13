@@ -3,6 +3,7 @@ import cors from '@fastify/cors';
 import { sql } from 'drizzle-orm';
 import { env } from './config.js';
 import { db } from './db/index.js';
+import { aiRoutes } from './routes/ai.js';
 import { metaRoutes } from './routes/meta.js';
 import { ticketRoutes } from './routes/tickets.js';
 
@@ -41,6 +42,7 @@ app.get('/api/health', async () => {
 
 await app.register(metaRoutes);
 await app.register(ticketRoutes);
+await app.register(aiRoutes);
 
 try {
   await app.listen({ port: env.port, host: '0.0.0.0' });

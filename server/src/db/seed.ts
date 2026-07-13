@@ -189,9 +189,9 @@ async function main() {
       actions: { setQueue: 'security-access', minPriority: 2, addTags: ['phishing'] },
     },
     {
-      name: 'EDI failures → Applications & ERP', position: 3, trigger: 'ticket_created',
+      name: 'EDI failures → MERP', position: 3, trigger: 'ticket_created',
       conditions: { any: [{ field: 'subject', op: 'contains', value: 'edi' }] },
-      actions: { setQueue: 'apps-erp', addTags: ['edi'] },
+      actions: { setQueue: 'merp', addTags: ['edi'] },
     },
     {
       name: 'VIP requesters flagged', position: 4, trigger: 'ticket_created',

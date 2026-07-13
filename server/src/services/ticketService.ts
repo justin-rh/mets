@@ -2,18 +2,19 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db, schema } from '../db/index.js';
 import { recomputeScore } from './scoring.js';
 
-const { tickets, ticketEvents, statuses, users, teams, teamMemberships } = schema;
+const { tickets, ticketEvents, statuses, users, teams, teamMemberships, categories } = schema;
 
 export type TicketChanges = {
   assigneeId?: number | null;
   queueId?: number;
   statusId?: number;
   priority?: number;
+  categoryId?: number;
   snooze?: { until: string; reason: string } | null; // null = unsnooze
   manualBoost?: number;
 };
 
-type Actor = { id: number; type?: 'user' | 'system' | 'rule' | 'ai' };
+type Actor = { id: number | null; type?: 'user' | 'system' | 'rule' | 'ai' };
 
 /**
  * Apply changes to one ticket, writing audit events in the same transaction
@@ -89,6 +90,16 @@ export async function applyTicketChanges(ticketId: number, actor: Actor, changes
     if (changes.priority !== undefined && changes.priority !== current.priority) {
       updates.priority = changes.priority;
       ev('priority_changed', 'priority', `P${current.priority}`, `P${changes.priority}`);
+    }
+
+    if (changes.categoryId !== undefined && changes.categoryId !== current.categoryId) {
+      const [oldC] = current.categoryId
+        ? await tx.select({ name: categories.name }).from(categories).where(eq(categories.id, current.categoryId))
+        : [undefined];
+      const [newC] = await tx.select({ name: categories.name }).from(categories).where(eq(categories.id, changes.categoryId));
+      if (!newC) throw Object.assign(new Error('category not found'), { statusCode: 400 });
+      updates.categoryId = changes.categoryId;
+      ev('categorized', 'category', oldC?.name, newC.name);
     }
 
     if (changes.snooze !== undefined) {
