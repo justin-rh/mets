@@ -65,6 +65,9 @@ export default function App() {
   const { data: ticketList, isFetching } = useQuery({
     queryKey: ['tickets', params],
     queryFn: () => fetchTickets(params),
+    // The SLA sweep runs server-side every 60s; poll so meters, breaches,
+    // and score bumps show up without a manual refresh.
+    refetchInterval: 30_000,
   });
   const ticketRows = ticketList ?? [];
 

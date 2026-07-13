@@ -5,6 +5,8 @@ import { z } from 'zod';
 import { db, schema } from '../db/index.js';
 import { applyTicketChanges, autoAssign, type TicketChanges } from '../services/ticketService.js';
 import { enrichTicket } from '../services/ai/enrichment.js';
+import { applyRoutingRules } from '../services/routing.js';
+import { attachSlas, completeFirstResponse } from '../services/sla/slaService.js';
 
 const { tickets, statuses, teams, users, ticketTags, tags, slaInstances, ticketComments, ticketEvents, categories } = schema;
 
@@ -206,6 +208,14 @@ export async function ticketRoutes(app: FastifyInstance) {
       ticketId: created!.id, actorId: req.userId, actorType: 'user', eventType: 'created',
     });
 
+    // Routing rules first (may move queue / raise priority, logged as rule
+    // events), then SLAs attach against the post-routing priority.
+    await applyRoutingRules(created!.id).catch((err) =>
+      app.log.warn({ err, ticketId: created!.id }, 'routing rules failed'),
+    );
+    const [routed] = await db.select({ priority: tickets.priority }).from(tickets).where(eq(tickets.id, created!.id));
+    await attachSlas(db, created!.id, routed?.priority ?? created!.priority);
+
     // AI enrichment runs off the request path — categorization/queue/priority
     // land seconds later as audited 'ai' events (or a pending suggestion).
     enrichTicket(created!.id, 'auto').catch((err) =>
@@ -231,11 +241,15 @@ export async function ticketRoutes(app: FastifyInstance) {
       ticketId: id, authorId: req.userId, visibility: body.visibility,
       bodyText: body.bodyText, source: 'agent',
     }).returning();
-    // First public agent reply stamps first_responded_at.
+    // First public agent reply stamps first_responded_at and completes the
+    // first-response SLA clock.
     if (body.visibility === 'public') {
+      const [before] = await db.select({ firstRespondedAt: tickets.firstRespondedAt })
+        .from(tickets).where(eq(tickets.id, id));
       await db.update(tickets)
         .set({ firstRespondedAt: sql`coalesce(${tickets.firstRespondedAt}, now())`, updatedAt: new Date() })
         .where(eq(tickets.id, id));
+      if (!before?.firstRespondedAt) await completeFirstResponse(id);
     }
     return comment;
   });

@@ -1,6 +1,7 @@
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db, schema } from '../db/index.js';
 import { recomputeScore } from './scoring.js';
+import { onPriorityChange, onStatusCategoryChange } from './sla/slaService.js';
 
 const { tickets, ticketEvents, statuses, users, teams, teamMemberships, categories } = schema;
 
@@ -125,6 +126,21 @@ export async function applyTicketChanges(ticketId: number, actor: Actor, changes
 
     await tx.update(tickets).set(updates).where(eq(tickets.id, ticketId));
     await tx.insert(ticketEvents).values(events);
+
+    // SLA hooks run in the same transaction, before the score recompute
+    // (score reads SLA state).
+    const effectiveStatusId = updates.statusId ?? current.statusId;
+    if (effectiveStatusId !== current.statusId) {
+      const [oldS] = await tx.select().from(statuses).where(eq(statuses.id, current.statusId));
+      const [newS] = await tx.select().from(statuses).where(eq(statuses.id, effectiveStatusId));
+      if (oldS && newS && oldS.category !== newS.category) {
+        await onStatusCategoryChange(tx as unknown as typeof db, ticketId, oldS.category, newS.category);
+      }
+    }
+    if (updates.priority !== undefined) {
+      await onPriorityChange(tx as unknown as typeof db, ticketId, updates.priority as number);
+    }
+
     await recomputeScore(tx as unknown as typeof db, ticketId);
     return { ticketId, changed: true };
   });

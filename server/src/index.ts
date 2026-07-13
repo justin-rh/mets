@@ -6,6 +6,7 @@ import { db } from './db/index.js';
 import { aiRoutes } from './routes/ai.js';
 import { metaRoutes } from './routes/meta.js';
 import { ticketRoutes } from './routes/tickets.js';
+import { startSlaSweep } from './services/sla/slaService.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -46,6 +47,7 @@ await app.register(aiRoutes);
 
 try {
   await app.listen({ port: env.port, host: '0.0.0.0' });
+  startSlaSweep((msg) => app.log.info(msg));
 } catch (err) {
   app.log.error(err);
   process.exit(1);
