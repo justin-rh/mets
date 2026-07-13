@@ -3,6 +3,7 @@ import cors from '@fastify/cors';
 import { sql } from 'drizzle-orm';
 import { env } from './config.js';
 import { db } from './db/index.js';
+import { adminRoutes } from './routes/admin.js';
 import { aiRoutes } from './routes/ai.js';
 import { dashboardRoutes } from './routes/dashboard.js';
 import { kbRoutes } from './routes/kb.js';
@@ -51,6 +52,7 @@ await app.register(aiRoutes);
 await app.register(kbRoutes);
 await app.register(dashboardRoutes);
 await app.register(mailRoutes);
+await app.register(adminRoutes);
 
 try {
   await app.listen({ port: env.port, host: '0.0.0.0' });

@@ -23,7 +23,7 @@ export const DEPARTMENTS = [
   'Marketing', 'Customer Service', 'Product Management', 'HR', 'Quality',
 ];
 
-export const LOCATIONS = ['Phoenix HQ', 'Phoenix Warehouse', 'remote', 'the Dallas branch office'];
+export const LOCATIONS = ['Phoenix HQ', 'the Phoenix warehouse', 'the Germantown warehouse', 'the Chicago branch', 'the Wisconsin warehouse', 'remote'];
 
 export const APPS = ['MERP', 'Salesforce', 'Power BI', 'Excel', 'Outlook', 'Teams', 'SharePoint', 'Concur', 'ADP'];
 export const VENDORS = ['TTI', 'Arrow', 'Digi-Key', 'a key supplier', 'our freight carrier'];

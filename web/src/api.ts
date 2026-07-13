@@ -158,6 +158,39 @@ export const fetchSuggestions = (ticketId: number) => api<Suggestions>(`/api/tic
 export const draftReply = (ticketId: number) =>
   api<{ draft: string; groundedIn: string[] }>(`/api/tickets/${ticketId}/draft-reply`, { method: 'POST', body: '{}' });
 
+// --- Admin ---
+
+export type AdminConfig = {
+  scoreWeights: {
+    priority: Record<string, number>;
+    agePerBusinessDay: number; ageCap: number; vip: number;
+    slaWarning: number; slaBreached: number; manualBoostRange: number;
+  } | null;
+  aiThresholds: { autoApply: number; suggest: number };
+  businessHours: unknown;
+  statuses: StatusInfo[];
+  slaPolicies: { id: number; name: string; enabled: boolean; firstResponseMinutes: number | null; resolutionMinutes: number | null }[];
+  routingRules: { id: number; name: string; position: number; enabled: boolean; conditions: unknown; actions: unknown }[];
+};
+
+export const fetchAdminConfig = () => api<AdminConfig>('/api/admin/config');
+export const saveScoreWeights = (weights: NonNullable<AdminConfig['scoreWeights']>) =>
+  api('/api/admin/score-weights', { method: 'PUT', body: JSON.stringify(weights) });
+export const saveAiThresholds = (t: AdminConfig['aiThresholds']) =>
+  api('/api/admin/ai-thresholds', { method: 'PUT', body: JSON.stringify(t) });
+export const addStatus = (s: { name: string; category: string }) =>
+  api('/api/admin/statuses', { method: 'POST', body: JSON.stringify(s) });
+export const renameStatus = (id: number, name: string) =>
+  api(`/api/admin/statuses/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) });
+export const saveSlaPolicy = (id: number, p: { firstResponseMinutes: number | null; resolutionMinutes: number | null }) =>
+  api(`/api/admin/sla-policies/${id}`, { method: 'PATCH', body: JSON.stringify(p) });
+export const addRoutingRule = (r: { name: string; condition: { field: string; op: string; value: string }; actions: object }) =>
+  api('/api/admin/routing-rules', { method: 'POST', body: JSON.stringify(r) });
+export const toggleRoutingRule = (id: number, enabled: boolean) =>
+  api(`/api/admin/routing-rules/${id}`, { method: 'PATCH', body: JSON.stringify({ enabled }) });
+export const deleteRoutingRule = (id: number) =>
+  api(`/api/admin/routing-rules/${id}`, { method: 'DELETE' });
+
 // --- Mail simulator ---
 
 export type MailboxThread = {

@@ -18,6 +18,7 @@ import {
   type ListParams, type TicketChanges,
 } from './api';
 import { MODES, type Mode } from './board';
+import { Admin } from './components/Admin';
 import { BulkBar } from './components/BulkBar';
 import { Dashboard } from './components/Dashboard';
 import { EmailSimulator } from './components/EmailSimulator';
@@ -44,7 +45,7 @@ export default function App() {
   const [draggingId, setDraggingId] = useState<number | null>(null);
   const [snoozeIds, setSnoozeIds] = useState<number[] | null>(null);
   const [newTicketOpen, setNewTicketOpen] = useState(false);
-  const [page, setPage] = useState<'queue' | 'dashboards' | 'kb' | 'email'>('queue');
+  const [page, setPage] = useState<'queue' | 'dashboards' | 'kb' | 'email' | 'admin'>('queue');
   const [userId, setUserId] = useState(actingUserId());
   const [theme, setTheme] = useState(() => localStorage.getItem('mets-theme') ?? 'light');
 
@@ -147,7 +148,7 @@ export default function App() {
           <a className={page === 'dashboards' ? 'active' : ''} href="#" onClick={(e) => { e.preventDefault(); setPage('dashboards'); }}>Dashboards</a>
           <a className={page === 'kb' ? 'active' : ''} href="#" onClick={(e) => { e.preventDefault(); setPage('kb'); }}>Knowledge Base</a>
           <a className={page === 'email' ? 'active' : ''} href="#" onClick={(e) => { e.preventDefault(); setPage('email'); }}>Email</a>
-          <a href="#" title="Admin screens land on Day 7" onClick={(e) => e.preventDefault()}>Admin</a>
+          <a className={page === 'admin' ? 'active' : ''} href="#" onClick={(e) => { e.preventDefault(); setPage('admin'); }}>Admin</a>
         </nav>
         <div className="spacer" />
         <button className="btn accent new-ticket-btn" onClick={() => setNewTicketOpen(true)}>
@@ -184,6 +185,7 @@ export default function App() {
       {page === 'dashboards' && <Dashboard />}
       {page === 'kb' && <KnowledgeBase />}
       {page === 'email' && <EmailSimulator />}
+      {page === 'admin' && <Admin />}
 
       {page === 'queue' && (<>
       <div className="modebar">

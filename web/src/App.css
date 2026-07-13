@@ -1017,3 +1017,76 @@ select, textarea, input[type='text'], .modal input {
 .ticket-tags.expanded { flex-wrap: wrap; overflow: visible; }
 .ticket-tags.expanded .tag { overflow: visible; }
 .detail-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+
+/* ===== admin ===== */
+
+.admin {
+  flex: 1;
+  padding: 16px 24px;
+  max-width: 1240px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.admin-card {
+  background: var(--surface-card);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 14px 16px;
+}
+.admin-card-wide { grid-column: 1 / -1; }
+.admin-card h3 { margin: 0 0 4px; font-size: 14px; color: var(--ink); }
+.admin-hint { margin: 0 0 10px; font-size: 12px; color: var(--text-muted); line-height: 1.45; }
+
+.admin-fields { display: flex; flex-wrap: wrap; gap: 10px; }
+.admin-field {
+  display: flex; flex-direction: column; gap: 3px;
+  font-size: 11px; color: var(--text-muted);
+}
+.admin-field input { width: 110px; font-family: var(--font-data); }
+
+.admin-actions { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+.admin-saved { font-size: 12px; color: var(--ok); font-weight: 600; }
+
+.admin-table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.admin-table th {
+  text-align: left; font-size: 10.5px; text-transform: uppercase;
+  letter-spacing: 0.5px; color: var(--text-muted); padding: 4px 8px 4px 0;
+}
+.admin-table td { padding: 3px 8px 3px 0; }
+.admin-table input { width: 100px; font-family: var(--font-data); }
+
+.admin-status-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.admin-status {
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 4px 10px;
+  font-size: 12.5px;
+  cursor: default;
+}
+.admin-status em {
+  font-style: normal; font-size: 10px; text-transform: uppercase;
+  color: var(--text-muted); margin-left: 5px; letter-spacing: 0.4px;
+}
+
+.admin-inline-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+.admin-rule-list { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+.admin-rule {
+  display: flex; align-items: center; gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 6px 10px;
+  font-size: 12.5px;
+}
+.admin-rule.disabled { opacity: 0.45; }
+.admin-rule-pos { font-family: var(--font-data); color: var(--text-muted); width: 16px; text-align: right; }
+.admin-rule-name { font-weight: 600; min-width: 200px; }
+.admin-rule-summary { color: var(--text-muted); font-family: var(--font-data); font-size: 11px; flex: 1; }

@@ -1,7 +1,11 @@
 # METS — Master Electronics Ticketing System
 
 ServiceNow replacement: simpler, AI-assisted ticketing for internal teams.
-See [`docs/DESIGN.md`](docs/DESIGN.md) for the full design and phased plan.
+
+- [`docs/DESIGN.md`](docs/DESIGN.md) — full design, architecture, phased plan
+- [`docs/PROPOSAL.md`](docs/PROPOSAL.md) — competition one-pager (cost, coverage)
+- [`docs/DEMO.md`](docs/DEMO.md) — 10-minute demo script + prep checklist
+- [`docs/research/`](docs/research) — market landscape and engineering research
 
 ## Stack
 

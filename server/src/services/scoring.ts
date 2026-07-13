@@ -17,6 +17,11 @@ const DEFAULT_WEIGHTS: Weights = {
 
 let cache: { weights: Weights; at: number } | null = null;
 
+/** Drop the cached weights so admin edits take effect immediately. */
+export function invalidateScoreWeightsCache() {
+  cache = null;
+}
+
 export async function getScoreWeights(): Promise<Weights> {
   if (cache && Date.now() - cache.at < 60_000) return cache.weights;
   const [row] = await db.select().from(schema.appConfig).where(eq(schema.appConfig.key, 'score_weights'));
