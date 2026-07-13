@@ -53,6 +53,7 @@ export const users = pgTable(
     name: text('name').notNull(),
     email: text('email').notNull(),
     department: text('department'),
+    location: text('location'), // site name, or 'Remote'
     managerId: bigint('manager_id', { mode: 'number' }),
     role: userRole('role').notNull().default('requester'),
     isVip: boolean('is_vip').notNull().default(false),

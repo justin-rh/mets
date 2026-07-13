@@ -25,6 +25,36 @@ export const DEPARTMENTS = [
 
 export const LOCATIONS = ['Phoenix HQ', 'the Phoenix warehouse', 'the Germantown warehouse', 'the Chicago branch', 'the Wisconsin warehouse', 'remote'];
 
+// Company sites for user home locations (weights ≈ relative headcount;
+// Phoenix is HQ). 'Remote' users have no site.
+export const USER_LOCATIONS: { name: string; weight: number }[] = [
+  { name: 'Phoenix, AZ', weight: 34 },
+  { name: 'Santa Clara, CA', weight: 3 },
+  { name: 'Santa Monica, CA', weight: 2 },
+  { name: 'Eden Prairie, MN', weight: 3 },
+  { name: 'Ronkonkoma, NY', weight: 3 },
+  { name: 'Miami, FL', weight: 3 },
+  { name: 'Tampa, FL', weight: 2 },
+  { name: 'Redmond, WA', weight: 2 },
+  { name: 'Germantown, WI', weight: 6 },
+  { name: 'Toronto', weight: 3 },
+  { name: 'Vancouver', weight: 2 },
+  { name: 'Montreal', weight: 2 },
+  { name: 'Mexico', weight: 3 },
+  { name: 'Malaysia', weight: 2 },
+  { name: 'Hong Kong', weight: 2 },
+  { name: 'Philippines', weight: 3 },
+  { name: 'Chicago', weight: 4 },
+  { name: 'Jordan', weight: 2 },
+  { name: 'Rockford, IL', weight: 2 },
+  { name: 'Peoria, IL', weight: 2 },
+  { name: 'Remote', weight: 10 },
+];
+
+/** 'Santa Clara, CA' → 'santa-clara-ca'; used for ticket location tags. */
+export const locationSlug = (loc: string) =>
+  loc.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
 export const APPS = ['MERP', 'Salesforce', 'Power BI', 'Excel', 'Outlook', 'Zoom', 'Slack', 'TungstenPDF', 'Keeper', 'Concur', 'ADP'];
 export const VENDORS = ['TTI', 'Arrow', 'Digi-Key', 'a key supplier', 'our freight carrier'];
 export const DEVICES = ['Dell Latitude laptop', 'Lenovo ThinkPad', 'Dell desktop', 'second monitor', 'Dell docking station', 'Lenovo docking station', 'desk phone'];
@@ -85,9 +115,7 @@ export const TAGS = [
   'vpn', 'onboarding', 'printer', 'merp', 'edi', 'rf-scanner', 'salesforce',
   'phishing', 'new-hire', 'hardware-refresh', 'project-falcon', 'warehouse',
   'exec-visibility', 'recurring', 'alerts',
-  // sites & regions (replace per-site SNOW queues)
-  'phoenix', 'germantown', 'to-warehouse', 'wisconsin', 'chicago', 'miami', 'ny',
-  // warehouse functions
+  // warehouse functions (location tags come from USER_LOCATIONS slugs)
   'receiving', 'shipping', 'inventory', 'ltl', 'value-add',
   // programs
   'amat', 'ukg', 'export',
@@ -105,12 +133,11 @@ export const SKILLS = [
 // Tag affinities: ops categories get site/region/function tags instead of
 // random ones — this is how the per-site SNOW queues survive as filters.
 export const CATEGORY_TAGS: Record<string, string[]> = {
-  'Warehouse Operations': ['phoenix', 'germantown', 'to-warehouse', 'wisconsin', 'chicago', 'receiving', 'shipping', 'inventory', 'ltl', 'value-add'],
-  'Sales Support': ['miami', 'ny', 'phoenix'],
-  'AMAT Program': ['amat', 'wisconsin'],
-  'Supply Chain & Logistics': ['export', 'phoenix', 'germantown'],
+  'Warehouse Operations': ['receiving', 'shipping', 'inventory', 'ltl', 'value-add'],
+  'AMAT Program': ['amat'],
+  'Supply Chain & Logistics': ['export'],
   'People Operations': ['ukg'],
-  'Warehouse Tech': ['rf-scanner', 'warehouse', 'phoenix'],
+  'Warehouse Tech': ['rf-scanner', 'warehouse'],
 };
 
 export type TicketTemplate = {

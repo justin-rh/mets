@@ -3,7 +3,14 @@ import { db, schema } from '../db/index.js';
 import { recomputeScore } from './scoring.js';
 import { onPriorityChange, onStatusCategoryChange } from './sla/slaService.js';
 
-const { tickets, ticketEvents, statuses, users, teams, teamMemberships, categories, skills, agentSkills } = schema;
+const { tickets, ticketEvents, statuses, users, teams, teamMemberships, categories, skills, agentSkills, tags, ticketTags } = schema;
+
+const slugifyLocation = (loc: string) =>
+  loc.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+/** Same-site match; Remote (either side) is location-neutral. */
+const locationMatches = (requesterLoc: string | null, agentLoc: string | null) =>
+  !requesterLoc || requesterLoc === 'Remote' || !agentLoc || agentLoc === 'Remote' || requesterLoc === agentLoc;
 
 export type TicketChanges = {
   assigneeId?: number | null;
@@ -179,6 +186,14 @@ export async function createTicketCore(input: {
     field: 'source', newValue: input.source,
   });
 
+  // Tag with the requester's location ('remote' included).
+  const [requester] = await db.select({ location: users.location }).from(users)
+    .where(eq(users.id, input.requesterId));
+  const locName = slugifyLocation(requester?.location ?? 'Remote');
+  let [locTag] = await db.select().from(tags).where(eq(tags.name, locName));
+  if (!locTag) [locTag] = await db.insert(tags).values({ name: locName }).returning();
+  await db.insert(ticketTags).values({ ticketId: created!.id, tagId: locTag!.id }).onConflictDoNothing();
+
   // Deferred imports avoid a routing/SLA <-> ticketService import cycle.
   const { applyRoutingRules } = await import('./routing.js');
   const { attachSlas } = await import('./sla/slaService.js');
@@ -198,14 +213,17 @@ export async function createTicketCore(input: {
  */
 export async function bestFitAgents(ticketId: number, limit = 3) {
   const [t] = await db
-    .select({ queueId: tickets.queueId, categoryName: categories.name })
+    .select({
+      queueId: tickets.queueId, categoryName: categories.name,
+      requesterLoc: sql<string | null>`(select location from users ru where ru.id = ${tickets.requesterId})`,
+    })
     .from(tickets)
     .leftJoin(categories, eq(categories.id, tickets.categoryId))
     .where(eq(tickets.id, ticketId));
   if (!t) return [];
 
   const rows = (await db.execute(sql`
-    select u.id, u.name, u.max_open_assignments as cap,
+    select u.id, u.name, u.location, u.max_open_assignments as cap,
       (select ag.level from agent_skills ag
         join skills s on s.id = ag.skill_id
         where ag.user_id = u.id and s.name = ${t.categoryName ?? ''}) as level,
@@ -219,14 +237,15 @@ export async function bestFitAgents(ticketId: number, limit = 3) {
   `)).rows as { id: number; name: string; cap: number; level: number | null; in_queue: boolean; open: number }[];
 
   return rows
-    .map((r) => {
+    .map((r: any) => {
       const skillBase = r.level ? 0.55 + 0.15 * r.level : r.in_queue ? 0.35 : 0.15;
       const queueFactor = r.in_queue ? 1 : 0.8;
       const headroom = 0.6 + 0.4 * (1 - Math.min(Number(r.open) / r.cap, 1));
+      const locationFactor = locationMatches(t.requesterLoc, r.location) ? 1 : 0.9;
       return {
         id: Number(r.id),
         name: r.name,
-        fit: Math.round(skillBase * queueFactor * headroom * 100) / 100,
+        fit: Math.round(skillBase * queueFactor * headroom * locationFactor * 100) / 100,
         level: r.level,
         inQueue: r.in_queue,
       };
@@ -248,6 +267,7 @@ export async function autoAssignByExpertise(ticketIds: number[], actor: Actor) {
       .select({
         queueId: tickets.queueId, categoryId: tickets.categoryId,
         categoryName: categories.name,
+        requesterLoc: sql<string | null>`(select location from users ru where ru.id = ${tickets.requesterId})`,
       })
       .from(tickets)
       .leftJoin(categories, eq(categories.id, tickets.categoryId))
@@ -260,6 +280,7 @@ export async function autoAssignByExpertise(ticketIds: number[], actor: Actor) {
     const candidates = await db
       .select({
         userId: users.id,
+        location: users.location,
         level: agentSkills.level,
         cap: users.maxOpenAssignments,
         inQueue: sql<boolean>`exists (
@@ -285,7 +306,10 @@ export async function autoAssignByExpertise(ticketIds: number[], actor: Actor) {
     const pick = candidates
       .filter((c) => c.openCount < c.cap)
       .sort((a, b) =>
-        Number(b.inQueue) - Number(a.inQueue) || b.level - a.level || a.openCount - b.openCount,
+        Number(b.inQueue) - Number(a.inQueue)
+        || Number(locationMatches(t.requesterLoc, b.location)) - Number(locationMatches(t.requesterLoc, a.location))
+        || b.level - a.level
+        || a.openCount - b.openCount,
       )[0];
 
     if (pick) {
@@ -308,12 +332,16 @@ export async function autoAssign(ticketIds: number[], actor: Actor) {
   const results: { ticketId: number; assigneeId: number | null }[] = [];
   for (const ticketId of ticketIds) {
     const assigneeId = await db.transaction(async (tx) => {
-      const [t] = await tx.select({ queueId: tickets.queueId }).from(tickets).where(eq(tickets.id, ticketId));
+      const [t] = await tx
+        .select({ queueId: tickets.queueId, requesterLoc: users.location })
+        .from(tickets)
+        .innerJoin(users, eq(users.id, tickets.requesterId))
+        .where(eq(tickets.id, ticketId));
       if (!t) return null;
       await tx.execute(sql`select pg_advisory_xact_lock(${t.queueId})`);
 
       const members = await tx
-        .select({ userId: teamMemberships.userId, openCount: sql<number>`(
+        .select({ userId: teamMemberships.userId, location: users.location, openCount: sql<number>`(
           select count(*) from tickets tk
           join statuses st on st.id = tk.status_id
           where tk.assignee_id = team_memberships.user_id
@@ -332,9 +360,13 @@ export async function autoAssign(ticketIds: number[], actor: Actor) {
       const eligible = members.filter((m) => m.openCount < (capOf.get(m.userId) ?? 25));
       if (eligible.length === 0) return null; // everyone capped — stays unassigned by design
 
-      // Rotate: first eligible member after the pointer.
-      const lastIdx = eligible.findIndex((m) => m.userId === team?.lastAssignedUserId);
-      const next = eligible[(lastIdx + 1) % eligible.length]!;
+      // Prefer same-location (or Remote) agents; fall back to everyone.
+      const local = eligible.filter((m) => locationMatches(t.requesterLoc, m.location));
+      const pool = local.length > 0 ? local : eligible;
+
+      // Rotate: first pool member after the pointer.
+      const lastIdx = pool.findIndex((m) => m.userId === team?.lastAssignedUserId);
+      const next = pool[(lastIdx + 1) % pool.length]!;
       await tx.update(teams).set({ lastAssignedUserId: next.userId }).where(eq(teams.id, t.queueId));
       return next.userId;
     });

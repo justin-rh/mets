@@ -14,8 +14,9 @@ import {
 } from './schema.js';
 import {
   AGENT_COMMENTS, APPS, CATEGORIES, CATEGORY_TAGS, DEPARTMENTS, DEVICES,
-  FIRST_NAMES, INTERNAL_NOTES, KB_ARTICLES, LAST_NAMES, LOCATIONS, PRINTERS,
-  QUEUES, REPORTS, REQUESTER_REPLIES, SKILLS, TAGS, TEMPLATES, VENDORS,
+  FIRST_NAMES, INTERNAL_NOTES, KB_ARTICLES, LAST_NAMES, LOCATIONS,
+  locationSlug, PRINTERS, QUEUES, REPORTS, REQUESTER_REPLIES, SKILLS, TAGS,
+  TEMPLATES, USER_LOCATIONS, VENDORS,
 } from './seed-data.js';
 
 const TICKET_COUNT = 800;
@@ -151,7 +152,8 @@ async function main() {
   ).returning();
   const categoryByName = Object.fromEntries(categoryRows.map((c) => [c.name, c]));
 
-  const tagRows = await db.insert(tags).values(TAGS.map((name) => ({ name }))).returning();
+  const allTagNames = [...TAGS, ...USER_LOCATIONS.map((l) => locationSlug(l.name))];
+  const tagRows = await db.insert(tags).values(allTagNames.map((name) => ({ name }))).returning();
   const skillRows = await db.insert(skills).values(SKILLS.map((name) => ({ name }))).returning();
 
   await db.insert(slaPolicies).values([
@@ -216,18 +218,28 @@ async function main() {
     return { name: `${first} ${last}`, email: `${first.toLowerCase()}.${last.toLowerCase()}@masterelectronics.com` };
   }
 
+  const pickLocation = () => {
+    const total = USER_LOCATIONS.reduce((s, l) => s + l.weight, 0);
+    let r = rand() * total;
+    for (const l of USER_LOCATIONS) {
+      r -= l.weight;
+      if (r <= 0) return l.name;
+    }
+    return 'Phoenix, AZ';
+  };
+
   const userRows: (typeof users.$inferInsert)[] = [
-    { name: 'Justin Rhoda', email: 'justin.rhoda@masterelectronics.com', department: 'IT', role: 'admin' },
+    { name: 'Justin Rhoda', email: 'justin.rhoda@masterelectronics.com', department: 'IT', role: 'admin', location: 'Phoenix, AZ' },
   ];
   for (let i = 0; i < AGENT_COUNT; i++) {
-    userRows.push({ ...person(), department: 'IT', role: 'agent' });
+    userRows.push({ ...person(), department: 'IT', role: 'agent', location: pickLocation() });
   }
   const execTitles = ['Sales', 'Operations', 'Finance', 'Product Management'];
   for (const dept of execTitles) {
-    userRows.push({ ...person(), department: dept, role: 'requester', isVip: true });
+    userRows.push({ ...person(), department: dept, role: 'requester', isVip: true, location: 'Phoenix, AZ' });
   }
   for (let i = 0; i < REQUESTER_COUNT; i++) {
-    userRows.push({ ...person(), department: pick(DEPARTMENTS), role: 'requester' });
+    userRows.push({ ...person(), department: pick(DEPARTMENTS), role: 'requester', location: pickLocation() });
   }
   const allUsers = await db.insert(users).values(userRows).returning();
   const agents = allUsers.filter((u) => u.role === 'agent');
@@ -425,6 +437,11 @@ async function main() {
       });
     }
 
+    // Every ticket carries its requester's location tag ('remote' included).
+    const locTagName = locationSlug(requester.location ?? 'Remote');
+    const locTag = tagRows.find((tg) => tg.name === locTagName);
+    if (locTag) p.tagIds.push(locTag.id);
+
     const affinity = CATEGORY_TAGS[catName];
     if (affinity) {
       // Ops tickets always carry a site/function tag — that's the queue-
@@ -513,7 +530,7 @@ async function main() {
         createdAt: new Date(base + e.offsetMs),
       });
     }
-    for (const tagId of p.tagIds) tagLinkRows.push({ ticketId, tagId });
+    for (const tagId of new Set(p.tagIds)) tagLinkRows.push({ ticketId, tagId });
     for (const s of p.sla) slaRows.push({ ...(s as any), ticketId });
   });
 
