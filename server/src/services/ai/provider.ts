@@ -201,7 +201,16 @@ class MockProvider implements AIProvider {
     const text = `${input.subject} ${input.description}`.toLowerCase();
     const rules: [RegExp, string][] = [
       [/vpn|wi-?fi|network|internet|firewall/, 'Network & VPN'],
-      [/scanner|rf |warehouse|pack station|conveyor/, 'Warehouse Tech'],
+      [/receiving|shipment|shipping|cycle count|ltl|pallet|value-add/, 'Warehouse Operations'],
+      [/payroll|ukg|recruiting|requisition|training/, 'People Operations'],
+      [/invoice|credit memo|gl |expense/, 'Finance & Accounting'],
+      [/quality|rohs|reach|rma|inspection/, 'Quality'],
+      [/pricing|price list|cross-reference|datasheet|catalog/, 'Product & Pricing'],
+      [/amat|applied materials/, 'AMAT Program'],
+      [/export|customs|carrier|freight|logistics/, 'Supply Chain & Logistics'],
+      [/dc connect|dc solutions/, 'DC Solutions'],
+      [/quote|order status|sample|c of c/, 'Sales Support'],
+      [/scanner|rf |pack station|conveyor/, 'Warehouse Tech'],
       [/merp|edi|price list|erp/, 'MERP'],
       [/salesforce|quote|concur/, 'Business Apps'],
       [/phish|suspicious|mfa|security|clicked/, 'Security'],

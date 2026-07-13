@@ -31,15 +31,26 @@ export const DEVICES = ['Dell Latitude laptop', 'desktop', 'second monitor', 'do
 export const PRINTERS = ['the Sales floor Ricoh', 'the Accounting HP printer', 'the shipping label Zebra ZT411', 'the receiving-dock Zebra'];
 export const REPORTS = ['open orders report', 'daily bookings dashboard', 'inventory aging report', 'commissions report', 'backlog by supplier report'];
 
-// Six queues. Owning queue is single by design; tags cover cross-cutting.
+// Consolidated from ~52 ServiceNow queues. Owning queue is single by design;
+// site/region/function granularity lives in tags, not extra queues.
 export const QUEUES = [
-  { slug: 'it-support', name: 'IT Support', description: 'General helpdesk: hardware, software, email, printing, phones', policy: 'round_robin' },
-  { slug: 'infra-network', name: 'Infrastructure & Network', description: 'Network, VPN, servers, warehouse wireless and RF equipment', policy: 'load_based' },
-  { slug: 'merp', name: 'MERP', description: 'MERP — the in-house ERP: order entry, inventory, pricing, EDI, patches', policy: 'manual' },
-  { slug: 'apps-erp', name: 'Business Applications', description: 'Salesforce, quoting tools, and other business applications and integrations', policy: 'manual' },
-  { slug: 'security-access', name: 'Security & Access', description: 'Account access, permissions, MFA, security incidents', policy: 'round_robin' },
-  { slug: 'data-reporting', name: 'Data & Reporting', description: 'Reports, dashboards, data extracts, Power BI', policy: 'manual' },
-  { slug: 'facilities', name: 'Facilities', description: 'Badges, desks, HVAC, office equipment moves', policy: 'manual' },
+  { slug: 'it-support', name: 'IT Support', description: 'General helpdesk: hardware, software, email, printing, phones (SNOW: IT Service Desk, IT Department, IT Operations, IT Alerts)', policy: 'round_robin' },
+  { slug: 'infra-network', name: 'Infrastructure & Network', description: 'Network, VPN, servers, sysadmin, DevOps, warehouse wireless and RF equipment (SNOW: IT Network, IT System Admin, IT Devops)', policy: 'load_based' },
+  { slug: 'merp', name: 'MERP', description: 'MERP — the in-house ERP: order entry, inventory, pricing, EDI, patches (SNOW: MERP, EDI)', policy: 'manual' },
+  { slug: 'apps-erp', name: 'Business Applications', description: 'Salesforce, quoting tools, SaaS administration, integrations (SNOW: IT Saas)', policy: 'manual' },
+  { slug: 'security-access', name: 'Security & Access', description: 'Account access, permissions, MFA, security incidents (SNOW: IT Cyber Security)', policy: 'round_robin' },
+  { slug: 'data-reporting', name: 'Data & Reporting', description: 'Reports, dashboards, data extracts, Power BI (SNOW: Data Team, Product Manager Data Analytics)', policy: 'manual' },
+  { slug: 'product-pricing', name: 'Product & Pricing', description: 'Part data, pricing updates, product content and catalog (SNOW: Pricing, Product Data, Product Owners, Digital Product Owner, PMA)', policy: 'manual' },
+  { slug: 'ai-enablement', name: 'AI & Enablement', description: 'AI tools, automation requests, enablement projects (SNOW: AI Acceleration, AI Enablement, Business Enablement Group)', policy: 'manual' },
+  { slug: 'warehouse-ops', name: 'Warehouse Operations', description: 'Receiving, shipping, inventory, LTL, value-add at all sites — site is a tag (SNOW: Phoenix/Germantown/TO/WI warehouse queues, Value Add, Chicago ECCO)', policy: 'round_robin' },
+  { slug: 'supply-chain', name: 'Supply Chain & Logistics', description: 'Carriers, freight, supplier logistics, export compliance (SNOW: Logistics, SCM, Export Compliance)', policy: 'manual' },
+  { slug: 'dc-solutions', name: 'DC Solutions', description: 'DC Connect and DC Solutions orders and support (SNOW: DC Connect, DC Solutions, DC Solutions/Orders)', policy: 'manual' },
+  { slug: 'sales-support', name: 'Sales Support', description: 'Quote help, order status, regional sales team requests — region is a tag (SNOW: Miami Sales Support, NY Sales, OB Support)', policy: 'round_robin' },
+  { slug: 'amat', name: 'AMAT Program', description: 'Applied Materials key-account program (SNOW: Applied Materials, Sales AMAT Team, WI AMAT Team)', policy: 'manual' },
+  { slug: 'finance', name: 'Finance & Accounting', description: 'Invoices, AP/AR, GL, expense questions (SNOW: Accounting)', policy: 'manual' },
+  { slug: 'people-ops', name: 'People Operations', description: 'Payroll, UKG, recruiting, training (SNOW: Payroll Team, UKG Team, Recruiting, Training and Standardization)', policy: 'manual' },
+  { slug: 'quality', name: 'Quality', description: 'Quality holds, inspections, certifications, RMA quality review (SNOW: Quality)', policy: 'manual' },
+  { slug: 'facilities', name: 'Facilities', description: 'Badges, desks, HVAC, office moves, safety (SNOW: Facilities Group, Office Manager, Saftey and Security)', policy: 'manual' },
 ] as const;
 
 // Descriptions double as AI-classifier prompt content later.
@@ -57,19 +68,46 @@ export const CATEGORIES: { name: string; queue: string; description: string }[] 
   { name: 'Access & Accounts', queue: 'security-access', description: 'Password resets, account lockouts, permission/share access requests, group membership' },
   { name: 'Security', queue: 'security-access', description: 'Phishing reports, suspicious activity, MFA problems, security policy questions' },
   { name: 'Data & Reporting', queue: 'data-reporting', description: 'Report requests and fixes, dashboards, data extracts, Power BI access' },
-  { name: 'Facilities', queue: 'facilities', description: 'Badge access, desk moves, office equipment, HVAC and building issues' },
+  { name: 'Product & Pricing', queue: 'product-pricing', description: 'Part data corrections, pricing updates, product content, catalog and cross-reference issues' },
+  { name: 'AI & Enablement', queue: 'ai-enablement', description: 'AI tool access and questions, automation requests, process enablement projects' },
+  { name: 'Warehouse Operations', queue: 'warehouse-ops', description: 'Operational warehouse work at any site: receiving discrepancies, shipping problems, inventory counts, LTL, value-add jobs (not warehouse IT equipment)' },
+  { name: 'Supply Chain & Logistics', queue: 'supply-chain', description: 'Carrier and freight issues, supplier logistics, import/export compliance and documentation' },
+  { name: 'DC Solutions', queue: 'dc-solutions', description: 'DC Connect and DC Solutions programs: orders, quotes, and support' },
+  { name: 'Sales Support', queue: 'sales-support', description: 'Sales team requests: quote help, order status, customer document requests, samples' },
+  { name: 'AMAT Program', queue: 'amat', description: 'Applied Materials key account: dedicated orders, forecasts, and program requests' },
+  { name: 'Finance & Accounting', queue: 'finance', description: 'Invoices, AP/AR questions, GL coding, expense reports, credit memos' },
+  { name: 'People Operations', queue: 'people-ops', description: 'Payroll and UKG issues, recruiting requests, onboarding paperwork, training' },
+  { name: 'Quality', queue: 'quality', description: 'Quality holds, incoming inspection, certifications (RoHS/REACH), RMA quality disposition' },
+  { name: 'Facilities', queue: 'facilities', description: 'Badge access, desk moves, office equipment, HVAC and building issues, workplace safety' },
 ];
 
 export const TAGS = [
   'vpn', 'onboarding', 'printer', 'merp', 'edi', 'rf-scanner', 'salesforce',
   'phishing', 'new-hire', 'hardware-refresh', 'project-falcon', 'warehouse',
-  'exec-visibility', 'recurring',
+  'exec-visibility', 'recurring', 'alerts',
+  // sites & regions (replace per-site SNOW queues)
+  'phoenix', 'germantown', 'to-warehouse', 'wisconsin', 'chicago', 'miami', 'ny',
+  // warehouse functions
+  'receiving', 'shipping', 'inventory', 'ltl', 'value-add',
+  // programs
+  'amat', 'ukg', 'export',
 ];
 
 export const SKILLS = [
   'Windows', 'Networking', 'VPN', 'MERP', 'EDI', 'Salesforce', 'Power BI',
   'M365', 'Security', 'Zebra Printers', 'RF Scanners', 'Telephony',
 ];
+
+// Tag affinities: ops categories get site/region/function tags instead of
+// random ones — this is how the per-site SNOW queues survive as filters.
+export const CATEGORY_TAGS: Record<string, string[]> = {
+  'Warehouse Operations': ['phoenix', 'germantown', 'to-warehouse', 'wisconsin', 'chicago', 'receiving', 'shipping', 'inventory', 'ltl', 'value-add'],
+  'Sales Support': ['miami', 'ny', 'phoenix'],
+  'AMAT Program': ['amat', 'wisconsin'],
+  'Supply Chain & Logistics': ['export', 'phoenix', 'germantown'],
+  'People Operations': ['ukg'],
+  'Warehouse Tech': ['rf-scanner', 'warehouse', 'phoenix'],
+};
 
 export type TicketTemplate = {
   s: string; // subject
@@ -165,6 +203,60 @@ export const TEMPLATES: Record<string, TicketTemplate[]> = {
     { s: 'Power BI access request', d: 'Requesting Power BI access to view the {report}. My whole team has it; I was missed in the last batch.', t: 'request', pri: [0, 5, 50, 45] },
     { s: 'Scheduled report stopped sending', d: 'The 6am {report} email hasn\'t arrived for three days. It drives our morning {dept} standup.', t: 'incident', pri: [5, 45, 45, 5] },
     { s: 'One-time data extract', d: 'Need an extract of all orders with {vendor} parts for the last 18 months for a supplier negotiation next week.', t: 'request', pri: [0, 30, 55, 15] },
+  ],
+  'Product & Pricing': [
+    { s: 'Part cross-reference wrong for {vendor} series', d: 'The cross on a connector series points at a discontinued alternative. Two customers caught it this week — need the cross table corrected.', t: 'incident', pri: [0, 30, 55, 15] },
+    { s: 'Price list effective date correction', d: 'The {vendor} pricing loaded with the wrong effective date, so quotes are pulling last quarter\'s cost. Needs correcting before month-end quoting.', t: 'incident', pri: [10, 45, 40, 5] },
+    { s: 'New product family setup', d: 'We\'re onboarding a new {vendor} product family — need part records, categories, and datasheet links created in the catalog.', t: 'request' },
+    { s: 'Datasheet links broken on product pages', d: 'Datasheet links for several part families 404 after the vendor reorganized their site. Customers are asking sales for PDFs.', t: 'incident', pri: [0, 25, 60, 15] },
+  ],
+  'AI & Enablement': [
+    { s: 'Access to AI assistant for {dept}', d: 'Our {dept} team wants access to the AI assistant pilot. Manager approved — how do we get licenses and the usage guidelines?', t: 'request' },
+    { s: 'Automate the {report} distribution', d: 'We manually export and email the {report} every Monday. Can this be automated end to end?', t: 'request', pri: [0, 15, 55, 30] },
+    { s: 'AI summary quality issue', d: 'The AI-generated call summaries are missing action items about half the time for our team. Can the prompt or process be tuned?', t: 'incident', pri: [0, 20, 60, 20] },
+  ],
+  'Warehouse Operations': [
+    { s: 'Receiving discrepancy on {vendor} PO', d: 'PO received short by two cartons against the packing list at {loc}. Need disposition before we can put away the rest.', t: 'incident', pri: [5, 40, 50, 5] },
+    { s: 'LTL pickup missed', d: 'The LTL carrier missed today\'s pickup window and we have three pallets staged. Customer expects delivery this week.', t: 'incident', pri: [10, 50, 35, 5] },
+    { s: 'Cycle count variance in aisle 12', d: 'Cycle count shows a 200-piece variance on a high-running part. Need inventory review before tomorrow\'s wave.', t: 'incident', pri: [5, 45, 45, 5] },
+    { s: 'Value-add job routing question', d: 'The cut-tape order for {vendor} parts has conflicting instructions between the traveler and the sales order. Which one wins?', t: 'incident', pri: [0, 30, 55, 15] },
+    { s: 'Extra staging space for month-end', d: 'Requesting temporary staging space and a second shift overlap for month-end shipping volume next week.', t: 'request', pri: [0, 25, 60, 15] },
+  ],
+  'Supply Chain & Logistics': [
+    { s: 'Export docs for {vendor} shipment', d: 'International shipment needs an ECCN review and export documentation before it can leave. Freight is booked for Friday.', t: 'request', pri: [5, 45, 45, 5] },
+    { s: 'Carrier billing dispute', d: 'The freight bill for last week\'s inbound is double the quote. Need the carrier invoice disputed and the accrual corrected.', t: 'incident', pri: [0, 25, 55, 20] },
+    { s: 'Supplier shipment stuck in customs', d: 'A {vendor} shipment has been held in customs for four days. Two customer orders are waiting on this material.', t: 'incident', pri: [15, 50, 30, 5] },
+  ],
+  'DC Solutions': [
+    { s: 'DC Connect order stuck in review', d: 'A DC Connect order has been sitting in review for two days and the customer is calling. Can someone release or reject it?', t: 'incident', pri: [10, 50, 35, 5] },
+    { s: 'DC Solutions quote turnaround', d: 'Need a DC Solutions quote turned around today for a customer meeting — standard config plus two custom line items.', t: 'request', pri: [5, 45, 45, 5] },
+    { s: 'Program pricing mismatch', d: 'The DC Solutions program pricing in the quote tool doesn\'t match the agreed contract pricing for this account.', t: 'incident', pri: [5, 40, 45, 10] },
+  ],
+  'Sales Support': [
+    { s: 'Order status for key customer', d: 'Customer is asking for a firm ship date on their open order — MERP shows allocated but no ship confirmation. Call scheduled this afternoon.', t: 'request', pri: [5, 45, 45, 5] },
+    { s: 'Quote assistance — large BOM', d: 'Have a 340-line BOM quote request from a new prospect. Need help splitting between franchise lines and brokerage.', t: 'request', pri: [0, 30, 55, 15] },
+    { s: 'Sample request for {vendor} parts', d: 'Customer evaluating a design needs 10 samples of a {vendor} connector series. Who handles sample orders now?', t: 'request', pri: [0, 10, 55, 35] },
+    { s: 'C of C needed for shipped order', d: 'Customer requires a certificate of conformance for an order that shipped yesterday. They can\'t receive the parts without it.', t: 'incident', pri: [5, 45, 45, 5] },
+  ],
+  'AMAT Program': [
+    { s: 'AMAT forecast upload failed', d: 'This week\'s AMAT forecast file failed validation on upload — header row changed format again. Their buyer needs confirmation today.', t: 'incident', pri: [15, 55, 25, 5] },
+    { s: 'AMAT expedite request', d: 'AMAT is expediting two line items on an open PO. Need commit dates back within their SLA window.', t: 'request', pri: [15, 55, 25, 5] },
+    { s: 'AMAT scorecard data question', d: 'Prepping for the quarterly business review — the on-time-delivery number on their scorecard doesn\'t match our shipping data.', t: 'request', pri: [0, 35, 50, 15] },
+  ],
+  'Finance & Accounting': [
+    { s: 'Invoice mismatch with PO', d: 'A {vendor} invoice is 4% over the PO value with no change order on file. AP has it on hold — needs resolution before close.', t: 'incident', pri: [0, 30, 55, 15] },
+    { s: 'Credit memo request', d: 'Customer returned parts under RMA last month and is still waiting on the credit memo. They\'re holding payment on other invoices.', t: 'request', pri: [5, 40, 45, 10] },
+    { s: 'GL coding question for new expense type', d: 'We have a new recurring software expense and I\'m not sure which GL account it should hit. Can someone advise before I submit?', t: 'request', pri: [0, 5, 50, 45] },
+  ],
+  'People Operations': [
+    { s: 'Missing hours in UKG', d: 'Two of my team members\' punches from Saturday aren\'t showing in UKG and payroll runs tomorrow.', t: 'incident', pri: [15, 55, 25, 5] },
+    { s: 'Job requisition for {dept}', d: 'Need to open a requisition for a backfill in {dept}. Role description attached — hoping to post this week.', t: 'request' },
+    { s: 'Training record correction', d: 'I completed the forklift recertification last month but the training system still shows me expired, which blocks warehouse access.', t: 'incident', pri: [5, 40, 45, 10] },
+  ],
+  Quality: [
+    { s: 'Quality hold on received lot', d: 'Incoming inspection flagged date-code mixing in a {vendor} lot. Need disposition — two orders are allocated against this stock.', t: 'incident', pri: [10, 50, 35, 5] },
+    { s: 'RoHS cert request from customer', d: 'Customer needs RoHS/REACH certs for all parts on last month\'s orders before their audit next week.', t: 'request', pri: [0, 35, 50, 15] },
+    { s: 'RMA quality disposition overdue', d: 'An RMA has been sitting in quality review for ten days. Customer wants a failure-analysis update.', t: 'incident', pri: [5, 40, 45, 10] },
   ],
   Facilities: [
     { s: 'Badge not working at side entrance', d: 'My badge stopped working at the {loc} side entrance. Works at the main door. Started yesterday.', t: 'incident', pri: [0, 15, 55, 30] },

@@ -46,6 +46,11 @@ const CATEGORY_QUEUE: Record<string, string> = {
   'MERP': 'merp', 'Business Apps': 'apps-erp',
   'Access & Accounts': 'security-access', 'Security': 'security-access',
   'Data & Reporting': 'data-reporting', 'Facilities': 'facilities',
+  'Product & Pricing': 'product-pricing', 'AI & Enablement': 'ai-enablement',
+  'Warehouse Operations': 'warehouse-ops', 'Supply Chain & Logistics': 'supply-chain',
+  'DC Solutions': 'dc-solutions', 'Sales Support': 'sales-support',
+  'AMAT Program': 'amat', 'Finance & Accounting': 'finance',
+  'People Operations': 'people-ops', 'Quality': 'quality',
 };
 
 function guessQueueId(categoryName: string, queues: (typeof teams.$inferSelect)[]): number {

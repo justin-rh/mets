@@ -13,13 +13,13 @@ import {
   aiEnrichments,
 } from './schema.js';
 import {
-  AGENT_COMMENTS, APPS, CATEGORIES, DEPARTMENTS, DEVICES, FIRST_NAMES,
-  INTERNAL_NOTES, KB_ARTICLES, LAST_NAMES, LOCATIONS, PRINTERS, QUEUES,
-  REPORTS, REQUESTER_REPLIES, SKILLS, TAGS, TEMPLATES, VENDORS,
+  AGENT_COMMENTS, APPS, CATEGORIES, CATEGORY_TAGS, DEPARTMENTS, DEVICES,
+  FIRST_NAMES, INTERNAL_NOTES, KB_ARTICLES, LAST_NAMES, LOCATIONS, PRINTERS,
+  QUEUES, REPORTS, REQUESTER_REPLIES, SKILLS, TAGS, TEMPLATES, VENDORS,
 } from './seed-data.js';
 
 const TICKET_COUNT = 800;
-const AGENT_COUNT = 15;
+const AGENT_COUNT = 24;
 const REQUESTER_COUNT = 45;
 
 // --- deterministic PRNG -----------------------------------------------------
@@ -420,7 +420,18 @@ async function main() {
       });
     }
 
-    if (chance(0.25)) {
+    const affinity = CATEGORY_TAGS[catName];
+    if (affinity) {
+      // Ops tickets always carry a site/function tag — that's the queue-
+      // consolidation story (site filters instead of per-site queues).
+      const byName = new Map(tagRows.map((t) => [t.name, t]));
+      const t1 = byName.get(pick(affinity));
+      if (t1) p.tagIds.push(t1.id);
+      if (chance(0.4)) {
+        const t2 = byName.get(pick(affinity));
+        if (t2 && !p.tagIds.includes(t2.id)) p.tagIds.push(t2.id);
+      }
+    } else if (chance(0.25)) {
       const t1 = pick(tagRows);
       p.tagIds.push(t1.id);
       if (chance(0.2)) {
