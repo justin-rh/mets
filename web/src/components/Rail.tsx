@@ -15,11 +15,12 @@ function DropCard({ id, className, onClick, children }: {
   );
 }
 
-function AgentCard({ a, isMe, active, menuOpen, onToggleMenu, onViewAssigned }: {
+function AgentCard({ a, isMe, active, menuOpen, leadQueues, onToggleMenu, onViewAssigned }: {
   a: AgentInfo;
   isMe: boolean;
   active: boolean;
   menuOpen: boolean;
+  leadQueues: string[];
   onToggleMenu: () => void;
   onViewAssigned: () => void;
 }) {
@@ -30,9 +31,14 @@ function AgentCard({ a, isMe, active, menuOpen, onToggleMenu, onViewAssigned }: 
         className={`agent-card clickable ${isMe ? 'agent-me' : ''} ${active ? 'active' : ''}`}
         onClick={onToggleMenu}
       >
-        <span className="avatar">{initials(a.name)}</span>
+        <span className={`avatar ${leadQueues.length ? 'avatar-lead' : ''}`}>{initials(a.name)}</span>
         <span className="agent-info">
-          <strong>{a.name}{isMe ? ' (you)' : ''}</strong>
+          <strong>
+            {a.name}{isMe ? ' (you)' : ''}
+            {leadQueues.length > 0 && (
+              <span className="lead-badge" title={`Lead of ${leadQueues.join(', ')}`}>Lead</span>
+            )}
+          </strong>
           <span className="loadbar">
             <span className="loadbar-fill" style={{ width: `${Math.min(100, (a.openCount / a.maxOpen) * 100)}%` }} />
           </span>
@@ -76,6 +82,7 @@ export function AgentRail({ meta, queueId, mode, assigneeFilter, onSelectAssigne
   if (mode === 'My Categories') others = others.filter((a) => a.teamIds.some((t) => myTeamIds.has(t)));
   others.sort((a, b) => a.name.localeCompare(b.name));
 
+  const queueName = new Map(meta.queues.map((q) => [q.id, q.name]));
   const card = (a: AgentInfo, isMe: boolean) => (
     <AgentCard
       key={a.id}
@@ -83,6 +90,7 @@ export function AgentRail({ meta, queueId, mode, assigneeFilter, onSelectAssigne
       isMe={isMe}
       active={assigneeFilter === a.id}
       menuOpen={menuAgentId === a.id}
+      leadQueues={a.leadOf.map((id) => queueName.get(id) ?? '').filter(Boolean)}
       onToggleMenu={() => setMenuAgentId(menuAgentId === a.id ? null : a.id)}
       onViewAssigned={() => {
         onSelectAssignee(assigneeFilter === a.id ? undefined : a.id);

@@ -1349,3 +1349,20 @@ select, textarea, input[type='text'], .modal input {
   color: var(--text-muted); font-size: 11px; padding: 0 2px;
 }
 .filter-chip button:hover { color: var(--alarm); }
+
+/* lead markers on agent cards */
+.avatar-lead { box-shadow: 0 0 0 2px var(--accent); }
+.lead-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 5px;
+  font-family: var(--font-data);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--accent-dark);
+  border: 1px solid var(--accent);
+  border-radius: var(--r);
+  vertical-align: 1px;
+}
