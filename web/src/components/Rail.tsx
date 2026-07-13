@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { useDroppable } from '@dnd-kit/core';
-import type { AgentInfo, Meta } from '../api';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { fetchMe, setAvailability, type AgentInfo, type Meta } from '../api';
 import { actingUserId, type Mode } from '../board';
 import { initials } from '../format';
+import { toast } from './Toasts';
 
 function DropCard({ id, className, onClick, children }: {
   id: string; className?: string; onClick?: () => void; children: React.ReactNode;
@@ -15,20 +17,30 @@ function DropCard({ id, className, onClick, children }: {
   );
 }
 
-function AgentCard({ a, isMe, active, menuOpen, leadQueues, onToggleMenu, onViewAssigned }: {
+function AgentCard({ a, isMe, active, menuOpen, leadQueues, canToggleOoo, onToggleMenu, onViewAssigned }: {
   a: AgentInfo;
   isMe: boolean;
   active: boolean;
   menuOpen: boolean;
   leadQueues: string[];
+  canToggleOoo: boolean;
   onToggleMenu: () => void;
   onViewAssigned: () => void;
 }) {
+  const qc = useQueryClient();
+  const availability = useMutation({
+    mutationFn: (isAvailable: boolean) => setAvailability(a.id, isAvailable),
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: ['meta'] });
+      toast(`${a.name} is ${r.isAvailable ? 'back in office' : 'out of office — no new assignments'}`, 'info');
+    },
+  });
+
   return (
     <div className="agent-card-wrap">
       <DropCard
         id={`agent-${a.id}`}
-        className={`agent-card clickable ${isMe ? 'agent-me' : ''} ${active ? 'active' : ''}`}
+        className={`agent-card clickable ${isMe ? 'agent-me' : ''} ${active ? 'active' : ''} ${a.isAvailable ? '' : 'agent-ooo'}`}
         onClick={onToggleMenu}
       >
         <span className={`avatar ${leadQueues.length ? 'avatar-lead' : ''}`}>{initials(a.name)}</span>
@@ -37,6 +49,9 @@ function AgentCard({ a, isMe, active, menuOpen, leadQueues, onToggleMenu, onView
             {a.name}{isMe ? ' (you)' : ''}
             {leadQueues.length > 0 && (
               <span className="lead-badge" title={`Lead of ${leadQueues.join(', ')}`}>Lead</span>
+            )}
+            {!a.isAvailable && (
+              <span className="ooo-badge" title="Out of office — excluded from all assignment">OOO</span>
             )}
           </strong>
           <span className="loadbar">
@@ -56,6 +71,13 @@ function AgentCard({ a, isMe, active, menuOpen, leadQueues, onToggleMenu, onView
           <button className="btn" onClick={() => window.open(`/?requester=${a.id}`, '_blank')}>
             Submitted tickets ↗
           </button>
+          {canToggleOoo && (
+            <button className="btn" disabled={availability.isPending} onClick={() => availability.mutate(!a.isAvailable)}>
+              {a.isAvailable
+                ? (isMe ? 'Set me out of office' : 'Mark out of office')
+                : (isMe ? 'I’m back — set available' : 'Mark available')}
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -71,8 +93,10 @@ export function AgentRail({ meta, queueId, mode, assigneeFilter, onSelectAssigne
   onSelectAssignee: (id: number | undefined) => void;
 }) {
   const [menuAgentId, setMenuAgentId] = useState<number | null>(null);
+  const { data: meUser } = useQuery({ queryKey: ['me', actingUserId()], queryFn: fetchMe });
   if (!meta) return <aside className="rail rail-left" />;
   const me = actingUserId();
+  const isAdmin = meUser?.role === 'admin';
   const myAgent = meta.agents.find((a) => a.id === me);
   const myTeamIds = new Set(myAgent?.teamIds ?? []);
 
@@ -91,6 +115,7 @@ export function AgentRail({ meta, queueId, mode, assigneeFilter, onSelectAssigne
       active={assigneeFilter === a.id}
       menuOpen={menuAgentId === a.id}
       leadQueues={a.leadOf.map((id) => queueName.get(id) ?? '').filter(Boolean)}
+      canToggleOoo={isMe || isAdmin}
       onToggleMenu={() => setMenuAgentId(menuAgentId === a.id ? null : a.id)}
       onViewAssigned={() => {
         onSelectAssignee(assigneeFilter === a.id ? undefined : a.id);

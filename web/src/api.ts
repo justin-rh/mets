@@ -229,6 +229,13 @@ export const removeAgentSkill = (userId: number, skillId: number) =>
 export const syncSkills = () =>
   api<{ qualified: number; revoked: number }>('/api/admin/skills/sync', { method: 'POST', body: '{}' });
 
+export const fetchMe = () =>
+  api<{ id: number; name: string; role: string; isAvailable: boolean }>('/api/me');
+export const setAvailability = (id: number, isAvailable: boolean) =>
+  api<{ id: number; isAvailable: boolean }>(`/api/users/${id}/availability`, {
+    method: 'PATCH', body: JSON.stringify({ isAvailable }),
+  });
+
 // --- Notifications ---
 
 export type NotificationPrefs = {

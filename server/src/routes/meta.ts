@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { eq, sql } from 'drizzle-orm';
+import { z } from 'zod';
 import { db, schema } from '../db/index.js';
 
 const { users, teams, statuses, tags, teamMemberships, agentSkills, skills, categories } = schema;
@@ -66,5 +67,21 @@ export async function metaRoutes(app: FastifyInstance) {
   app.get('/api/me', async (req) => {
     const [me] = await db.select().from(users).where(eq(users.id, req.userId));
     return me ?? null;
+  });
+
+  // Out-of-office toggle: yourself, or anyone if you're an admin. OOO agents
+  // are excluded from every assignment engine (auto, expertise, best-fit).
+  app.patch('/api/users/:id/availability', async (req, reply) => {
+    const id = z.coerce.number().parse((req.params as any).id);
+    const body = z.object({ isAvailable: z.boolean() }).parse(req.body);
+    if (id !== req.userId) {
+      const [me] = await db.select({ role: users.role }).from(users).where(eq(users.id, req.userId));
+      if (me?.role !== 'admin') return reply.status(403).send({ error: 'admins only' });
+    }
+    const [updated] = await db.update(users)
+      .set({ isAvailable: body.isAvailable })
+      .where(eq(users.id, id))
+      .returning({ id: users.id, isAvailable: users.isAvailable });
+    return updated;
   });
 }

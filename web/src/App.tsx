@@ -218,6 +218,10 @@ export default function App() {
     else if (target.startsWith('agent-')) {
       const agentId = Number(target.slice(6));
       const agent = meta?.agents.find((a) => a.id === agentId);
+      if (agent && !agent.isAvailable) {
+        toast(`${agent.name} is out of office — ticket not assigned`, 'info');
+        return;
+      }
       act(ids, { assigneeId: agentId }, `${label(ids)} assigned to ${agent?.name ?? 'agent'}`);
     } else if (target.startsWith('queue-')) {
       const qid = Number(target.slice(6));

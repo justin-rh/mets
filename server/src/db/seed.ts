@@ -232,7 +232,11 @@ async function main() {
     { name: 'Justin Rhoda', email: 'justin.rhoda@masterelectronics.com', department: 'IT', role: 'admin', location: 'Phoenix, AZ' },
   ];
   for (let i = 0; i < AGENT_COUNT; i++) {
-    userRows.push({ ...person(), department: 'IT', role: 'agent', location: pickLocation() });
+    // a couple of agents are out of office so the OOO handling is visible
+    userRows.push({
+      ...person(), department: 'IT', role: 'agent', location: pickLocation(),
+      isAvailable: i !== 6 && i !== 15,
+    });
   }
   const execTitles = ['Sales', 'Operations', 'Finance', 'Product Management'];
   for (const dept of execTitles) {
