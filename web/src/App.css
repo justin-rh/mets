@@ -1201,3 +1201,20 @@ select, textarea, input[type='text'], .modal input {
   from { transform: translateY(8px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
+
+.assign-expertise { border-left: 3px solid var(--ok); cursor: default; }
+
+/* best-fit suggestions in ticket detail */
+.fit-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.fit-avatar {
+  border: none;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+.fit-avatar:hover { transform: scale(1.12); }
+.fit-avatar.fit-weak { opacity: 0.5; }

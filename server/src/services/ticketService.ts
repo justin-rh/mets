@@ -3,7 +3,7 @@ import { db, schema } from '../db/index.js';
 import { recomputeScore } from './scoring.js';
 import { onPriorityChange, onStatusCategoryChange } from './sla/slaService.js';
 
-const { tickets, ticketEvents, statuses, users, teams, teamMemberships, categories } = schema;
+const { tickets, ticketEvents, statuses, users, teams, teamMemberships, categories, skills, agentSkills } = schema;
 
 export type TicketChanges = {
   assigneeId?: number | null;
@@ -187,6 +187,117 @@ export async function createTicketCore(input: {
   await attachSlas(db, created!.id, routed?.priority ?? created!.priority);
 
   return created!;
+}
+
+/**
+ * Rank agents by fit for a ticket: skill level for its category (earned or
+ * manual), queue membership, and load headroom.
+ *   fit = skillBase(level) × queueFactor × headroomFactor
+ * Skilled L3 / in-queue / idle ≈ 100%; unskilled queue members are weak
+ * fallbacks (< 50%).
+ */
+export async function bestFitAgents(ticketId: number, limit = 3) {
+  const [t] = await db
+    .select({ queueId: tickets.queueId, categoryName: categories.name })
+    .from(tickets)
+    .leftJoin(categories, eq(categories.id, tickets.categoryId))
+    .where(eq(tickets.id, ticketId));
+  if (!t) return [];
+
+  const rows = (await db.execute(sql`
+    select u.id, u.name, u.max_open_assignments as cap,
+      (select ag.level from agent_skills ag
+        join skills s on s.id = ag.skill_id
+        where ag.user_id = u.id and s.name = ${t.categoryName ?? ''}) as level,
+      exists(select 1 from team_memberships tm
+        where tm.user_id = u.id and tm.team_id = ${t.queueId}) as in_queue,
+      (select count(*) from tickets tk
+        join statuses st on st.id = tk.status_id
+        where tk.assignee_id = u.id and st.category not in ('resolved','closed')) as open
+    from users u
+    where u.role in ('agent','admin') and u.is_active and u.is_available
+  `)).rows as { id: number; name: string; cap: number; level: number | null; in_queue: boolean; open: number }[];
+
+  return rows
+    .map((r) => {
+      const skillBase = r.level ? 0.55 + 0.15 * r.level : r.in_queue ? 0.35 : 0.15;
+      const queueFactor = r.in_queue ? 1 : 0.8;
+      const headroom = 0.6 + 0.4 * (1 - Math.min(Number(r.open) / r.cap, 1));
+      return {
+        id: Number(r.id),
+        name: r.name,
+        fit: Math.round(skillBase * queueFactor * headroom * 100) / 100,
+        level: r.level,
+        inQueue: r.in_queue,
+      };
+    })
+    .sort((a, b) => b.fit - a.fit)
+    .slice(0, limit);
+}
+
+/**
+ * Expertise-based auto-assign: match the ticket's category to agent skills
+ * (earned from history or manually granted). Queue members are preferred,
+ * then any skilled agent; ties break by skill level, then lightest load.
+ * No qualified agent (or no category) leaves the ticket unassigned.
+ */
+export async function autoAssignByExpertise(ticketIds: number[], actor: Actor) {
+  const results: { ticketId: number; assigneeId: number | null; skill?: string }[] = [];
+  for (const ticketId of ticketIds) {
+    const [t] = await db
+      .select({
+        queueId: tickets.queueId, categoryId: tickets.categoryId,
+        categoryName: categories.name,
+      })
+      .from(tickets)
+      .leftJoin(categories, eq(categories.id, tickets.categoryId))
+      .where(eq(tickets.id, ticketId));
+    if (!t?.categoryName) {
+      results.push({ ticketId, assigneeId: null });
+      continue;
+    }
+
+    const candidates = await db
+      .select({
+        userId: users.id,
+        level: agentSkills.level,
+        cap: users.maxOpenAssignments,
+        inQueue: sql<boolean>`exists (
+          select 1 from team_memberships tm
+          where tm.user_id = users.id and tm.team_id = ${t.queueId}
+        )`,
+        openCount: sql<number>`(
+          select count(*) from tickets tk
+          join statuses st on st.id = tk.status_id
+          where tk.assignee_id = users.id
+            and st.category not in ('resolved','closed')
+        )`.mapWith(Number),
+      })
+      .from(agentSkills)
+      .innerJoin(users, eq(users.id, agentSkills.userId))
+      .innerJoin(skills, eq(skills.id, agentSkills.skillId))
+      .where(and(
+        eq(skills.name, t.categoryName),
+        eq(users.isActive, true),
+        eq(users.isAvailable, true),
+      ));
+
+    const pick = candidates
+      .filter((c) => c.openCount < c.cap)
+      .sort((a, b) =>
+        Number(b.inQueue) - Number(a.inQueue) || b.level - a.level || a.openCount - b.openCount,
+      )[0];
+
+    if (pick) {
+      await applyTicketChanges(ticketId, { ...actor, type: 'system' }, { assigneeId: pick.userId });
+      await db.insert(ticketEvents).values({
+        ticketId, actorId: null, actorType: 'system', eventType: 'assigned_by_expertise',
+        field: 'skill', newValue: `${t.categoryName} L${pick.level}`,
+      });
+    }
+    results.push({ ticketId, assigneeId: pick?.userId ?? null, skill: pick ? t.categoryName : undefined });
+  }
+  return results;
 }
 
 /**

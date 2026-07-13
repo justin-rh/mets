@@ -158,7 +158,7 @@ export default function App() {
 
   const bulk = useMutation({
     mutationFn: ({ ids, action, changes }: {
-      ids: number[]; action: 'update' | 'auto_assign'; changes?: TicketChanges;
+      ids: number[]; action: 'update' | 'auto_assign' | 'expertise_assign'; changes?: TicketChanges;
       message?: string; undo?: UndoOp[];
     }) => bulkTickets(ids, action, changes),
     onSuccess: (result, vars) => {
@@ -166,12 +166,15 @@ export default function App() {
       invalidate();
       const undoAction = vars.undo?.length ? { label: 'Undo', onClick: () => runUndo(vars.undo!) } : undefined;
       if (vars.message) toast(vars.message, 'success', undoAction);
-      else if (vars.action === 'auto_assign') {
+      else if (vars.action === 'auto_assign' || vars.action === 'expertise_assign') {
         const assigned = (result as { assigneeId: number | null }[]).filter((r) => r.assigneeId != null);
+        const verb = vars.action === 'expertise_assign' ? 'Assigned by expertise' : 'Auto-assigned';
+        const suffix = vars.action === 'expertise_assign' && assigned.length < vars.ids.length
+          ? ' (rest: no skilled agent available)' : '';
         toast(
-          `Auto-assigned ${assigned.length} of ${vars.ids.length} ticket${vars.ids.length > 1 ? 's' : ''}`,
+          `${verb}: ${assigned.length} of ${vars.ids.length} ticket${vars.ids.length > 1 ? 's' : ''}${suffix}`,
           'success',
-          undoAction,
+          assigned.length ? undoAction : undefined,
         );
       }
     },
@@ -201,6 +204,7 @@ export default function App() {
 
     if (target === 'assign-me') act(ids, { assigneeId: userId }, `${label(ids)} assigned to you`);
     else if (target === 'assign-auto') bulk.mutate({ ids, action: 'auto_assign', undo: buildUndo(ids, { assigneeId: null }) });
+    else if (target === 'assign-expertise') bulk.mutate({ ids, action: 'expertise_assign', undo: buildUndo(ids, { assigneeId: null }) });
     else if (target === 'snooze-zone') setSnoozeIds(ids);
     else if (target.startsWith('agent-')) {
       const agentId = Number(target.slice(6));

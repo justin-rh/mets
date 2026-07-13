@@ -93,6 +93,10 @@ export function ActionRail({ mode, meta, queueId, onSelectQueue }: {
         <strong>Auto-assign</strong>
         <span className="rail-sub">round-robin, load-capped</span>
       </DropCard>
+      <DropCard id="assign-expertise" className="assign-expertise">
+        <strong>Auto-assign (Expertise)</strong>
+        <span className="rail-sub">matches category to agent skills</span>
+      </DropCard>
 
       <div className="rail-title">Queues — drop to move</div>
       {myQueues.map(queueCard)}

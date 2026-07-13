@@ -3,7 +3,7 @@ import { and, asc, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-o
 import { alias } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import { db, schema } from '../db/index.js';
-import { applyTicketChanges, autoAssign, createTicketCore, type TicketChanges } from '../services/ticketService.js';
+import { applyTicketChanges, autoAssign, autoAssignByExpertise, bestFitAgents, createTicketCore, type TicketChanges } from '../services/ticketService.js';
 import { enrichTicket } from '../services/ai/enrichment.js';
 import { completeFirstResponse } from '../services/sla/slaService.js';
 
@@ -202,6 +202,12 @@ export async function ticketRoutes(app: FastifyInstance) {
     return created;
   });
 
+  // Top agents for this ticket by expertise/queue/load fit.
+  app.get('/api/tickets/:id/fit', async (req) => {
+    const id = z.coerce.number().parse((req.params as any).id);
+    return bestFitAgents(id);
+  });
+
   app.patch('/api/tickets/:id', async (req) => {
     const id = z.coerce.number().parse((req.params as any).id);
     const changes = changesBody.parse(req.body) as TicketChanges;
@@ -234,12 +240,15 @@ export async function ticketRoutes(app: FastifyInstance) {
   app.post('/api/tickets/bulk', async (req) => {
     const body = z.object({
       ticketIds: z.array(z.number()).min(1).max(100),
-      action: z.enum(['update', 'auto_assign']).default('update'),
+      action: z.enum(['update', 'auto_assign', 'expertise_assign']).default('update'),
       changes: changesBody.optional(),
     }).parse(req.body);
 
     if (body.action === 'auto_assign') {
       return autoAssign(body.ticketIds, { id: req.userId });
+    }
+    if (body.action === 'expertise_assign') {
+      return autoAssignByExpertise(body.ticketIds, { id: req.userId });
     }
     if (!body.changes) throw Object.assign(new Error('changes required'), { statusCode: 400 });
     const results = [];

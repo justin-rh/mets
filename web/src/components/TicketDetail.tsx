@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  actingUserId, draftReply, fetchMeta, fetchSuggestions, fetchTicket,
-  patchTicket, postComment,
+  actingUserId, draftReply, fetchBestFits, fetchMeta, fetchSuggestions,
+  fetchTicket, patchTicket, postComment,
 } from '../api';
-import { copyToClipboard, fmtDateTime } from '../format';
+import { copyToClipboard, fmtDateTime, initials } from '../format';
 import { SnoozeDialog } from './SnoozeDialog';
 import { toast } from './Toasts';
 
@@ -47,6 +47,11 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
     queryKey: ['suggestions', ticketId],
     queryFn: () => fetchSuggestions(ticketId),
     staleTime: 300_000,
+  });
+  const { data: bestFits } = useQuery({
+    queryKey: ['fit', ticketId],
+    queryFn: () => fetchBestFits(ticketId),
+    staleTime: 60_000,
   });
   const draft = useMutation({
     mutationFn: () => draftReply(ticketId),
@@ -149,6 +154,28 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
       </div>
 
       <div className="detail-side">
+        {bestFits && bestFits.length > 0 && (
+          <div className="fit-row">
+            <span className="suggestions-title">Suggested:</span>
+            {bestFits.map((f) => (
+              <button
+                key={f.id}
+                className={`avatar fit-avatar ${f.fit <= 0.5 ? 'fit-weak' : ''}`}
+                title={`${f.name} — ${Math.round(f.fit * 100)}% fit${f.level ? ` · skill L${f.level}` : ''}${f.inQueue ? ' · in queue' : ''} — click to assign`}
+                onClick={() =>
+                  patch.mutate({ assigneeId: f.id }, {
+                    onSuccess: () => toast(`${t.number} assigned to ${f.name}`, 'success', {
+                      label: 'Undo',
+                      onClick: () => patch.mutate({ assigneeId: t.assignee?.id ?? null }, { onSuccess: () => toast('Undone', 'info') }),
+                    }),
+                  })
+                }
+              >
+                {initials(f.name)}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="detail-actions">
           <button
             className="btn accent"
