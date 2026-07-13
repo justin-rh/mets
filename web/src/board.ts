@@ -1,3 +1,3 @@
-export type Mode = 'My Queue' | 'Assign' | 'Move' | 'Triage';
-export const MODES: Mode[] = ['My Queue', 'Assign', 'Move', 'Triage'];
+export type Mode = 'All Tickets' | 'My Queue' | 'Triage';
+export const MODES: Mode[] = ['All Tickets', 'My Queue', 'Triage'];
 export { actingUserId } from './api';

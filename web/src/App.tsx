@@ -10,7 +10,7 @@ import {
 } from './api';
 import { MODES, type Mode } from './board';
 import { BulkBar } from './components/BulkBar';
-import { Rail } from './components/Rail';
+import { ActionRail, AgentRail } from './components/Rail';
 import { SnoozeDialog } from './components/SnoozeDialog';
 import { TicketRow } from './components/TicketRow';
 import './App.css';
@@ -19,7 +19,7 @@ const SORTS = ['date', 'score', 'priority', 'requester', 'description', 'random'
 
 export default function App() {
   const qc = useQueryClient();
-  const [mode, setMode] = useState<Mode>('Assign');
+  const [mode, setMode] = useState<Mode>('All Tickets');
   const [sort, setSort] = useState<string>('score');
   const [queueId, setQueueId] = useState<number | undefined>();
   const [search, setSearch] = useState('');
@@ -134,8 +134,7 @@ export default function App() {
           </button>
         ))}
         <span className="mode-hint">
-          {mode === 'Assign' && 'Drag tickets onto an agent — or use bulk select'}
-          {mode === 'Move' && 'Drag tickets onto a queue'}
+          {mode === 'All Tickets' && 'Drag tickets onto an agent (left) or a queue (right)'}
           {mode === 'My Queue' && 'Your assigned tickets'}
           {mode === 'Triage' && 'AI suggestions — coming Day 4'}
         </span>
@@ -160,6 +159,7 @@ export default function App() {
       </div>
 
       <div className="board">
+        <AgentRail meta={meta} queueId={queueId} />
         <main className="queue-list">
           {selection.size > 0 && (
             <BulkBar
@@ -195,7 +195,7 @@ export default function App() {
             )}
           </div>
         </main>
-        <Rail mode={mode} meta={meta} queueId={queueId} />
+        <ActionRail mode={mode} meta={meta} />
       </div>
 
       <DragOverlay dropAnimation={null}>

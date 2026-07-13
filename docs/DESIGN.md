@@ -70,17 +70,17 @@ Master Electronics palette: **dark blue** primary, **grey/white** surfaces,
 **orange** accents (CTAs, SLA warnings, drag highlights). Clean, dense,
 information-first — an operator console, not a marketing site.
 
-### Layout
+### Layout (three columns)
 - **Menu bar at top**: logo, global search, nav (Queue / Dashboards / Knowledge
   Base / Admin), notifications, profile.
-- **Mode buttons** below the menu bar — these change what drag-and-drop does:
-  - **My Queue** — only my assigned tickets
-  - **Assign** — right rail shows agent cards (with current load + expertise
-    tags); drag tickets onto agents. Buttons: *Assign to Me*, *Auto-Assign
-    (AI)*, *Assign by Expertise*
-  - **Move** — right rail shows queues; drag tickets between queues
-  - **Triage** — AI suggestions surfaced inline (category, priority, queue);
-    accept/reject per ticket or in bulk
+- **View tabs** below the menu bar: **All Tickets** · **My Queue** (my
+  assigned) · **Triage** (AI suggestions inline — category, priority, queue;
+  accept/reject per ticket or in bulk).
+- **Left rail — agents**: agent cards with current load bar + expertise tags;
+  drag tickets onto an agent to assign. Both rails are always visible, so
+  drag-and-drop works in any direction without switching modes.
+- **Right rail — actions**: *Assign to Me* and *Auto-Assign (AI)* drop cards,
+  queue cards (drop to move), and the **Holding Area** (drop to snooze).
 - **Ticket queue in center**: one row per ticket. Row shows number, type icon,
   title (truncated — **hover reveals full title**), requester, priority pill,
   **score**, age, SLA countdown, tags.

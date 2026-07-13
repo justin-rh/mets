@@ -126,9 +126,9 @@ select, textarea, input[type='text'], .modal input {
 
 .ticket-row {
   display: grid;
-  grid-template-columns: 20px 18px 38px 74px minmax(160px, 1fr) minmax(0, 120px) 130px 34px 34px 40px 96px 110px 30px;
+  grid-template-columns: 18px 18px 36px 70px minmax(120px, 1fr) minmax(0, 84px) 104px 32px 32px 38px 90px 96px 28px;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   padding: 8px 10px;
   cursor: pointer;
   font-size: 13px;
@@ -307,7 +307,7 @@ select, textarea, input[type='text'], .modal input {
 /* ===== rail ===== */
 
 .rail {
-  width: 264px;
+  width: 236px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
