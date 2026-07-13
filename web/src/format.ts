@@ -19,17 +19,27 @@ export function span(ms: number): string {
   return `${Math.floor(h / 24)}d ${h % 24}h`;
 }
 
-export type SlaView = { label: string; tone: 'ok' | 'warn' | 'breach' | 'paused' } | null;
+export type SlaView = {
+  label: string;
+  tone: 'ok' | 'warn' | 'breach' | 'paused';
+  /** Fraction of the SLA window remaining, 0..1 — drives the depletion meter. */
+  fraction: number;
+} | null;
 
 export function slaView(sla: SlaInfo | null): SlaView {
   if (!sla || sla.state === 'completed') return null;
-  if (sla.state === 'paused') return { label: 'SLA paused', tone: 'paused' };
-  const remaining = new Date(sla.targetAt).getTime() - Date.now();
+  if (sla.state === 'paused') return { label: 'paused', tone: 'paused', fraction: 1 };
+  const now = Date.now();
+  const target = new Date(sla.targetAt).getTime();
+  const remaining = target - now;
+  // warnAt sits at 75% of the window, so the full window is 4x (target - warn).
+  const duration = sla.warnAt ? (target - new Date(sla.warnAt).getTime()) * 4 : null;
+  const fraction = duration ? Math.max(0, Math.min(1, remaining / duration)) : 0.5;
   if (sla.state === 'breached' || remaining <= 0) {
-    return { label: `Breached ${span(remaining)}`, tone: 'breach' };
+    return { label: `−${span(remaining)}`, tone: 'breach', fraction: 0 };
   }
-  const warned = sla.warnAt && Date.now() >= new Date(sla.warnAt).getTime();
-  return { label: `${span(remaining)} left`, tone: warned ? 'warn' : 'ok' };
+  const warned = sla.warnAt && now >= new Date(sla.warnAt).getTime();
+  return { label: span(remaining), tone: warned ? 'warn' : 'ok', fraction };
 }
 
 export function initials(name: string): string {

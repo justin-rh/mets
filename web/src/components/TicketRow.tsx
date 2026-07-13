@@ -27,7 +27,7 @@ export function TicketRow({ ticket: t, selected, expanded, onToggleSelect, onTog
   }, [isDragging]);
 
   return (
-    <div className={`ticket ${isDragging ? 'dragging' : ''} ${expanded ? 'expanded' : ''}`} ref={setNodeRef}>
+    <div className={`ticket pri-${t.priority} ${isDragging ? 'dragging' : ''} ${expanded ? 'expanded' : ''}`} ref={setNodeRef}>
       <div
         className="ticket-row"
         {...listeners}
@@ -65,10 +65,22 @@ export function TicketRow({ ticket: t, selected, expanded, onToggleSelect, onTog
           {t.requester.name}
           {t.requester.isVip && <span className="vip" title="VIP">★</span>}
         </span>
-        <span className={`priority-pill p${t.priority}`}>P{t.priority}</span>
+        <span className={`pri-badge p${t.priority}`}>P{t.priority}</span>
         <span className="score" title="Ticket score">{t.score}</span>
         <span className="ticket-age" title={new Date(t.createdAt).toLocaleString()}>{age(t.createdAt)}</span>
-        {sla ? <span className={`sla-chip sla-${sla.tone}`}>{sla.label}</span> : <span className="sla-chip sla-none">—</span>}
+        {sla ? (
+          <span
+            className={`sla-cell sla-${sla.tone}`}
+            title={sla.tone === 'breach' ? `SLA breached ${sla.label}` : `Resolution SLA: ${sla.label} remaining`}
+          >
+            <span className="sla-meter">
+              <span className="sla-meter-fill" style={{ width: `${Math.round(sla.fraction * 100)}%` }} />
+            </span>
+            <span className="sla-text">{sla.label}</span>
+          </span>
+        ) : (
+          <span className="sla-cell sla-none">—</span>
+        )}
         <span className="status-chip">{t.status.name}</span>
         <span className="assignee" title={t.assignee ? `Assigned: ${t.assignee.name}` : 'Unassigned'}>
           {t.assignee ? initials(t.assignee.name) : '·'}

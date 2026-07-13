@@ -1,19 +1,30 @@
-/* METS theme — Master Electronics palette:
-   dark blue primary, grey/white surfaces, orange accents. */
+/* METS design tokens — "refined console"
+   Navy-tinted surfaces, Space Grotesk UI + JetBrains Mono data,
+   squared corners, orange reserved for the brand mark / primary CTA /
+   AI / SLA warnings; brick red for alarms (breach, P1). */
 :root {
-  --me-navy: #16324f;
-  --me-navy-deep: #0e2237;
-  --me-navy-soft: #23486e;
-  --me-orange: #f7941d;
-  --me-orange-dark: #d97b0a;
-  --surface: #f4f6f8;
-  --surface-card: #ffffff;
-  --border: #d9dee4;
-  --text: #1c2733;
-  --text-muted: #5c6b7a;
-  --text-on-dark: #f4f6f8;
-  --danger: #c0392b;
+  --ink: #16324f;        /* brand navy — structure, headings */
+  --ink-deep: #0d2137;   /* chrome */
+  --ink-soft: #23486e;
+  --accent: #f7941d;     /* orange — brand mark, CTA, AI, warnings */
+  --accent-dark: #d97b0a;
+  --alarm: #c33d21;      /* breach, P1 */
   --ok: #2e7d52;
+
+  --surface: #eef2f6;    /* navy-tinted app background */
+  --surface-card: #ffffff;
+  --surface-sunken: #e3e9f0;
+  --line: #d7dfe8;       /* navy-tinted hairlines */
+  --line-strong: #b9c6d4;
+
+  --text: #1a2733;
+  --text-muted: #5a6b7e;
+  --text-on-dark: #f2f5f8;
+
+  --font-ui: 'Space Grotesk', 'Segoe UI', system-ui, sans-serif;
+  --font-data: 'JetBrains Mono', Consolas, monospace;
+
+  --r: 2px; /* corners are square-ish by design */
 }
 
 * {
@@ -22,14 +33,23 @@
 
 body {
   margin: 0;
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: var(--font-ui);
   background: var(--surface);
   color: var(--text);
-  font-size: 14px;
+  font-size: 13.5px;
 }
 
 #root {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
 }
