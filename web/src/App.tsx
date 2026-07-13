@@ -37,11 +37,14 @@ export default function App() {
   const [mode, setMode] = useState<Mode>('All Tickets');
   const [sort, setSort] = useState<string>('score');
   const [queueId, setQueueId] = useState<number | undefined>();
-  const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get('ticket') ?? '');
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
   const [showSnoozed, setShowSnoozed] = useState(false);
   const [selection, setSelection] = useState<Set<number>>(new Set());
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  // Deep link: /?ticket=T-1000042 seeds the search and auto-expands the match.
+  const [linkedTicket] = useState(() => new URLSearchParams(window.location.search).get('ticket'));
+  const [linkPending, setLinkPending] = useState(() => !!linkedTicket);
   const [draggingId, setDraggingId] = useState<number | null>(null);
   const [snoozeIds, setSnoozeIds] = useState<number[] | null>(null);
   const [newTicketOpen, setNewTicketOpen] = useState(false);
@@ -59,12 +62,15 @@ export default function App() {
     return () => clearTimeout(t);
   }, [search]);
 
-  const view = showSnoozed ? 'snoozed'
+  const view: ListParams['view'] =
+    linkedTicket && debouncedSearch === linkedTicket ? 'all' // permalinks resolve closed tickets too
+    : showSnoozed ? 'snoozed'
     : mode === 'My Queue' ? 'mine'
     : mode === 'Unassigned' ? 'unassigned'
     : mode === 'My Categories' ? 'my_queues'
+    : mode === 'Closed' ? 'closed'
     : 'open';
-  const params = { view: view as ListParams['view'], queueId, sort, search: debouncedSearch };
+  const params = { view, queueId, sort, search: debouncedSearch };
 
   const { data: meta } = useQuery({ queryKey: ['meta'], queryFn: fetchMeta });
   const { data: ticketList, isFetching } = useQuery({
@@ -75,6 +81,16 @@ export default function App() {
     refetchInterval: 30_000,
   });
   const ticketRows = ticketList ?? [];
+
+  // Auto-expand the deep-linked ticket once it loads.
+  useEffect(() => {
+    if (!linkPending || !linkedTicket || !ticketList) return;
+    const match = ticketList.find((t) => t.number === linkedTicket);
+    if (match) {
+      setExpandedId(match.id);
+      setLinkPending(false);
+    }
+  }, [linkPending, linkedTicket, ticketList]);
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['tickets'] });
@@ -117,6 +133,16 @@ export default function App() {
     () => meta?.statuses.find((s) => s.category === 'resolved'),
     [meta],
   );
+
+  // Queue dropdown ordering: my queues, separator, All queues, rest A→Z.
+  const { myQueues, otherQueues } = useMemo(() => {
+    const myTeamIds = new Set(meta?.agents.find((a) => a.id === userId)?.teamIds ?? []);
+    const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name);
+    return {
+      myQueues: (meta?.queues ?? []).filter((q) => myTeamIds.has(q.id)).sort(byName),
+      otherQueues: (meta?.queues ?? []).filter((q) => !myTeamIds.has(q.id)).sort(byName),
+    };
+  }, [meta, userId]);
 
   const draggingCount = draggingId ? dragTargets(draggingId).length : 0;
   const draggingTicket = ticketRows.find((t) => t.id === draggingId);
@@ -203,14 +229,17 @@ export default function App() {
           {mode === 'Unassigned' && 'Open tickets with no assignee'}
           {mode === 'My Categories' && 'Tickets in the queues your teams own'}
           {mode === 'My Queue' && 'Your assigned tickets'}
+          {mode === 'Closed' && 'Resolved and closed tickets — reopen by changing status'}
           {mode === 'AI Triage' && 'AI categorization, routing, and priority checks — accept or dismiss'}
         </span>
         <span className="spacer" />
         <label className="toolbar-field">
           Queue
           <select value={queueId ?? ''} onChange={(e) => setQueueId(e.target.value ? Number(e.target.value) : undefined)}>
+            {myQueues.map((q) => <option key={q.id} value={q.id}>{q.name} ({q.openCount})</option>)}
+            {myQueues.length > 0 && <option disabled>────────────</option>}
             <option value="">All queues</option>
-            {meta?.queues.map((q) => <option key={q.id} value={q.id}>{q.name} ({q.openCount})</option>)}
+            {otherQueues.map((q) => <option key={q.id} value={q.id}>{q.name} ({q.openCount})</option>)}
           </select>
         </label>
         <label className="toolbar-field">
@@ -245,18 +274,27 @@ export default function App() {
               onClear={() => setSelection(new Set())}
             />
           )}
-          <div className="list-header">
-            <span className="list-header-spacer" />
+          <div className="list-header" title="Select all tickets in this view">
+            <span />
             <input
               ref={selectAllRef}
               type="checkbox"
               checked={allSelected}
               onChange={toggleSelectAll}
-              title="Select all tickets in this view"
+              title={`Select all (${ticketRows.length})`}
             />
-            <span className="list-header-label">
-              {selection.size > 0 ? `${selection.size} selected` : `Select all (${ticketRows.length})`}
-            </span>
+            <span>Type</span>
+            <span>Ticket</span>
+            <span>Subject</span>
+            <span>Tags</span>
+            <span>Queue · Cat.</span>
+            <span>Requester</span>
+            <span title="Priority">Pri</span>
+            <span className="col-right">Score</span>
+            <span className="col-right">Age</span>
+            <span>SLA</span>
+            <span>Status</span>
+            <span title="Assignee">Agt</span>
           </div>
           <div className={`ticket-list ${isFetching ? 'fetching' : ''}`}>
             {ticketRows.map((t) => (

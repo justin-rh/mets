@@ -48,6 +48,34 @@ export function initials(name: string): string {
 
 export const TYPE_LABEL: Record<string, string> = { incident: 'INC', request: 'REQ', change: 'CHG' };
 
+/**
+ * Copy text to the clipboard. navigator.clipboard requires a secure context
+ * (HTTPS/localhost) — the dev domain is plain HTTP, so fall back to the
+ * legacy textarea + execCommand path there.
+ */
+export async function copyToClipboard(text: string): Promise<boolean> {
+  if (window.isSecureContext && navigator.clipboard) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch { /* fall through */ }
+  }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
 export function fmtDateTime(iso: string): string {
   return new Date(iso).toLocaleString(undefined, {
     month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',

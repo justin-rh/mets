@@ -4,7 +4,7 @@ import {
   actingUserId, draftReply, fetchMeta, fetchSuggestions, fetchTicket,
   patchTicket, postComment,
 } from '../api';
-import { fmtDateTime } from '../format';
+import { copyToClipboard, fmtDateTime } from '../format';
 import { SnoozeDialog } from './SnoozeDialog';
 
 export function TicketDetail({ ticketId }: { ticketId: number }) {
@@ -15,6 +15,18 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
   const [visibility, setVisibility] = useState<'public' | 'internal'>('public');
   const [showActivity, setShowActivity] = useState(false);
   const [snoozeOpen, setSnoozeOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const copyLink = async (number: string) => {
+    const url = `${window.location.origin}/?ticket=${number}`;
+    const ok = await copyToClipboard(url);
+    if (!ok) {
+      window.prompt('Copy this link:', url);
+      return;
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['ticket', ticketId] });
@@ -145,6 +157,13 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
           ) : (
             <button className="btn" onClick={() => setSnoozeOpen(true)}>Snooze…</button>
           )}
+          <button
+            className="btn"
+            title={`Copy a direct link to ${t.number}`}
+            onClick={() => copyLink(t.number)}
+          >
+            {copied ? '✓ Copied' : '🔗 Link'}
+          </button>
         </div>
         <dl className="detail-meta">
           <dt>Status</dt>

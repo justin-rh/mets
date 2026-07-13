@@ -10,7 +10,7 @@ import { completeFirstResponse } from '../services/sla/slaService.js';
 const { tickets, statuses, teams, users, ticketTags, tags, slaInstances, ticketComments, ticketEvents, categories } = schema;
 
 const listQuery = z.object({
-  view: z.enum(['open', 'mine', 'unassigned', 'my_queues', 'snoozed', 'all']).default('open'),
+  view: z.enum(['open', 'mine', 'unassigned', 'my_queues', 'snoozed', 'closed', 'all']).default('open'),
   queueId: z.coerce.number().optional(),
   sort: z.enum(['date', 'score', 'priority', 'requester', 'description', 'random']).default('date'),
   search: z.string().trim().max(200).optional(),
@@ -48,6 +48,9 @@ export async function ticketRoutes(app: FastifyInstance) {
     if (q.view === 'snoozed') {
       conds.push(sql`${statuses.category} not in ('resolved','closed')`);
       conds.push(sql`${tickets.snoozedUntil} > now()`);
+    }
+    if (q.view === 'closed') {
+      conds.push(sql`${statuses.category} in ('resolved','closed')`);
     }
     if (q.queueId) conds.push(eq(tickets.queueId, q.queueId));
     if (q.search) {

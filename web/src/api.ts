@@ -43,7 +43,7 @@ export type TicketChanges = {
 };
 
 export type ListParams = {
-  view: 'open' | 'mine' | 'unassigned' | 'my_queues' | 'snoozed';
+  view: 'open' | 'mine' | 'unassigned' | 'my_queues' | 'snoozed' | 'closed' | 'all';
   queueId?: number; sort: string; search?: string;
 };
 
