@@ -307,7 +307,9 @@ async function main() {
     const queue = teamBySlug[catDef.queue]!;
     const teamAgents = agentsByTeam.get(queue.id)!;
 
-    const requester = chance(0.06) && vips.length ? pick(vips) : pick(requesters);
+    const requester = chance(0.06) && vips.length ? pick(vips)
+      : chance(0.05) ? pick(agents) // agents submit tickets too
+      : pick(requesters);
     const dept = requester.department ?? 'Sales';
     const priority = weighted(template.pri ?? [5, 20, 55, 20]) + 1;
     const createdAt = randomCreatedAt();

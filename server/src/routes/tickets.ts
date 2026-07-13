@@ -12,6 +12,8 @@ const { tickets, statuses, teams, users, ticketTags, tags, slaInstances, ticketC
 const listQuery = z.object({
   view: z.enum(['open', 'mine', 'unassigned', 'my_queues', 'snoozed', 'closed', 'all']).default('open'),
   queueId: z.coerce.number().optional(),
+  assigneeId: z.coerce.number().optional(),
+  requesterId: z.coerce.number().optional(),
   sort: z.enum(['date', 'newest', 'score', 'priority', 'requester', 'description', 'random']).default('date'),
   search: z.string().trim().max(200).optional(),
   limit: z.coerce.number().min(1).max(500).default(200),
@@ -53,6 +55,8 @@ export async function ticketRoutes(app: FastifyInstance) {
       conds.push(sql`${statuses.category} in ('resolved','closed')`);
     }
     if (q.queueId) conds.push(eq(tickets.queueId, q.queueId));
+    if (q.assigneeId) conds.push(eq(tickets.assigneeId, q.assigneeId));
+    if (q.requesterId) conds.push(eq(tickets.requesterId, q.requesterId));
     if (q.search) {
       conds.push(or(ilike(tickets.subject, `%${q.search}%`), ilike(tickets.number, `%${q.search}%`))!);
     }

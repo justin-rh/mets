@@ -47,6 +47,13 @@ export default function App() {
   // Deep link: /?ticket=T-1000042 seeds the search and auto-expands the match.
   const [linkedTicket] = useState(() => new URLSearchParams(window.location.search).get('ticket'));
   const [linkPending, setLinkPending] = useState(() => !!linkedTicket);
+  // Agent filters: assigned queue (from clicking an agent card) and
+  // submitted-by (from /?requester=<id>, opened in a new tab).
+  const [assigneeFilter, setAssigneeFilter] = useState<number | undefined>();
+  const [requesterFilter, setRequesterFilter] = useState<number | undefined>(() => {
+    const v = new URLSearchParams(window.location.search).get('requester');
+    return v ? Number(v) : undefined;
+  });
   const [draggingId, setDraggingId] = useState<number | null>(null);
   const [snoozeIds, setSnoozeIds] = useState<number[] | null>(null);
   const [newTicketOpen, setNewTicketOpen] = useState(false);
@@ -66,13 +73,14 @@ export default function App() {
 
   const view: ListParams['view'] =
     linkedTicket && debouncedSearch === linkedTicket ? 'all' // permalinks resolve closed tickets too
+    : requesterFilter ? 'all' // submitted-by view spans open and closed
     : showSnoozed ? 'snoozed'
     : mode === 'My Queue' ? 'mine'
     : mode === 'Unassigned' ? 'unassigned'
     : mode === 'My Categories' ? 'my_queues'
     : mode === 'Closed' ? 'closed'
     : 'open';
-  const params = { view, queueId, sort, search: debouncedSearch };
+  const params = { view, queueId, assigneeId: assigneeFilter, requesterId: requesterFilter, sort, search: debouncedSearch };
 
   const { data: meta } = useQuery({ queryKey: ['meta'], queryFn: fetchMeta });
   const { data: ticketList, isFetching } = useQuery({
@@ -309,11 +317,23 @@ export default function App() {
           <button
             key={m}
             className={m === mode ? (m === 'AI Triage' ? 'active accent' : 'active') : ''}
-            onClick={() => { setMode(m); setShowSnoozed(false); }}
+            onClick={() => { setMode(m); setShowSnoozed(false); setAssigneeFilter(undefined); setRequesterFilter(undefined); }}
           >
             {m}
           </button>
         ))}
+        {assigneeFilter && (
+          <span className="filter-chip">
+            Assigned: {meta?.agents.find((a) => a.id === assigneeFilter)?.name ?? `#${assigneeFilter}`}
+            <button onClick={() => setAssigneeFilter(undefined)} title="Clear filter">✕</button>
+          </span>
+        )}
+        {requesterFilter && (
+          <span className="filter-chip">
+            Submitted by: {meta?.agents.find((a) => a.id === requesterFilter)?.name ?? `user #${requesterFilter}`}
+            <button onClick={() => setRequesterFilter(undefined)} title="Clear filter">✕</button>
+          </span>
+        )}
         <span className="mode-hint">
           {mode === 'All Tickets' && 'Drag tickets onto an agent (left) or a queue (right)'}
           {mode === 'Unassigned' && 'Open tickets with no assignee'}
@@ -345,7 +365,13 @@ export default function App() {
       </div>
 
       <div className="board">
-        <AgentRail meta={meta} queueId={queueId} mode={mode} />
+        <AgentRail
+          meta={meta}
+          queueId={queueId}
+          mode={mode}
+          assigneeFilter={assigneeFilter}
+          onSelectAssignee={(id) => { setAssigneeFilter(id); if (id && mode !== 'All Tickets') setMode('All Tickets'); }}
+        />
         {mode === 'AI Triage' ? (
           <main className="queue-list">
             <TriagePanel />

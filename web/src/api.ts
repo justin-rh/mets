@@ -45,7 +45,8 @@ export type TicketChanges = {
 
 export type ListParams = {
   view: 'open' | 'mine' | 'unassigned' | 'my_queues' | 'snoozed' | 'closed' | 'all';
-  queueId?: number; sort: string; search?: string; limit?: number;
+  queueId?: number; assigneeId?: number; requesterId?: number;
+  sort: string; search?: string; limit?: number;
 };
 
 export function actingUserId(): number {
@@ -78,6 +79,8 @@ export const fetchMeta = () => api<Meta>('/api/meta');
 export function fetchTickets(p: ListParams) {
   const q = new URLSearchParams({ view: p.view, sort: p.sort });
   if (p.queueId) q.set('queueId', String(p.queueId));
+  if (p.assigneeId) q.set('assigneeId', String(p.assigneeId));
+  if (p.requesterId) q.set('requesterId', String(p.requesterId));
   if (p.search) q.set('search', p.search);
   if (p.limit) q.set('limit', String(p.limit));
   return api<TicketListItem[]>(`/api/tickets?${q}`);

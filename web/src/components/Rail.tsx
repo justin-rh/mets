@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import type { AgentInfo, Meta } from '../api';
 import { actingUserId, type Mode } from '../board';
@@ -14,26 +15,56 @@ function DropCard({ id, className, onClick, children }: {
   );
 }
 
-function AgentCard({ a, isMe }: { a: AgentInfo; isMe: boolean }) {
+function AgentCard({ a, isMe, active, menuOpen, onToggleMenu, onViewAssigned }: {
+  a: AgentInfo;
+  isMe: boolean;
+  active: boolean;
+  menuOpen: boolean;
+  onToggleMenu: () => void;
+  onViewAssigned: () => void;
+}) {
   return (
-    <DropCard id={`agent-${a.id}`} className={`agent-card ${isMe ? 'agent-me' : ''}`}>
-      <span className="avatar">{initials(a.name)}</span>
-      <span className="agent-info">
-        <strong>{a.name}{isMe ? ' (you)' : ''}</strong>
-        <span className="loadbar">
-          <span className="loadbar-fill" style={{ width: `${Math.min(100, (a.openCount / a.maxOpen) * 100)}%` }} />
+    <div className="agent-card-wrap">
+      <DropCard
+        id={`agent-${a.id}`}
+        className={`agent-card clickable ${isMe ? 'agent-me' : ''} ${active ? 'active' : ''}`}
+        onClick={onToggleMenu}
+      >
+        <span className="avatar">{initials(a.name)}</span>
+        <span className="agent-info">
+          <strong>{a.name}{isMe ? ' (you)' : ''}</strong>
+          <span className="loadbar">
+            <span className="loadbar-fill" style={{ width: `${Math.min(100, (a.openCount / a.maxOpen) * 100)}%` }} />
+          </span>
+          <span className="rail-sub">
+            {a.openCount} open
+            {a.skills.length > 0 && ` · ${a.skills.slice(0, 3).map((s) => s.name).join(', ')}`}
+          </span>
         </span>
-        <span className="rail-sub">
-          {a.openCount} open
-          {a.skills.length > 0 && ` · ${a.skills.slice(0, 3).map((s) => s.name).join(', ')}`}
-        </span>
-      </span>
-    </DropCard>
+      </DropCard>
+      {menuOpen && (
+        <div className="agent-menu">
+          <button className="btn" onClick={onViewAssigned}>
+            {active ? 'Clear filter' : `View ${isMe ? 'my' : 'assigned'} queue (${a.openCount})`}
+          </button>
+          <button className="btn" onClick={() => window.open(`/?requester=${a.id}`, '_blank')}>
+            Submitted tickets ↗
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
 /** Left rail: you first, divider, then other agents alphabetically. */
-export function AgentRail({ meta, queueId, mode }: { meta: Meta | undefined; queueId?: number; mode: Mode }) {
+export function AgentRail({ meta, queueId, mode, assigneeFilter, onSelectAssignee }: {
+  meta: Meta | undefined;
+  queueId?: number;
+  mode: Mode;
+  assigneeFilter?: number;
+  onSelectAssignee: (id: number | undefined) => void;
+}) {
+  const [menuAgentId, setMenuAgentId] = useState<number | null>(null);
   if (!meta) return <aside className="rail rail-left" />;
   const me = actingUserId();
   const myAgent = meta.agents.find((a) => a.id === me);
@@ -45,13 +76,28 @@ export function AgentRail({ meta, queueId, mode }: { meta: Meta | undefined; que
   if (mode === 'My Categories') others = others.filter((a) => a.teamIds.some((t) => myTeamIds.has(t)));
   others.sort((a, b) => a.name.localeCompare(b.name));
 
+  const card = (a: AgentInfo, isMe: boolean) => (
+    <AgentCard
+      key={a.id}
+      a={a}
+      isMe={isMe}
+      active={assigneeFilter === a.id}
+      menuOpen={menuAgentId === a.id}
+      onToggleMenu={() => setMenuAgentId(menuAgentId === a.id ? null : a.id)}
+      onViewAssigned={() => {
+        onSelectAssignee(assigneeFilter === a.id ? undefined : a.id);
+        setMenuAgentId(null);
+      }}
+    />
+  );
+
   return (
     <aside className="rail rail-left">
-      <div className="rail-title">Agents — drop to assign</div>
+      <div className="rail-title">Agents — drop to assign, click for options</div>
       <div className="agent-list">
-        {myAgent && <AgentCard a={myAgent} isMe />}
+        {myAgent && card(myAgent, true)}
         {myAgent && others.length > 0 && <div className="rail-divider" />}
-        {others.map((a) => <AgentCard key={a.id} a={a} isMe={false} />)}
+        {others.map((a) => card(a, false))}
       </div>
     </aside>
   );
