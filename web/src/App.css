@@ -1090,3 +1090,12 @@ select, textarea, input[type='text'], .modal input {
 .admin-rule-pos { font-family: var(--font-data); color: var(--text-muted); width: 16px; text-align: right; }
 .admin-rule-name { font-weight: 600; min-width: 200px; }
 .admin-rule-summary { color: var(--text-muted); font-family: var(--font-data); font-size: 11px; flex: 1; }
+
+.queue-card.clickable { cursor: pointer; }
+.queue-card.clickable:hover { border-color: var(--ink); }
+.queue-card.active {
+  border-color: var(--ink);
+  border-left-color: var(--accent);
+  background: var(--row-hover);
+}
+.queue-card.active strong { color: var(--ink); }

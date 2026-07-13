@@ -281,7 +281,7 @@ export default function App() {
           </div>
         </main>
         )}
-        <ActionRail mode={mode} meta={meta} />
+        <ActionRail mode={mode} meta={meta} queueId={queueId} onSelectQueue={setQueueId} />
       </div>
       </>)}
 

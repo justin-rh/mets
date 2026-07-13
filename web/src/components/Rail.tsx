@@ -3,10 +3,12 @@ import type { AgentInfo, Meta } from '../api';
 import { actingUserId, type Mode } from '../board';
 import { initials } from '../format';
 
-function DropCard({ id, className, children }: { id: string; className?: string; children: React.ReactNode }) {
+function DropCard({ id, className, onClick, children }: {
+  id: string; className?: string; onClick?: () => void; children: React.ReactNode;
+}) {
   const { setNodeRef, isOver } = useDroppable({ id });
   return (
-    <div ref={setNodeRef} className={`drop-card ${className ?? ''} ${isOver ? 'over' : ''}`}>
+    <div ref={setNodeRef} className={`drop-card ${className ?? ''} ${isOver ? 'over' : ''}`} onClick={onClick}>
       {children}
     </div>
   );
@@ -56,7 +58,12 @@ export function AgentRail({ meta, queueId, mode }: { meta: Meta | undefined; que
 }
 
 /** Right rail: quick assigns, then your queues / divider / other queues, holding area. */
-export function ActionRail({ mode, meta }: { mode: Mode; meta: Meta | undefined }) {
+export function ActionRail({ mode, meta, queueId, onSelectQueue }: {
+  mode: Mode;
+  meta: Meta | undefined;
+  queueId?: number;
+  onSelectQueue: (id: number | undefined) => void;
+}) {
   if (!meta) return <aside className="rail rail-right" />;
   const myTeamIds = new Set(meta.agents.find((a) => a.id === actingUserId())?.teamIds ?? []);
   const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name);
@@ -64,7 +71,12 @@ export function ActionRail({ mode, meta }: { mode: Mode; meta: Meta | undefined 
   const otherQueues = meta.queues.filter((q) => !myTeamIds.has(q.id)).sort(byName);
 
   const queueCard = (q: Meta['queues'][number]) => (
-    <DropCard key={q.id} id={`queue-${q.id}`} className="queue-card">
+    <DropCard
+      key={q.id}
+      id={`queue-${q.id}`}
+      className={`queue-card clickable ${q.id === queueId ? 'active' : ''}`}
+      onClick={() => onSelectQueue(q.id === queueId ? undefined : q.id)}
+    >
       <strong>{q.name}</strong>
       <span className="rail-sub">{q.openCount} open · {q.assignmentPolicy.replace('_', ' ')}</span>
     </DropCard>
