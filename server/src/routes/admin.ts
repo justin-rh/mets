@@ -3,8 +3,9 @@ import { asc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db, schema } from '../db/index.js';
 import { invalidateScoreWeightsCache, recomputeScore } from '../services/scoring.js';
+import { deriveSkillsFromHistory } from '../services/skills.js';
 
-const { appConfig, statuses, slaPolicies, routingRules, users, tickets } = schema;
+const { appConfig, statuses, slaPolicies, routingRules, users, tickets, skills, agentSkills } = schema;
 
 /** All admin mutations require the admin role — the RBAC requirement, live. */
 async function requireAdmin(userId: number) {
@@ -33,6 +34,7 @@ export async function adminRoutes(app: FastifyInstance) {
       aiThresholds: byKey['ai_thresholds'] ?? { autoApply: 0.8, suggest: 0.35 },
       businessHours: byKey['business_hours'] ?? null,
       statuses: await db.select().from(statuses).orderBy(asc(statuses.position)),
+      skills: await db.select().from(skills).orderBy(asc(skills.name)),
       slaPolicies: await db.select().from(slaPolicies).orderBy(asc(slaPolicies.id)),
       routingRules: await db.select().from(routingRules).orderBy(asc(routingRules.position)),
     };
@@ -141,5 +143,38 @@ export async function adminRoutes(app: FastifyInstance) {
     const id = z.coerce.number().parse((req.params as any).id);
     await db.delete(routingRules).where(eq(routingRules.id, id));
     return { ok: true };
+  });
+
+  // --- agent expertise: manual grants + on-demand history sync ---
+
+  app.post('/api/admin/agents/:id/skills', async (req) => {
+    await requireAdmin(req.userId);
+    const userId = z.coerce.number().parse((req.params as any).id);
+    const body = z.object({
+      name: z.string().trim().min(2).max(60),
+      level: z.number().min(1).max(3).default(2),
+    }).parse(req.body);
+    let [skill] = await db.select().from(skills).where(eq(skills.name, body.name));
+    if (!skill) [skill] = await db.insert(skills).values({ name: body.name }).returning();
+    await db.insert(agentSkills)
+      .values({ userId, skillId: skill!.id, level: body.level, source: 'manual' })
+      .onConflictDoUpdate({
+        target: [agentSkills.userId, agentSkills.skillId],
+        set: { level: body.level, source: 'manual' }, // manual grant wins over auto
+      });
+    return { ok: true };
+  });
+
+  app.delete('/api/admin/agents/:id/skills/:skillId', async (req) => {
+    await requireAdmin(req.userId);
+    const userId = z.coerce.number().parse((req.params as any).id);
+    const skillId = z.coerce.number().parse((req.params as any).skillId);
+    await db.delete(agentSkills).where(sql`user_id = ${userId} and skill_id = ${skillId}`);
+    return { ok: true };
+  });
+
+  app.post('/api/admin/skills/sync', async (req) => {
+    await requireAdmin(req.userId);
+    return deriveSkillsFromHistory();
   });
 }

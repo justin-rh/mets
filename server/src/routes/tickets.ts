@@ -12,7 +12,7 @@ const { tickets, statuses, teams, users, ticketTags, tags, slaInstances, ticketC
 const listQuery = z.object({
   view: z.enum(['open', 'mine', 'unassigned', 'my_queues', 'snoozed', 'closed', 'all']).default('open'),
   queueId: z.coerce.number().optional(),
-  sort: z.enum(['date', 'score', 'priority', 'requester', 'description', 'random']).default('date'),
+  sort: z.enum(['date', 'newest', 'score', 'priority', 'requester', 'description', 'random']).default('date'),
   search: z.string().trim().max(200).optional(),
   limit: z.coerce.number().min(1).max(500).default(200),
 });
@@ -58,7 +58,8 @@ export async function ticketRoutes(app: FastifyInstance) {
     }
 
     const order =
-      q.sort === 'score' ? [desc(tickets.score), desc(tickets.createdAt)]
+      q.sort === 'newest' ? [desc(tickets.id)] // arrival order, immune to backdated timestamps
+      : q.sort === 'score' ? [desc(tickets.score), desc(tickets.createdAt)]
       : q.sort === 'priority' ? [asc(tickets.priority), desc(tickets.score)]
       : q.sort === 'requester' ? [asc(requester.name), desc(tickets.createdAt)]
       : q.sort === 'description' ? [asc(tickets.subject)]

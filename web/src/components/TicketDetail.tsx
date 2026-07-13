@@ -6,6 +6,7 @@ import {
 } from '../api';
 import { copyToClipboard, fmtDateTime } from '../format';
 import { SnoozeDialog } from './SnoozeDialog';
+import { toast } from './Toasts';
 
 export function TicketDetail({ ticketId }: { ticketId: number }) {
   const qc = useQueryClient();
@@ -149,7 +150,19 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
 
       <div className="detail-side">
         <div className="detail-actions">
-          <button className="btn accent" disabled={patch.isPending} onClick={() => patch.mutate({ assigneeId: actingUserId() })}>
+          <button
+            className="btn accent"
+            disabled={patch.isPending}
+            onClick={() => {
+              const prev = t.assignee?.id ?? null;
+              patch.mutate({ assigneeId: actingUserId() }, {
+                onSuccess: () => toast(`${t.number} assigned to you`, 'success', {
+                  label: 'Undo',
+                  onClick: () => patch.mutate({ assigneeId: prev }, { onSuccess: () => toast('Undone', 'info') }),
+                }),
+              });
+            }}
+          >
             Assign to me
           </button>
           {t.snoozedUntil ? (
@@ -180,7 +193,14 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
           </dd>
           <dt>Queue</dt>
           <dd>
-            <select value={t.queue.id} onChange={(e) => patch.mutate({ queueId: Number(e.target.value) })}>
+            <select
+              value={t.queue.id}
+              onChange={(e) => {
+                const qid = Number(e.target.value);
+                const name = meta?.queues.find((q) => q.id === qid)?.name ?? 'queue';
+                patch.mutate({ queueId: qid }, { onSuccess: () => toast(`${t.number} moved to ${name}`, 'success') });
+              }}
+            >
               {meta?.queues.map((q) => <option key={q.id} value={q.id}>{q.name}</option>)}
             </select>
           </dd>

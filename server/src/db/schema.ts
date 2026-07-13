@@ -94,7 +94,11 @@ export const agentSkills = pgTable(
   {
     userId: bigint('user_id', { mode: 'number' }).notNull().references(() => users.id),
     skillId: bigint('skill_id', { mode: 'number' }).notNull().references(() => skills.id),
-    level: smallint('level').notNull().default(1), // 1-3; auto-suggested from resolution history later
+    level: smallint('level').notNull().default(1), // 1-3
+    // 'auto' = derived from resolution history (re-synced periodically, may be
+    // revoked when it no longer qualifies); 'manual' = admin-assigned, never
+    // touched by the sync.
+    source: text('source').notNull().default('manual'),
   },
   (t) => [primaryKey({ columns: [t.userId, t.skillId] })],
 );

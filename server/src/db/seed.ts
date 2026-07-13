@@ -59,6 +59,9 @@ function randomCreatedAt(): Date {
   if (d.getDay() === 0) d.setTime(d.getTime() - 2 * DAY);
   if (d.getDay() === 6) d.setTime(d.getTime() - DAY);
   d.setHours(int(7, 17), int(0, 59), int(0, 59), 0);
+  // never in the future — today's tickets get a business hour that may
+  // otherwise land past the current time
+  if (d.getTime() > NOW.getTime()) d.setTime(NOW.getTime() - int(5, 180) * 60_000);
   return d;
 }
 
@@ -256,18 +259,18 @@ async function main() {
   );
   await db.insert(teamMemberships).values(membershipRows);
 
-  const skillLinks: (typeof agentSkills.$inferInsert)[] = [];
+  // A few manual skills for flavor; the bulk of expertise is derived from
+  // resolution history after tickets are seeded (see end of main()).
+  const manualSkills: (typeof agentSkills.$inferInsert)[] = [];
   const seenSkill = new Set<string>();
-  for (const agent of agents) {
-    for (let i = 0, n = int(2, 4); i < n; i++) {
-      const skill = pick(skillRows);
-      const key = `${agent.id}-${skill.id}`;
-      if (seenSkill.has(key)) continue;
-      seenSkill.add(key);
-      skillLinks.push({ userId: agent.id, skillId: skill.id, level: int(1, 3) });
-    }
+  for (const agent of agents.slice(0, 8)) {
+    const skill = pick(skillRows);
+    const key = `${agent.id}-${skill.id}`;
+    if (seenSkill.has(key)) continue;
+    seenSkill.add(key);
+    manualSkills.push({ userId: agent.id, skillId: skill.id, level: int(2, 3), source: 'manual' });
   }
-  await db.insert(agentSkills).values(skillLinks);
+  await db.insert(agentSkills).values(manualSkills);
 
   // --- knowledge base -----------------------------------------------------------
 
@@ -518,6 +521,10 @@ async function main() {
   await insertChunked(ticketTags, tagLinkRows);
   await insertChunked(slaInstances, slaRows);
 
+  // Derive agent expertise from the freshly seeded resolution history.
+  const { deriveSkillsFromHistory } = await import('../services/skills.js');
+  const skillSync = await deriveSkillsFromHistory();
+
   const open = pendingTickets.filter((p) => p.isOpen).length;
   const summary = {
     users: allUsers.length,
@@ -529,6 +536,7 @@ async function main() {
     slaWarningDemo: 6 - warningQuota,
     slaBreachedDemo: 3 - breachQuota,
     snoozed: pendingTickets.filter((p) => p.row.snoozedUntil).length,
+    autoSkills: skillSync.qualified,
     comments: commentRows.length,
     events: eventRows.length,
     kbArticles: KB_ARTICLES.length,

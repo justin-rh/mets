@@ -39,7 +39,10 @@ export async function metaRoutes(app: FastifyInstance) {
       .select({ userId: teamMemberships.userId, teamId: teamMemberships.teamId, role: teamMemberships.role })
       .from(teamMemberships);
     const skillRows = await db
-      .select({ userId: agentSkills.userId, skill: skills.name, level: agentSkills.level })
+      .select({
+        userId: agentSkills.userId, skillId: agentSkills.skillId,
+        skill: skills.name, level: agentSkills.level, source: agentSkills.source,
+      })
       .from(agentSkills)
       .innerJoin(skills, eq(skills.id, agentSkills.skillId));
 
@@ -47,7 +50,10 @@ export async function metaRoutes(app: FastifyInstance) {
       ...a,
       teamIds: memberships.filter((m) => m.userId === a.id).map((m) => m.teamId),
       leadOf: memberships.filter((m) => m.userId === a.id && m.role === 'lead').map((m) => m.teamId),
-      skills: skillRows.filter((s) => s.userId === a.id).map((s) => ({ name: s.skill, level: s.level })),
+      skills: skillRows
+        .filter((s) => s.userId === a.id)
+        .sort((x, y) => y.level - x.level)
+        .map((s) => ({ id: s.skillId, name: s.skill, level: s.level, source: s.source })),
     }));
 
     const tagRows = await db.select().from(tags).orderBy(tags.name);

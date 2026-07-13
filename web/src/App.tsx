@@ -14,8 +14,8 @@ const cursorFirst: CollisionDetection = (args) => {
 };
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  actingUserId, bulkTickets, fetchMeta, fetchTickets, setActingUserId,
-  type ListParams, type TicketChanges,
+  actingUserId, bulkTickets, fetchMeta, fetchTickets, patchTicket,
+  setActingUserId, type ListParams, type TicketChanges, type TicketListItem,
 } from './api';
 import { MODES, type Mode } from './board';
 import { Admin } from './components/Admin';
@@ -27,6 +27,7 @@ import { NewTicketDialog } from './components/NewTicketDialog';
 import { ActionRail, AgentRail } from './components/Rail';
 import { SnoozeDialog } from './components/SnoozeDialog';
 import { TicketRow } from './components/TicketRow';
+import { toast, Toasts } from './components/Toasts';
 import { TriagePanel } from './components/TriagePanel';
 import './App.css';
 
@@ -92,19 +93,95 @@ export default function App() {
     }
   }, [linkPending, linkedTicket, ticketList]);
 
+  // Incoming-ticket watcher: poll the newest tickets regardless of the
+  // current view and toast anything that arrived since the last check.
+  const { data: latestTickets } = useQuery({
+    queryKey: ['latest-tickets'],
+    queryFn: () => fetchTickets({ view: 'all', sort: 'newest', limit: 10 }),
+    refetchInterval: 15_000,
+  });
+  const lastSeenId = useRef<number | null>(null);
+  useEffect(() => {
+    if (!latestTickets?.length) return;
+    const maxId = Math.max(...latestTickets.map((t) => t.id));
+    if (lastSeenId.current === null) {
+      lastSeenId.current = maxId; // baseline on first load — no toast storm
+      return;
+    }
+    const fresh = latestTickets
+      .filter((t) => t.id > lastSeenId.current!)
+      .sort((a, b) => a.id - b.id);
+    lastSeenId.current = Math.max(lastSeenId.current, maxId);
+    if (fresh.length > 3) {
+      toast(`${fresh.length} new tickets came in`, 'new');
+    } else {
+      for (const t of fresh) {
+        toast(`New ticket ${t.number} → ${t.queue.name}: ${t.subject.slice(0, 60)}`, 'new');
+      }
+    }
+  }, [latestTickets]);
+
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['tickets'] });
     qc.invalidateQueries({ queryKey: ['meta'] });
     qc.invalidateQueries({ queryKey: ['ticket'] });
   };
 
+  type UndoOp = { ticketId: number; restore: TicketChanges };
+
+  /** Per-ticket changes that put back what an action is about to overwrite. */
+  const restoreFor = (t: TicketListItem, changes: TicketChanges): TicketChanges => {
+    const r: TicketChanges = {};
+    if ('assigneeId' in changes) r.assigneeId = t.assignee?.id ?? null;
+    if ('queueId' in changes) {
+      r.queueId = t.queue.id;
+      r.assigneeId = t.assignee?.id ?? null; // moving queues can drop the assignee
+    }
+    if ('statusId' in changes) r.statusId = t.status.id;
+    if ('snooze' in changes) r.snooze = null;
+    return r;
+  };
+
+  const buildUndo = (ids: number[], changes: TicketChanges): UndoOp[] =>
+    ids
+      .map((id) => {
+        const t = ticketRows.find((r) => r.id === id);
+        return t ? { ticketId: id, restore: restoreFor(t, changes) } : null;
+      })
+      .filter((op): op is UndoOp => op !== null && Object.keys(op.restore).length > 0);
+
+  const runUndo = async (ops: UndoOp[]) => {
+    for (const op of ops) await patchTicket(op.ticketId, op.restore);
+    invalidate();
+    toast(`Undone — ${ops.length > 1 ? `${ops.length} tickets` : 'ticket'} restored`, 'info');
+  };
+
   const bulk = useMutation({
-    mutationFn: ({ ids, action, changes }: { ids: number[]; action: 'update' | 'auto_assign'; changes?: TicketChanges }) =>
-      bulkTickets(ids, action, changes),
-    onSuccess: () => { setSelection(new Set()); invalidate(); },
+    mutationFn: ({ ids, action, changes }: {
+      ids: number[]; action: 'update' | 'auto_assign'; changes?: TicketChanges;
+      message?: string; undo?: UndoOp[];
+    }) => bulkTickets(ids, action, changes),
+    onSuccess: (result, vars) => {
+      setSelection(new Set());
+      invalidate();
+      const undoAction = vars.undo?.length ? { label: 'Undo', onClick: () => runUndo(vars.undo!) } : undefined;
+      if (vars.message) toast(vars.message, 'success', undoAction);
+      else if (vars.action === 'auto_assign') {
+        const assigned = (result as { assigneeId: number | null }[]).filter((r) => r.assigneeId != null);
+        toast(
+          `Auto-assigned ${assigned.length} of ${vars.ids.length} ticket${vars.ids.length > 1 ? 's' : ''}`,
+          'success',
+          undoAction,
+        );
+      }
+    },
   });
 
-  const act = (ids: number[], changes: TicketChanges) => bulk.mutate({ ids, action: 'update', changes });
+  const label = (ids: number[]) =>
+    ids.length > 1 ? `${ids.length} tickets` : ticketRows.find((t) => t.id === ids[0])?.number ?? 'Ticket';
+
+  const act = (ids: number[], changes: TicketChanges, message?: string) =>
+    bulk.mutate({ ids, action: 'update', changes, message, undo: buildUndo(ids, changes) });
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -122,11 +199,18 @@ export default function App() {
     if (!ticketId || !target) return;
     const ids = dragTargets(ticketId);
 
-    if (target === 'assign-me') act(ids, { assigneeId: userId });
-    else if (target === 'assign-auto') bulk.mutate({ ids, action: 'auto_assign' });
+    if (target === 'assign-me') act(ids, { assigneeId: userId }, `${label(ids)} assigned to you`);
+    else if (target === 'assign-auto') bulk.mutate({ ids, action: 'auto_assign', undo: buildUndo(ids, { assigneeId: null }) });
     else if (target === 'snooze-zone') setSnoozeIds(ids);
-    else if (target.startsWith('agent-')) act(ids, { assigneeId: Number(target.slice(6)) });
-    else if (target.startsWith('queue-')) act(ids, { queueId: Number(target.slice(6)) });
+    else if (target.startsWith('agent-')) {
+      const agentId = Number(target.slice(6));
+      const agent = meta?.agents.find((a) => a.id === agentId);
+      act(ids, { assigneeId: agentId }, `${label(ids)} assigned to ${agent?.name ?? 'agent'}`);
+    } else if (target.startsWith('queue-')) {
+      const qid = Number(target.slice(6));
+      const queue = meta?.queues.find((q) => q.id === qid);
+      act(ids, { queueId: qid }, `${label(ids)} moved to ${queue?.name ?? 'queue'}`);
+    }
   }
 
   const resolvedStatus = useMemo(
@@ -267,10 +351,10 @@ export default function App() {
               count={selection.size}
               meta={meta}
               onAssignMe={() => act([...selection], { assigneeId: userId })}
-              onAutoAssign={() => bulk.mutate({ ids: [...selection], action: 'auto_assign' })}
+              onAutoAssign={() => bulk.mutate({ ids: [...selection], action: 'auto_assign', undo: buildUndo([...selection], { assigneeId: null }) })}
               onMove={(qid) => act([...selection], { queueId: qid })}
               onSnooze={() => setSnoozeIds([...selection])}
-              onClose={() => resolvedStatus && act([...selection], { statusId: resolvedStatus.id })}
+              onClose={() => resolvedStatus && act([...selection], { statusId: resolvedStatus.id }, `Resolved ${selection.size} ticket${selection.size > 1 ? 's' : ''}`)}
               onClear={() => setSelection(new Set())}
             />
           )}
@@ -333,6 +417,8 @@ export default function App() {
         )}
       </DragOverlay>
 
+      <Toasts />
+
       {newTicketOpen && <NewTicketDialog onClose={() => setNewTicketOpen(false)} />}
 
       {snoozeIds && (
@@ -340,7 +426,7 @@ export default function App() {
           count={snoozeIds.length}
           onCancel={() => setSnoozeIds(null)}
           onConfirm={(until, reason) => {
-            act(snoozeIds, { snooze: { until, reason } });
+            act(snoozeIds, { snooze: { until, reason } }, `Snoozed ${label(snoozeIds)}`);
             setSnoozeIds(null);
           }}
         />

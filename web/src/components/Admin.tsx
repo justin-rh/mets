@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  addRoutingRule, addStatus, deleteRoutingRule, fetchAdminConfig, fetchMeta,
-  renameStatus, saveAiThresholds, saveScoreWeights, saveSlaPolicy,
+  addAgentSkill, addRoutingRule, addStatus, deleteRoutingRule,
+  fetchAdminConfig, fetchMeta, removeAgentSkill, renameStatus,
+  saveAiThresholds, saveScoreWeights, saveSlaPolicy, syncSkills,
   toggleRoutingRule, type AdminConfig,
 } from '../api';
 
@@ -247,6 +248,82 @@ function RulesCard({ config }: { config: AdminConfig }) {
   );
 }
 
+function ExpertiseCard({ config }: { config: AdminConfig }) {
+  const invalidate = useInvalidate();
+  const { data: meta } = useQuery({ queryKey: ['meta'], queryFn: fetchMeta });
+  const [agentId, setAgentId] = useState<number | ''>('');
+  const [skillName, setSkillName] = useState('');
+  const [level, setLevel] = useState('2');
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
+
+  const agent = meta?.agents.find((a) => a.id === agentId);
+
+  const add = useMutation({
+    mutationFn: () => addAgentSkill(agentId as number, skillName.trim(), Number(level)),
+    onSuccess: () => { setSkillName(''); invalidate(); },
+  });
+  const remove = useMutation({
+    mutationFn: (skillId: number) => removeAgentSkill(agentId as number, skillId),
+    onSuccess: invalidate,
+  });
+  const sync = useMutation({
+    mutationFn: syncSkills,
+    onSuccess: (r) => { setSyncMsg(`Recomputed from history — ${r.qualified} qualified, ${r.revoked} revoked`); invalidate(); },
+  });
+
+  return (
+    <div className="admin-card">
+      <h3>Agent expertise</h3>
+      <p className="admin-hint">
+        Skills drive Assign-by-Expertise. <strong>auto</strong> = earned from
+        resolution history (≥5 resolved in a category, releveled at 10 and 20,
+        re-synced every 6h); <strong>manual</strong> = assigned here and never
+        touched by the sync.
+      </p>
+      <div className="admin-inline-form" style={{ marginBottom: 10 }}>
+        <select value={agentId} onChange={(e) => setAgentId(e.target.value ? Number(e.target.value) : '')}>
+          <option value="">Choose an agent…</option>
+          {meta?.agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+        </select>
+        <button className="btn" disabled={sync.isPending} onClick={() => { setSyncMsg(null); sync.mutate(); }}>
+          {sync.isPending ? 'Recomputing…' : 'Recompute from history'}
+        </button>
+        {syncMsg && <span className="admin-saved">{syncMsg}</span>}
+      </div>
+      {agent && (
+        <>
+          <div className="admin-status-list">
+            {agent.skills.map((s) => (
+              <span key={s.id} className="admin-status">
+                {s.name} · L{s.level} <em>{s.source}</em>
+                <button className="skill-remove" title="Remove skill" onClick={() => remove.mutate(s.id)}>✕</button>
+              </span>
+            ))}
+            {agent.skills.length === 0 && <span className="admin-hint">No skills yet.</span>}
+          </div>
+          <div className="admin-inline-form">
+            <input
+              list="skill-catalog"
+              placeholder="Skill (pick or type new)"
+              value={skillName}
+              onChange={(e) => setSkillName(e.target.value)}
+            />
+            <datalist id="skill-catalog">
+              {config.skills.map((s) => <option key={s.id} value={s.name} />)}
+            </datalist>
+            <select value={level} onChange={(e) => setLevel(e.target.value)}>
+              {[1, 2, 3].map((l) => <option key={l} value={l}>L{l}</option>)}
+            </select>
+            <button className="btn" disabled={skillName.trim().length < 2 || add.isPending} onClick={() => add.mutate()}>
+              Add skill
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function Admin() {
   const { data: config, error } = useQuery({ queryKey: ['admin'], queryFn: fetchAdminConfig, retry: false });
   if (error) {
@@ -260,6 +337,7 @@ export function Admin() {
         <SlaCard config={config} />
         <AiCard config={config} />
         <StatusesCard config={config} />
+        <ExpertiseCard config={config} />
         <RulesCard config={config} />
       </div>
     </div>

@@ -11,6 +11,7 @@ import { mailRoutes } from './routes/mail.js';
 import { metaRoutes } from './routes/meta.js';
 import { ticketRoutes } from './routes/tickets.js';
 import { ensureKbEmbeddings } from './services/kb/kbService.js';
+import { startSkillsSync } from './services/skills.js';
 import { startSlaSweep } from './services/sla/slaService.js';
 
 declare module 'fastify' {
@@ -57,6 +58,7 @@ await app.register(adminRoutes);
 try {
   await app.listen({ port: env.port, host: '0.0.0.0' });
   startSlaSweep((msg) => app.log.info(msg));
+  startSkillsSync((msg) => app.log.info(msg));
   // Embed KB articles in the background (first run downloads the model).
   ensureKbEmbeddings((msg) => app.log.info(msg)).catch((err) =>
     app.log.warn({ err }, 'kb embedding failed — search degrades to FTS-only'),

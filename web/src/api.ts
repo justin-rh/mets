@@ -2,7 +2,8 @@ export type StatusInfo = { id: number; name: string; category: string };
 export type QueueInfo = { id: number; name: string; slug: string; assignmentPolicy: string; openCount: number };
 export type AgentInfo = {
   id: number; name: string; openCount: number; maxOpen: number; isAvailable: boolean;
-  teamIds: number[]; leadOf: number[]; skills: { name: string; level: number }[];
+  teamIds: number[]; leadOf: number[];
+  skills: { id: number; name: string; level: number; source: 'auto' | 'manual' }[];
 };
 export type Meta = {
   statuses: StatusInfo[]; queues: QueueInfo[]; agents: AgentInfo[];
@@ -44,7 +45,7 @@ export type TicketChanges = {
 
 export type ListParams = {
   view: 'open' | 'mine' | 'unassigned' | 'my_queues' | 'snoozed' | 'closed' | 'all';
-  queueId?: number; sort: string; search?: string;
+  queueId?: number; sort: string; search?: string; limit?: number;
 };
 
 export function actingUserId(): number {
@@ -58,7 +59,9 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
     ...init,
     headers: {
-      'content-type': 'application/json',
+      // content-type only when there is a body — Fastify 400s on an
+      // empty JSON body (e.g. bare DELETEs)
+      ...(init?.body ? { 'content-type': 'application/json' } : {}),
       'x-user-id': String(actingUserId()),
       ...init?.headers,
     },
@@ -76,6 +79,7 @@ export function fetchTickets(p: ListParams) {
   const q = new URLSearchParams({ view: p.view, sort: p.sort });
   if (p.queueId) q.set('queueId', String(p.queueId));
   if (p.search) q.set('search', p.search);
+  if (p.limit) q.set('limit', String(p.limit));
   return api<TicketListItem[]>(`/api/tickets?${q}`);
 }
 
@@ -189,6 +193,7 @@ export type AdminConfig = {
   aiThresholds: { autoApply: number; suggest: number };
   businessHours: unknown;
   statuses: StatusInfo[];
+  skills: { id: number; name: string }[];
   slaPolicies: { id: number; name: string; enabled: boolean; firstResponseMinutes: number | null; resolutionMinutes: number | null }[];
   routingRules: { id: number; name: string; position: number; enabled: boolean; conditions: unknown; actions: unknown }[];
 };
@@ -210,6 +215,13 @@ export const toggleRoutingRule = (id: number, enabled: boolean) =>
   api(`/api/admin/routing-rules/${id}`, { method: 'PATCH', body: JSON.stringify({ enabled }) });
 export const deleteRoutingRule = (id: number) =>
   api(`/api/admin/routing-rules/${id}`, { method: 'DELETE' });
+
+export const addAgentSkill = (userId: number, name: string, level: number) =>
+  api(`/api/admin/agents/${userId}/skills`, { method: 'POST', body: JSON.stringify({ name, level }) });
+export const removeAgentSkill = (userId: number, skillId: number) =>
+  api(`/api/admin/agents/${userId}/skills/${skillId}`, { method: 'DELETE' });
+export const syncSkills = () =>
+  api<{ qualified: number; revoked: number }>('/api/admin/skills/sync', { method: 'POST', body: '{}' });
 
 // --- Mail simulator ---
 
