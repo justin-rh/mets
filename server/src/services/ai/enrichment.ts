@@ -166,6 +166,13 @@ export async function enrichTicket(ticketId: number, mode: EnrichMode = 'suggest
     result: r, confidence: r.confidence,
   }).returning();
 
+  // With a category on the ticket, look for a burst of similar reports —
+  // a confirmed burst becomes a linked major incident.
+  if (mode === 'auto') {
+    const { detectMajorIncident } = await import('../incidents.js');
+    await detectMajorIncident(ticketId).catch(() => {});
+  }
+
   return enrichment!;
 }
 

@@ -63,9 +63,29 @@ export type DraftOutcome = {
   outputTokens: number;
 };
 
+export const IncidentSchema = z.object({
+  isIncident: z.boolean().describe('true only if these tickets are symptoms of ONE underlying outage or incident'),
+  title: z.string().describe('Short incident title, e.g. "Zoom outage — company-wide"'),
+  summary: z.string().describe('2-3 sentences for responders: what is failing, who is affected, common symptoms'),
+  confidence: z.number().describe('0-1, honest certainty that this is a single incident'),
+});
+export type IncidentResult = z.infer<typeof IncidentSchema>;
+
+export type IncidentInput = {
+  tickets: { number: string; subject: string; description: string }[];
+};
+
+export type IncidentOutcome = {
+  result: IncidentResult;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+};
+
 export interface AIProvider {
   triage(input: TriageInput, ctx: TriageContext): Promise<TriageOutcome>;
   draftReply(input: DraftInput): Promise<DraftOutcome>;
+  assessIncident(input: IncidentInput): Promise<IncidentOutcome>;
 }
 
 // ---------------------------------------------------------------------------
@@ -206,6 +226,40 @@ Draft the reply.`,
       outputTokens: response.usage.output_tokens,
     };
   }
+
+  async assessIncident(input: IncidentInput): Promise<IncidentOutcome> {
+    const response = await this.client.messages.parse({
+      model: env.aiModel,
+      max_tokens: 1000,
+      system: `You watch an IT helpdesk intake stream for Master Electronics.
+Given a burst of recently created tickets that look textually similar, decide
+whether they are symptoms of ONE underlying incident (an outage, a broken
+service, a failed change) or merely coincidental lookalikes (e.g. several
+unrelated password resets). Judge by whether one root cause plausibly explains
+all of them. Be conservative: separate people with separate problems is NOT an
+incident, even if the subjects rhyme.`,
+      messages: [
+        {
+          role: 'user',
+          content: `These ${input.tickets.length} tickets arrived within a short window:
+
+${input.tickets.map((t) => `${t.number} — ${t.subject}\n${t.description.slice(0, 400)}`).join('\n\n')}
+
+One incident, or coincidence?`,
+        },
+      ],
+      output_config: { format: zodOutputFormat(IncidentSchema) },
+    });
+    if (!response.parsed_output) {
+      throw new Error(`incident assessment parse failed (stop_reason: ${response.stop_reason})`);
+    }
+    return {
+      result: response.parsed_output,
+      model: response.model,
+      inputTokens: response.usage.input_tokens + (response.usage.cache_read_input_tokens ?? 0) + (response.usage.cache_creation_input_tokens ?? 0),
+      outputTokens: response.usage.output_tokens,
+    };
+  }
 }
 
 /** Keyword-based mock for offline dev and as a demo fallback. */
@@ -262,6 +316,20 @@ class MockProvider implements AIProvider {
     const cite = input.articles[0]?.title;
     return {
       draft: `Hi ${first},\n\nThanks for reporting this. ${cite ? `Per the guide "${cite}", please try the steps there first. ` : ''}I'm looking into it and will follow up shortly.\n`,
+      model: 'mock', inputTokens: 0, outputTokens: 0,
+    };
+  }
+
+  async assessIncident(input: IncidentInput): Promise<IncidentOutcome> {
+    // Called only after the heuristic already found a textual cluster —
+    // the mock trusts it and titles the incident from the first subject.
+    return {
+      result: {
+        isIncident: true,
+        title: input.tickets[0]?.subject.slice(0, 80) ?? 'Suspected incident',
+        summary: `${input.tickets.length} similar tickets arrived in a short window.`,
+        confidence: 0.7,
+      },
       model: 'mock', inputTokens: 0, outputTokens: 0,
     };
   }

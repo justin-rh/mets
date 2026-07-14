@@ -7,6 +7,7 @@ import { applyTicketChanges, autoAssign, autoAssignByExpertise, bestFitAgents, c
 import { enrichTicket } from '../services/ai/enrichment.js';
 import { completeFirstResponse } from '../services/sla/slaService.js';
 import { templatesForTicket } from '../services/templates.js';
+import { broadcastIncidentUpdate, incidentInfo } from '../services/incidents.js';
 import { requireStaff } from './guards.js';
 
 const { tickets, statuses, teams, users, ticketTags, tags, slaInstances, ticketComments, ticketEvents, categories } = schema;
@@ -208,6 +209,8 @@ export async function ticketRoutes(app: FastifyInstance) {
       .where(eq(schema.approvals.ticketId, id))
       .orderBy(desc(schema.approvals.createdAt));
 
+    const incident = await incidentInfo(id);
+
     // RBAC: requesters see only their own tickets, without internal notes,
     // the audit trail, AI internals, or SLA state.
     if (req.userRole === 'requester') {
@@ -226,10 +229,12 @@ export async function ticketRoutes(app: FastifyInstance) {
         } : null,
         tags: tagRows.map((r) => r.name),
         approvals: approvalRows,
+        // other requesters' tickets stay private — no child list
+        incident: { parent: incident.parent, children: [] },
       };
     }
 
-    return { ...t, comments, events, sla, tags: tagRows.map((r) => r.name), ai: ai ?? null, approvals: approvalRows };
+    return { ...t, comments, events, sla, tags: tagRows.map((r) => r.name), ai: ai ?? null, approvals: approvalRows, incident };
   });
 
   app.post('/api/tickets', async (req) => {
@@ -319,6 +324,7 @@ export async function ticketRoutes(app: FastifyInstance) {
     }).returning();
     // First public agent reply stamps first_responded_at and completes the
     // first-response SLA clock.
+    let broadcast = 0;
     if (body.visibility === 'public') {
       const [before] = await db.select({ firstRespondedAt: tickets.firstRespondedAt })
         .from(tickets).where(eq(tickets.id, id));
@@ -326,8 +332,11 @@ export async function ticketRoutes(app: FastifyInstance) {
         .set({ firstRespondedAt: sql`coalesce(${tickets.firstRespondedAt}, now())`, updatedAt: new Date() })
         .where(eq(tickets.id, id));
       if (!before?.firstRespondedAt) await completeFirstResponse(id);
+      // Replying on an incident parent fans out to every linked requester.
+      const [author] = await db.select({ name: users.name }).from(users).where(eq(users.id, req.userId));
+      broadcast = await broadcastIncidentUpdate(id, body.bodyText, author?.name ?? 'the response team');
     }
-    return comment;
+    return { ...comment, broadcast };
   });
 
   // CSAT: the requester (or whoever filed it for them) rates a resolved or

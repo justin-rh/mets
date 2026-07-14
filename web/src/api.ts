@@ -40,6 +40,10 @@ export type TicketDetail = TicketListItem & {
   comments: Comment[]; events: TicketEvent[]; sla: any[];
   approvals: TicketApproval[];
   csatRating: number | null; csatComment: string | null;
+  incident: {
+    parent: { id: number; number: string; subject: string } | null;
+    children: { id: number; number: string; subject: string; status: string }[];
+  };
 };
 
 export const submitCsat = (id: number, rating: number, comment?: string) =>

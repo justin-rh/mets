@@ -41,7 +41,13 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
   });
   const comment = useMutation({
     mutationFn: () => postComment(ticketId, reply, visibility),
-    onSuccess: () => { setReply(''); invalidate(); },
+    onSuccess: (r: any) => {
+      setReply('');
+      invalidate();
+      if (r?.broadcast > 0) {
+        toast(`Update broadcast to ${r.broadcast} linked ticket${r.broadcast === 1 ? '' : 's'}`, 'success');
+      }
+    },
   });
 
   const { data: suggestions } = useQuery({
@@ -80,6 +86,39 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
   return (
     <div className="ticket-detail" onClick={(e) => e.stopPropagation()}>
       <div className="detail-main">
+        {t.incident?.children.length > 0 && (
+          <div className="incident-banner incident-parent">
+            <span className="incident-title">
+              ⚡ <strong>Major incident</strong> — {t.incident.children.length} linked ticket{t.incident.children.length === 1 ? '' : 's'}
+            </span>
+            <span className="incident-children">
+              {t.incident.children.map((c) => (
+                <button
+                  key={c.id}
+                  className="kb-chip"
+                  title={`${c.subject} · ${c.status} — open in new tab`}
+                  onClick={() => window.open(`/?ticket=${c.number}`, '_blank')}
+                >
+                  {c.number}
+                </button>
+              ))}
+            </span>
+            <span className="incident-hint">Public replies here broadcast to every linked requester.</span>
+          </div>
+        )}
+        {t.incident?.parent && (
+          <div className="incident-banner incident-child">
+            ⚡ Part of{' '}
+            <button
+              className="kb-chip"
+              title={t.incident.parent.subject}
+              onClick={() => window.open(`/?ticket=${t.incident.parent!.number}`, '_blank')}
+            >
+              {t.incident.parent.number}
+            </button>
+            <span className="incident-hint">{t.incident.parent.subject.replace(/^Major incident:\s*/i, '')}</span>
+          </div>
+        )}
         {t.approvals?.map((a) => (
           <div key={a.id} className={`approval-banner approval-${a.state}`}>
             {a.state === 'pending' ? (

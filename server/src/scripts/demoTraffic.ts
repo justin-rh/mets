@@ -9,6 +9,15 @@ import { enrichTicket } from '../services/ai/enrichment.js';
 
 const BATCH_SIZE = 10;
 
+// `npm run demo:traffic -- outage`: a burst of same-root-cause reports that
+// should trip major-incident detection (parent ticket + linked children).
+const OUTAGE_BURST: { subject: string; description: string; type?: 'incident' | 'request' | 'change' }[] = [
+  { subject: 'Zoom won\'t connect — meetings failing', description: 'Zoom desktop client says "unable to connect" for every meeting since about 10 minutes ago. Tried restarting, same thing.' },
+  { subject: 'Zoom down for our whole team', description: 'Nobody on the inside sales team can join Zoom calls — clients are waiting in meetings we cannot join. Started within the last 15 minutes.' },
+  { subject: 'Cannot join any Zoom meetings', description: 'Every Zoom link errors out with code 5003. My 11am customer call is in 20 minutes. Phone app fails too.' },
+  { subject: 'Zoom connection error 5003 in conference rooms', description: 'Both Phoenix conference room Zoom Rooms panels show a connection error. In-person attendees fine, remote folks cannot join.' },
+];
+
 // A spread of clear-cut and deliberately ambiguous tickets, so the log shows
 // both auto-applies and held-for-review suggestions.
 const SAMPLES: { subject: string; description: string; type?: 'incident' | 'request' | 'change' }[] = [
@@ -44,8 +53,9 @@ async function main() {
     .where(eq(schema.users.role, 'requester'));
   if (requesters.length === 0) throw new Error('no requesters — seed first');
 
-  const batch = shuffle(SAMPLES).slice(0, BATCH_SIZE);
-  console.log(`Submitting ${batch.length} tickets through the live pipeline…\n`);
+  const outageMode = process.argv.includes('outage');
+  const batch = outageMode ? OUTAGE_BURST : shuffle(SAMPLES).slice(0, BATCH_SIZE);
+  console.log(`Submitting ${batch.length} ${outageMode ? 'outage-burst' : ''} tickets through the live pipeline…\n`);
 
   for (const sample of batch) {
     const requester = requesters[Math.floor(Math.random() * requesters.length)]!;
