@@ -25,6 +25,11 @@ async function getTriageContext(): Promise<TriageContext> {
     const queueRows = await db.select().from(teams);
     const catRows = await db.select().from(categories);
     const queueById = new Map(queueRows.map((q) => [q.id, q]));
+    const directory = await db
+      .select({ name: users.name, department: users.department, location: users.location })
+      .from(users)
+      .where(sql`${users.isActive} and ${users.role} != 'readonly'`)
+      .orderBy(users.name);
     ctxCache = {
       ctx: {
         queues: queueRows.map((q) => ({ slug: q.slug, name: q.name, description: q.description })),
@@ -34,6 +39,7 @@ async function getTriageContext(): Promise<TriageContext> {
           // seed maps categories to queues by design doc; derive from name match fallback IT
           queueSlug: queueById.get(guessQueueId(c.name, queueRows))?.slug ?? 'it-support',
         })),
+        directory,
       },
       at: Date.now(),
     };
@@ -113,7 +119,7 @@ export async function enrichTicket(ticketId: number, mode: EnrichMode = 'suggest
       id: tickets.id, subject: tickets.subject, description: tickets.description,
       priority: tickets.priority, source: tickets.source,
       categoryId: tickets.categoryId, queueId: tickets.queueId,
-      department: users.department, isVip: users.isVip,
+      requesterName: users.name, department: users.department, isVip: users.isVip,
     })
     .from(tickets)
     .innerJoin(users, eq(users.id, tickets.requesterId))
@@ -124,6 +130,7 @@ export async function enrichTicket(ticketId: number, mode: EnrichMode = 'suggest
   const outcome = await getAIProvider().triage(
     {
       subject: t.subject, description: t.description,
+      requesterName: t.requesterName,
       requesterDepartment: t.department, requesterIsVip: t.isVip,
       source: t.source, statedPriority: t.priority,
     },
@@ -142,6 +149,18 @@ export async function enrichTicket(ticketId: number, mode: EnrichMode = 'suggest
 
   let status = 'pending';
   if (mode === 'auto') {
+    // On-behalf detection: the text said this ticket is really for someone
+    // else. Swap before category/queue changes so downstream hooks (approval
+    // chain, auto-responses) address the right person.
+    if (r.onBehalfOf && (r.confidence.onBehalfOf ?? 0) >= thresholds.autoApply) {
+      const matches = await db.select({ id: users.id }).from(users)
+        .where(sql`${users.name} = ${r.onBehalfOf} and ${users.isActive} and ${users.role} != 'readonly'`);
+      if (matches.length === 1) {
+        const { reassignRequester } = await import('../ticketService.js');
+        await reassignRequester(ticketId, matches[0]!.id).catch(() => {});
+      }
+    }
+
     const changes: TicketChanges = {};
     if (category && r.confidence.category >= thresholds.autoApply && category.id !== t.categoryId) {
       changes.categoryId = category.id;

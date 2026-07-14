@@ -505,24 +505,62 @@ function TemplatesCard({ config }: { config: AdminConfig }) {
   );
 }
 
+const ADMIN_SECTIONS = [
+  {
+    key: 'scoring', label: 'Scoring', icon: '📈',
+    hint: 'What rises to the top of the queue',
+    cards: [ScoreWeightsCard, KeywordsCard],
+  },
+  {
+    key: 'sla', label: 'SLA & Statuses', icon: '⏱',
+    hint: 'Clocks, targets, and the status vocabulary',
+    cards: [SlaCard, StatusesCard],
+  },
+  {
+    key: 'routing', label: 'Routing & Approvals', icon: '🧭',
+    hint: 'Where tickets go and who signs off',
+    cards: [RulesCard, ApprovalGatesCard],
+  },
+  {
+    key: 'automation', label: 'AI & Automation', icon: '✨',
+    hint: 'Confidence gates and auto-responses',
+    cards: [AiCard, TemplatesCard],
+  },
+  {
+    key: 'agents', label: 'Agents', icon: '🎓',
+    hint: 'Expertise that drives assignment',
+    cards: [ExpertiseCard],
+  },
+] as const;
+
 export function Admin() {
   const { data: config, error } = useQuery({ queryKey: ['admin'], queryFn: fetchAdminConfig, retry: false });
+  const [section, setSection] = useState<string>(ADMIN_SECTIONS[0].key);
   if (error) {
     return <div className="admin"><div className="empty">Admin requires the admin role — switch to Justin Rhoda in the user picker.</div></div>;
   }
   if (!config) return <div className="admin"><div className="empty">Loading…</div></div>;
+
+  const active = ADMIN_SECTIONS.find((s) => s.key === section) ?? ADMIN_SECTIONS[0];
   return (
-    <div className="admin">
+    <div className="admin admin-tabbed">
+      <nav className="admin-tabs">
+        {ADMIN_SECTIONS.map((s) => (
+          <button
+            key={s.key}
+            className={`admin-tab ${s.key === section ? 'active' : ''}`}
+            onClick={() => setSection(s.key)}
+          >
+            <span className="admin-tab-icon">{s.icon}</span>
+            <span className="admin-tab-text">
+              <span className="admin-tab-label">{s.label}</span>
+              <span className="admin-tab-hint">{s.hint}</span>
+            </span>
+          </button>
+        ))}
+      </nav>
       <div className="admin-grid">
-        <ScoreWeightsCard config={config} />
-        <SlaCard config={config} />
-        <AiCard config={config} />
-        <StatusesCard config={config} />
-        <ExpertiseCard config={config} />
-        <KeywordsCard config={config} />
-        <ApprovalGatesCard config={config} />
-        <RulesCard config={config} />
-        <TemplatesCard config={config} />
+        {active.cards.map((Card, i) => <Card key={`${active.key}-${i}`} config={config} />)}
       </div>
     </div>
   );

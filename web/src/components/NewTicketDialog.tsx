@@ -1,22 +1,16 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { actingUserId, createTicket, fetchTicket, fetchUsers } from '../api';
+import { createTicket, fetchTicket } from '../api';
 
 export function NewTicketDialog({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
   const [type, setType] = useState('incident');
-  const [onBehalfName, setOnBehalfName] = useState('');
   const [created, setCreated] = useState<{ id: number; number: string } | null>(null);
 
-  const { data: directory } = useQuery({ queryKey: ['users'], queryFn: fetchUsers, staleTime: 300_000 });
-  const others = (directory ?? []).filter((u) => u.id !== actingUserId());
-  const onBehalfUser = others.find((u) => u.name === onBehalfName.trim());
-  const nameEnteredButUnknown = onBehalfName.trim().length > 0 && !onBehalfUser;
-
   const create = useMutation({
-    mutationFn: () => createTicket({ subject, description, type, onBehalfOfId: onBehalfUser?.id }),
+    mutationFn: () => createTicket({ subject, description, type }),
     onSuccess: (t) => {
       setCreated(t);
       qc.invalidateQueries({ queryKey: ['tickets'] });
@@ -61,10 +55,13 @@ export function NewTicketDialog({ onClose }: { onClose: () => void }) {
                   <dd><strong>{routed!.category ?? 'Uncategorized'}</strong></dd>
                   <dt>Priority</dt>
                   <dd><strong>P{routed!.priority}</strong></dd>
-                  {onBehalfUser && (
+                  {routed!.submittedBy && (
                     <>
                       <dt>Filed for</dt>
-                      <dd>{onBehalfUser.name} *</dd>
+                      <dd>
+                        <strong>{routed!.requester.name}</strong> *
+                        <span className="triage-onbehalf-note"> — detected from your description</span>
+                      </dd>
                     </>
                   )}
                 </dl>
@@ -107,32 +104,8 @@ export function NewTicketDialog({ onClose }: { onClose: () => void }) {
               </select>
             </label>
             <label>
-              On behalf of <span className="modal-optional">(optional — leave blank if it's for you)</span>
-              <input
-                list="user-directory"
-                value={onBehalfName}
-                onChange={(e) => setOnBehalfName(e.target.value)}
-                placeholder="Start typing a name…"
-              />
-              <datalist id="user-directory">
-                {others.map((u) => (
-                  <option key={u.id} value={u.name}>
-                    {u.department ?? ''}{u.location ? ` · ${u.location}` : ''}
-                  </option>
-                ))}
-              </datalist>
-              {onBehalfUser && (
-                <span className="modal-hint">
-                  Filed under {onBehalfUser.name}'s name, marked * as submitted by you.
-                </span>
-              )}
-              {nameEnteredButUnknown && (
-                <span className="modal-hint">No matching user — pick a name from the list.</span>
-              )}
-            </label>
-            <label>
               Subject
-              <input value={subject} onChange={(e) => setSubject(e.target.value)}
+              <input autoFocus value={subject} onChange={(e) => setSubject(e.target.value)}
                 placeholder="Short description of the issue" />
             </label>
             <label>
@@ -141,14 +114,16 @@ export function NewTicketDialog({ onClose }: { onClose: () => void }) {
                 placeholder="What happened? Who is affected? Any deadline?" />
             </label>
             <p className="modal-hint">
-              No category or queue to pick — AI routes it. Priority is
-              assessed from the described impact.
+              No category or queue to pick — AI routes it, and priority is
+              assessed from the described impact. Filing for someone else?
+              Just say so ("this is for Hannah in the Phoenix warehouse") and
+              it's filed under their name.
             </p>
             <div className="modal-actions">
               <button className="btn" onClick={onClose}>Cancel</button>
               <button
                 className="btn primary"
-                disabled={subject.trim().length < 3 || !description.trim() || nameEnteredButUnknown || create.isPending}
+                disabled={subject.trim().length < 3 || !description.trim() || create.isPending}
                 onClick={() => create.mutate()}
               >
                 {create.isPending ? 'Creating…' : 'Create ticket'}

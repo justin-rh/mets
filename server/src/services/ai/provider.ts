@@ -3,7 +3,7 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { z } from 'zod';
 import { env } from '../../config.js';
 
-export const PROMPT_VERSION = 'triage-v1';
+export const PROMPT_VERSION = 'triage-v2';
 
 export const TriageSchema = z.object({
   category: z.string().describe('Exact name of the best-fitting category from the list'),
@@ -11,10 +11,12 @@ export const TriageSchema = z.object({
   priority: z.number().int().describe('1 (critical) to 4 (low), per the rubric'),
   sentiment: z.enum(['neutral', 'frustrated', 'urgent']),
   summary: z.string().describe('One or two sentences summarizing the issue for an agent'),
+  onBehalfOf: z.string().nullable().describe('EXACT directory name of the person this ticket is actually for, when the text clearly says the submitter is filing for someone else; null otherwise'),
   confidence: z.object({
     category: z.number().describe('0-1'),
     queue: z.number().describe('0-1'),
     priority: z.number().describe('0-1'),
+    onBehalfOf: z.number().describe('0-1; 0 when onBehalfOf is null'),
   }),
 });
 export type TriageResult = z.infer<typeof TriageSchema>;
@@ -22,6 +24,7 @@ export type TriageResult = z.infer<typeof TriageSchema>;
 export type TriageInput = {
   subject: string;
   description: string;
+  requesterName: string;
   requesterDepartment: string | null;
   requesterIsVip: boolean;
   source: string;
@@ -37,6 +40,8 @@ export type TriageCorrection = {
 export type TriageContext = {
   categories: { name: string; description: string | null; queueSlug: string }[];
   queues: { slug: string; name: string; description: string | null }[];
+  /** Employee directory for on-behalf-of detection. */
+  directory: { name: string; department: string | null; location: string | null }[];
   /** Recent agent corrections — injected as patterns to follow. */
   corrections: TriageCorrection[];
 };
@@ -145,6 +150,18 @@ priority:
   normal lead time.
 - 4: Low. Cosmetic issues, convenience requests, nice-to-haves, no deadline.
 
+On-behalf-of detection: sometimes the submitter is filing for ANOTHER person
+("filing this for our VP", "Hannah at the warehouse needs…", "my new hire
+can't log in"). When the text clearly identifies a specific person from the
+directory below as the actual beneficiary, set onBehalfOf to their EXACT
+directory name. Rules: never the submitter themself; a person merely
+mentioned (cc'd, quoted, their manager) is NOT the beneficiary; if the name
+is ambiguous (two matches) or not in the directory, use null. Most tickets
+are for the submitter — null is the common answer.
+
+Employee directory:
+${ctx.directory.map((u) => `- ${u.name} (${u.department ?? '—'}, ${u.location ?? '—'})`).join('\n')}
+
 Confidence values: report your honest certainty per field, 0 to 1. Use lower
 values when the ticket is vague, spans multiple categories, or the priority
 depends on facts not stated. Do not inflate confidence.
@@ -177,7 +194,7 @@ ${ctx.corrections.map((c) => `- "${c.subject}": AI chose ${c.aiChose}; agents co
 
 ` : ''}Triage this ticket:
 Subject: ${input.subject}
-Requester department: ${input.requesterDepartment ?? 'unknown'}${input.requesterIsVip ? ' (VIP/executive)' : ''}
+Submitted by: ${input.requesterName} (${input.requesterDepartment ?? 'unknown'}${input.requesterIsVip ? ', VIP/executive' : ''})
 Source: ${input.source}
 Requester-stated priority: P${input.statedPriority}
 Description:
@@ -369,6 +386,14 @@ class MockProvider implements AIProvider {
     const hit = rules.find(([re]) => re.test(text));
     const category = ctx.categories.find((c) => c.name === hit?.[1]) ?? ctx.categories[0]!;
     const urgent = /down|all |everyone|blocked|urgent|asap|customer/.test(text);
+    // On-behalf: a directory full name (not the submitter's) appearing in
+    // a filing-for-someone context.
+    const raw = `${input.subject} ${input.description}`;
+    const onBehalf = ctx.directory.find((u) =>
+      u.name !== input.requesterName
+      && raw.includes(u.name)
+      && new RegExp(`(for|behalf of|filing.{0,20}for)\\s+(our\\s+\\w+\\s+)?${u.name}|${u.name}[^.]{0,30}(needs|cannot|can't|is unable)`, 'i').test(raw),
+    );
     return {
       result: {
         category: category.name,
@@ -376,7 +401,11 @@ class MockProvider implements AIProvider {
         priority: urgent ? 2 : 3,
         sentiment: urgent ? 'urgent' : 'neutral',
         summary: input.description.split(/[.!?]/)[0]?.slice(0, 160) ?? input.subject,
-        confidence: { category: hit ? 0.85 : 0.35, queue: hit ? 0.85 : 0.35, priority: 0.5 },
+        onBehalfOf: onBehalf?.name ?? null,
+        confidence: {
+          category: hit ? 0.85 : 0.35, queue: hit ? 0.85 : 0.35, priority: 0.5,
+          onBehalfOf: onBehalf ? 0.85 : 0,
+        },
       },
       model: 'mock',
       inputTokens: 0,

@@ -247,6 +247,52 @@ export async function createTicketCore(input: {
 }
 
 /**
+ * AI-detected on-behalf-of: the ticket text said it's really for someone
+ * else. Swap the requester (VIP scoring, SLAs, and auto-responses follow the
+ * beneficiary), keep the actual submitter on submitted_by, and move the
+ * location tag. Skips tickets that already have an explicit submitter.
+ */
+export async function reassignRequester(ticketId: number, newRequesterId: number) {
+  const [t] = await db
+    .select({
+      requesterId: tickets.requesterId, submittedById: tickets.submittedById,
+      oldLoc: users.location, oldName: users.name,
+    })
+    .from(tickets)
+    .innerJoin(users, eq(users.id, tickets.requesterId))
+    .where(eq(tickets.id, ticketId));
+  if (!t || t.submittedById != null || t.requesterId === newRequesterId) return false;
+  const [next] = await db.select({ name: users.name, location: users.location })
+    .from(users).where(eq(users.id, newRequesterId));
+  if (!next) return false;
+
+  await db.update(tickets).set({
+    requesterId: newRequesterId, submittedById: t.requesterId, updatedAt: new Date(),
+  }).where(eq(tickets.id, ticketId));
+  await db.insert(ticketEvents).values({
+    ticketId, actorId: null, actorType: 'ai', eventType: 'submitted_on_behalf',
+    field: 'requester', oldValue: t.oldName, newValue: next.name,
+  });
+
+  // The location tag follows the beneficiary.
+  const oldSlug = slugifyLocation(t.oldLoc ?? 'Remote');
+  const newSlug = slugifyLocation(next.location ?? 'Remote');
+  if (oldSlug !== newSlug) {
+    const [oldTag] = await db.select().from(tags).where(eq(tags.name, oldSlug));
+    if (oldTag) {
+      await db.delete(ticketTags).where(and(
+        eq(ticketTags.ticketId, ticketId), eq(ticketTags.tagId, oldTag.id)));
+    }
+    let [newTag] = await db.select().from(tags).where(eq(tags.name, newSlug));
+    if (!newTag) [newTag] = await db.insert(tags).values({ name: newSlug }).returning();
+    await db.insert(ticketTags).values({ ticketId, tagId: newTag!.id }).onConflictDoNothing();
+  }
+
+  await recomputeScore(db, ticketId); // VIP bonus follows the beneficiary
+  return true;
+}
+
+/**
  * Rank agents by fit for a ticket: skill level for its category (earned or
  * manual), queue membership, and load headroom.
  *   fit = skillBase(level) × queueFactor × headroomFactor
