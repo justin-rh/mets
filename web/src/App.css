@@ -2083,9 +2083,9 @@ select, textarea, input[type='text'], .modal input {
   border: 1px solid var(--line-strong);
   border-radius: var(--r);
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: 16px;
   line-height: 1;
-  padding: 1px 6px;
+  padding: 4px 10px;
   cursor: pointer;
   flex-shrink: 0;
 }

@@ -3,9 +3,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   addAgentSkill, addRoutingRule, addStatus, addTemplate, deleteRoutingRule,
   deleteTemplate, fetchAdminConfig, fetchMeta, removeAgentSkill, renameStatus,
-  saveAiThresholds, saveAutoClose, saveScoreKeywords, saveScoreWeights,
-  saveSlaPolicy, setCategoryApproval, syncSkills, toggleRoutingRule,
-  updateTemplate, type AdminConfig,
+  runEscalationSweep, saveAiThresholds, saveAutoClose, saveEscalation,
+  saveScoreKeywords, saveScoreWeights, saveSlaPolicy, setCategoryApproval,
+  syncSkills, toggleRoutingRule, updateTemplate, type AdminConfig,
 } from '../api';
 
 function useInvalidate() {
@@ -407,6 +407,81 @@ function KeywordsCard({ config }: { config: AdminConfig }) {
   );
 }
 
+function EscalationCard({ config }: { config: AdminConfig }) {
+  const invalidate = useInvalidate();
+  const [cfg, setCfg] = useState(config.escalation);
+  const [saved, setSaved] = useState<string | null>(null);
+  useEffect(() => setCfg(config.escalation), [config.escalation]);
+
+  const save = useMutation({
+    mutationFn: () => saveEscalation(cfg),
+    onSuccess: () => { setSaved('Saved — sweep runs every 5 minutes'); invalidate(); },
+  });
+  const run = useMutation({
+    mutationFn: runEscalationSweep,
+    onSuccess: (r) => {
+      setSaved(r.escalated === 0
+        ? 'Sweep ran — nothing stale (or escalation is disabled)'
+        : `Escalated ${r.escalated}: ${r.byExpertise} by expertise, ${r.roundRobin} round-robin${r.unfilled ? `, ${r.unfilled} unfilled` : ''} — queue leads pinged in chat`);
+      invalidate();
+    },
+  });
+
+  return (
+    <div className="admin-card">
+      <h3>Escalation — stale unassigned tickets</h3>
+      <p className="admin-hint">
+        Tickets unassigned past their priority's threshold get auto-assigned:
+        score ≥ the threshold below goes <strong>by expertise</strong> (best
+        person), the rest round-robin (fastest hands). Queue leads get a SOTO
+        Bot chat summary. Each ticket escalates once, audited.
+      </p>
+      <label className="flag-option" style={{ marginBottom: 8 }}>
+        <input
+          type="checkbox"
+          checked={cfg.enabled}
+          onChange={(e) => setCfg({ ...cfg, enabled: e.target.checked })}
+        />
+        <span>Enabled<em>off by default — flipping this works the whole stale backlog</em></span>
+      </label>
+      <div className="admin-fields">
+        {(['1', '2', '3', '4'] as const).map((p) => (
+          <label className="admin-field" key={p}>
+            P{p} after (min)
+            <input
+              type="number"
+              min={1}
+              value={cfg.minutesByPriority[p] ?? 0}
+              onChange={(e) => setCfg({
+                ...cfg,
+                minutesByPriority: { ...cfg.minutesByPriority, [p]: Number(e.target.value) },
+              })}
+            />
+          </label>
+        ))}
+        <label className="admin-field">
+          Expertise if score ≥
+          <input
+            type="number"
+            min={0}
+            value={cfg.expertiseScoreThreshold}
+            onChange={(e) => setCfg({ ...cfg, expertiseScoreThreshold: Number(e.target.value) })}
+          />
+        </label>
+      </div>
+      <div className="admin-actions">
+        <button className="btn primary" disabled={save.isPending} onClick={() => { setSaved(null); save.mutate(); }}>
+          Save
+        </button>
+        <button className="btn" disabled={run.isPending} onClick={() => { setSaved(null); run.mutate(); }}>
+          {run.isPending ? 'Sweeping…' : 'Run sweep now'}
+        </button>
+        {saved && <span className="admin-saved">{saved}</span>}
+      </div>
+    </div>
+  );
+}
+
 function ApprovalGatesCard({ config }: { config: AdminConfig }) {
   const invalidate = useInvalidate();
   const toggle = useMutation({
@@ -526,7 +601,7 @@ const ADMIN_SECTIONS = [
   {
     key: 'routing', label: 'Routing & Approvals', icon: '🧭',
     hint: 'Where tickets go and who signs off',
-    cards: [RulesCard, ApprovalGatesCard],
+    cards: [RulesCard, ApprovalGatesCard, EscalationCard],
   },
   {
     key: 'automation', label: 'AI & Automation', icon: '✨',

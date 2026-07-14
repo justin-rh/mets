@@ -187,15 +187,22 @@ export default function App() {
       const undoAction = vars.undo?.length ? { label: 'Undo', onClick: () => runUndo(vars.undo!) } : undefined;
       if (vars.message) toast(vars.message, 'success', undoAction);
       else if (vars.action === 'auto_assign' || vars.action === 'expertise_assign') {
-        const assigned = (result as { assigneeId: number | null }[]).filter((r) => r.assigneeId != null);
+        type AssignResult = { ticketId: number; assigneeId: number | null; assigneeName?: string; fit?: number };
+        const assigned = (result as AssignResult[]).filter((r) => r.assigneeId != null);
         const verb = vars.action === 'expertise_assign' ? 'Assigned by expertise' : 'Auto-assigned';
         const suffix = vars.action === 'expertise_assign' && assigned.length < vars.ids.length
           ? ' (rest: no skilled agent available)' : '';
-        toast(
-          `${verb}: ${assigned.length} of ${vars.ids.length} ticket${vars.ids.length > 1 ? 's' : ''}${suffix}`,
-          'success',
-          assigned.length ? undoAction : undefined,
-        );
+        // Expertise picks name the agent and the same fit % the Suggested
+        // avatars show, so the choice is explainable at a glance.
+        const who = (r: AssignResult) => {
+          const num = ticketRows.find((t) => t.id === r.ticketId)?.number ?? `#${r.ticketId}`;
+          return `${num} → ${r.assigneeName}${r.fit != null ? ` (${Math.round(r.fit * 100)}% fit)` : ''}`;
+        };
+        const message =
+          vars.action === 'expertise_assign' && assigned.length > 0 && assigned.length <= 3 && assigned[0]?.assigneeName
+            ? `${verb}: ${assigned.map(who).join(' · ')}${suffix}`
+            : `${verb}: ${assigned.length} of ${vars.ids.length} ticket${vars.ids.length > 1 ? 's' : ''}${suffix}`;
+        toast(message, 'success', assigned.length ? undoAction : undefined);
       }
     },
   });

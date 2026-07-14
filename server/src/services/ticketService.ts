@@ -349,7 +349,10 @@ export async function bestFitAgents(ticketId: number, limit = 3) {
  * No qualified agent (or no category) leaves the ticket unassigned.
  */
 export async function autoAssignByExpertise(ticketIds: number[], actor: Actor) {
-  const results: { ticketId: number; assigneeId: number | null; skill?: string }[] = [];
+  const results: {
+    ticketId: number; assigneeId: number | null; skill?: string;
+    assigneeName?: string; fit?: number;
+  }[] = [];
   for (const ticketId of ticketIds) {
     const [t] = await db
       .select({
@@ -368,6 +371,7 @@ export async function autoAssignByExpertise(ticketIds: number[], actor: Actor) {
     const candidates = await db
       .select({
         userId: users.id,
+        name: users.name,
         location: users.location,
         level: agentSkills.level,
         cap: users.maxOpenAssignments,
@@ -400,14 +404,22 @@ export async function autoAssignByExpertise(ticketIds: number[], actor: Actor) {
         || a.openCount - b.openCount,
       )[0];
 
+    // Fit is computed BEFORE assigning so it matches the number the
+    // "Suggested:" avatars showed for this agent.
+    let fit: number | undefined;
     if (pick) {
+      fit = (await bestFitAgents(ticketId, 200)).find((f) => f.id === pick.userId)?.fit;
       await applyTicketChanges(ticketId, { ...actor, type: 'system' }, { assigneeId: pick.userId });
       await db.insert(ticketEvents).values({
         ticketId, actorId: null, actorType: 'system', eventType: 'assigned_by_expertise',
-        field: 'skill', newValue: `${t.categoryName} L${pick.level}`,
+        field: 'skill', newValue: `${t.categoryName} L${pick.level}${fit != null ? ` · ${Math.round(fit * 100)}% fit` : ''}`,
       });
     }
-    results.push({ ticketId, assigneeId: pick?.userId ?? null, skill: pick ? t.categoryName : undefined });
+    results.push({
+      ticketId, assigneeId: pick?.userId ?? null,
+      skill: pick ? t.categoryName : undefined,
+      assigneeName: pick?.name, fit,
+    });
   }
   return results;
 }

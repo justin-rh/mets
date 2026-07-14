@@ -224,6 +224,17 @@ async function main() {
       value: { days: 7 },
     },
     {
+      // Disabled by default: the seeded backlog is days old, and enabling
+      // would drain the Unassigned view at boot. Toggle it in Admin (great
+      // demo beat: flip the switch, watch the backlog get worked).
+      key: 'escalation',
+      value: {
+        enabled: false,
+        minutesByPriority: { '1': 30, '2': 120, '3': 480, '4': 1440 },
+        expertiseScoreThreshold: 70,
+      },
+    },
+    {
       // Flag keywords — matches boost score and mark rows with 🚩.
       key: 'score_keywords',
       value: [

@@ -306,6 +306,7 @@ export type AdminConfig = {
   } | null;
   scoreKeywords: { term: string; boost: number }[];
   autoClose: { days: number };
+  escalation: EscalationConfig;
   aiThresholds: { autoApply: number; suggest: number };
   businessHours: unknown;
   statuses: StatusInfo[];
@@ -328,6 +329,17 @@ export const saveAiThresholds = (t: AdminConfig['aiThresholds']) =>
   api('/api/admin/ai-thresholds', { method: 'PUT', body: JSON.stringify(t) });
 export const saveAutoClose = (days: number) =>
   api('/api/admin/auto-close', { method: 'PUT', body: JSON.stringify({ days }) });
+
+export type EscalationConfig = {
+  enabled: boolean;
+  minutesByPriority: Record<string, number>;
+  expertiseScoreThreshold: number;
+};
+export const saveEscalation = (cfg: EscalationConfig) =>
+  api('/api/admin/escalation', { method: 'PUT', body: JSON.stringify(cfg) });
+export const runEscalationSweep = () =>
+  api<{ escalated: number; byExpertise: number; roundRobin: number; unfilled: number }>(
+    '/api/admin/escalation/run', { method: 'POST', body: '{}' });
 export const saveScoreKeywords = (keywords: AdminConfig['scoreKeywords']) =>
   api<{ ok: boolean; rescored: number }>('/api/admin/score-keywords', {
     method: 'PUT', body: JSON.stringify(keywords),

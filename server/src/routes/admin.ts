@@ -33,6 +33,11 @@ export async function adminRoutes(app: FastifyInstance) {
       scoreWeights: byKey['score_weights'] ?? null,
       scoreKeywords: byKey['score_keywords'] ?? [],
       autoClose: byKey['auto_close'] ?? { days: 7 },
+      escalation: byKey['escalation'] ?? {
+        enabled: false,
+        minutesByPriority: { '1': 30, '2': 120, '3': 480, '4': 1440 },
+        expertiseScoreThreshold: 70,
+      },
       aiThresholds: byKey['ai_thresholds'] ?? { autoApply: 0.8, suggest: 0.35 },
       businessHours: byKey['business_hours'] ?? null,
       statuses: await db.select().from(statuses).orderBy(asc(statuses.position)),
@@ -169,6 +174,27 @@ export async function adminRoutes(app: FastifyInstance) {
       .values({ key: 'auto_close', value, updatedAt: new Date() })
       .onConflictDoUpdate({ target: appConfig.key, set: { value, updatedAt: new Date() } });
     return { ok: true };
+  });
+
+  // Stale-unassigned escalation: thresholds per priority; high-score tickets
+  // assign by expertise, the rest round-robin.
+  app.put('/api/admin/escalation', async (req) => {
+    await requireAdmin(req.userId);
+    const value = z.object({
+      enabled: z.boolean(),
+      minutesByPriority: z.record(z.string(), z.number().int().min(1).max(20160)),
+      expertiseScoreThreshold: z.number().min(0).max(300),
+    }).parse(req.body);
+    await db.insert(appConfig)
+      .values({ key: 'escalation', value, updatedAt: new Date() })
+      .onConflictDoUpdate({ target: appConfig.key, set: { value, updatedAt: new Date() } });
+    return { ok: true };
+  });
+
+  app.post('/api/admin/escalation/run', async (req) => {
+    await requireAdmin(req.userId);
+    const { escalationSweep } = await import('../services/escalation.js');
+    return escalationSweep(() => {});
   });
 
   app.patch('/api/admin/sla-policies/:id', async (req) => {
