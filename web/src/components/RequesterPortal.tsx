@@ -1,10 +1,63 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchTicket, fetchTickets, fetchUsers, postComment, type TicketListItem } from '../api';
+import {
+  fetchTicket, fetchTickets, fetchUsers, postComment, submitCsat,
+  type TicketListItem,
+} from '../api';
 import { age, fmtDateTime } from '../format';
 import { KnowledgeBase } from './KnowledgeBase';
 import { NewTicketDialog } from './NewTicketDialog';
 import { Toasts } from './Toasts';
+
+function CsatWidget({ ticketId, rated }: { ticketId: number; rated: number | null }) {
+  const qc = useQueryClient();
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState('');
+  const send = useMutation({
+    mutationFn: () => submitCsat(ticketId, rating, comment.trim() || undefined),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['ticket', ticketId] }),
+  });
+
+  if (rated != null) {
+    return (
+      <div className="csat-widget csat-done">
+        Thanks for the feedback — you rated this{' '}
+        <span className="csat-stars">{'★'.repeat(rated)}{'☆'.repeat(5 - rated)}</span>
+      </div>
+    );
+  }
+  return (
+    <div className="csat-widget">
+      <span className="csat-prompt">How did we do?</span>
+      <span className="csat-picker">
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button
+            key={n}
+            className={`csat-star ${n <= rating ? 'on' : ''}`}
+            title={`${n} of 5`}
+            onClick={() => setRating(n)}
+          >
+            {n <= rating ? '★' : '☆'}
+          </button>
+        ))}
+      </span>
+      {rating > 0 && (
+        <>
+          <input
+            className="csat-comment"
+            placeholder="Anything to add? (optional)"
+            value={comment}
+            maxLength={500}
+            onChange={(e) => setComment(e.target.value)}
+          />
+          <button className="btn primary" disabled={send.isPending} onClick={() => send.mutate()}>
+            Submit
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
 
 function PortalTicket({ t, expanded, onToggle }: {
   t: TicketListItem; expanded: boolean; onToggle: () => void;
@@ -60,6 +113,7 @@ function PortalTicket({ t, expanded, onToggle }: {
               <div className="portal-empty-comments">No replies yet — an agent will follow up here.</div>
             )}
           </div>
+          {closed && <CsatWidget ticketId={t.id} rated={detail.csatRating} />}
           <div className="reply-box">
             <textarea
               placeholder={closed ? 'Reply to reopen this ticket…' : 'Add a reply…'}

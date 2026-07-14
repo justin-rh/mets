@@ -142,6 +142,7 @@ export async function ticketRoutes(app: FastifyInstance) {
         firstRespondedAt: tickets.firstRespondedAt, resolvedAt: tickets.resolvedAt,
         snoozedUntil: tickets.snoozedUntil, snoozeReason: tickets.snoozeReason,
         source: tickets.source, customFields: tickets.customFields,
+        csatRating: tickets.csatRating, csatComment: tickets.csatComment,
         status: { id: statuses.id, name: statuses.name, category: statuses.category },
         queue: { id: teams.id, name: teams.name },
         requester: { id: requester.id, name: requester.name, isVip: requester.isVip, department: requester.department, email: requester.email },
@@ -327,6 +328,42 @@ export async function ticketRoutes(app: FastifyInstance) {
       if (!before?.firstRespondedAt) await completeFirstResponse(id);
     }
     return comment;
+  });
+
+  // CSAT: the requester (or whoever filed it for them) rates a resolved or
+  // closed ticket 1–5, once.
+  app.post('/api/tickets/:id/csat', async (req, reply) => {
+    const id = z.coerce.number().parse((req.params as any).id);
+    const body = z.object({
+      rating: z.number().int().min(1).max(5),
+      comment: z.string().trim().max(500).optional(),
+    }).parse(req.body);
+
+    const [t] = await db
+      .select({
+        requesterId: tickets.requesterId, submittedById: tickets.submittedById,
+        csatRating: tickets.csatRating, statusCategory: statuses.category,
+      })
+      .from(tickets)
+      .innerJoin(statuses, eq(statuses.id, tickets.statusId))
+      .where(eq(tickets.id, id));
+    if (!t) return reply.status(404).send({ error: 'ticket not found' });
+    if (t.requesterId !== req.userId && t.submittedById !== req.userId) {
+      return reply.status(403).send({ error: 'only the requester can rate' });
+    }
+    if (t.statusCategory !== 'resolved' && t.statusCategory !== 'closed') {
+      return reply.status(400).send({ error: 'rate after the ticket is resolved' });
+    }
+    if (t.csatRating != null) return reply.status(409).send({ error: 'already rated' });
+
+    await db.update(tickets).set({
+      csatRating: body.rating, csatComment: body.comment ?? null, csatAt: new Date(),
+    }).where(eq(tickets.id, id));
+    await db.insert(ticketEvents).values({
+      ticketId: id, actorId: req.userId, actorType: 'user', eventType: 'csat_rated',
+      field: 'csat', newValue: String(body.rating),
+    });
+    return { ok: true, rating: body.rating };
   });
 
   app.post('/api/tickets/bulk', async (req) => {

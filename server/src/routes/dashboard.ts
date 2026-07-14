@@ -23,8 +23,18 @@ export async function dashboardRoutes(app: FastifyInstance) {
           from tickets where first_responded_at is not null and created_at > now() - interval '30 days') as median_frt_hours,
         (select round(100.0 * count(*) filter (where breached_at is null) / nullif(count(*), 0), 1)
           from sla_instances
-          where metric = 'resolution' and completed_at > now() - interval '30 days') as sla_attainment_pct
+          where metric = 'resolution' and completed_at > now() - interval '30 days') as sla_attainment_pct,
+        (select round(avg(csat_rating)::numeric, 2) from tickets
+          where csat_at > now() - interval '30 days') as csat_avg_30,
+        (select count(*) from tickets
+          where csat_at > now() - interval '30 days') as csat_count_30
     `)).rows as any[];
+
+    const csatDist = (await db.execute(sql`
+      select csat_rating as rating, count(*) as count from tickets
+      where csat_at > now() - interval '30 days'
+      group by csat_rating order by csat_rating desc
+    `)).rows;
 
     const daily = (await db.execute(sql`
       with days as (
@@ -69,6 +79,6 @@ export async function dashboardRoutes(app: FastifyInstance) {
       group by u.name order by tp desc limit 10
     `)).rows;
 
-    return { tiles, daily, backlogAge, openByQueue, leaderboard };
+    return { tiles, daily, backlogAge, openByQueue, leaderboard, csatDist };
   });
 }

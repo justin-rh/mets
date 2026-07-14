@@ -182,6 +182,10 @@ export const tickets = pgTable(
     firstRespondedAt: timestamp('first_responded_at', { withTimezone: true }),
     resolvedAt: timestamp('resolved_at', { withTimezone: true }),
     closedAt: timestamp('closed_at', { withTimezone: true }),
+    // CSAT: requester rates 1–5 once the ticket is resolved/closed.
+    csatRating: smallint('csat_rating'),
+    csatComment: text('csat_comment'),
+    csatAt: timestamp('csat_at', { withTimezone: true }),
   },
   (t) => [
     uniqueIndex('tickets_number_idx').on(t.number),

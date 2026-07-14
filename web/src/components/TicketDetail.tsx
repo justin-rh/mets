@@ -362,6 +362,15 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
           )}
           <dt>Score</dt>
           <dd>{t.score} {t.manualBoost !== 0 ? `(boost ${t.manualBoost > 0 ? '+' : ''}${t.manualBoost})` : ''}</dd>
+          {t.csatRating != null && (
+            <>
+              <dt>CSAT</dt>
+              <dd title={t.csatComment ?? undefined}>
+                <span className="csat-stars">{'★'.repeat(t.csatRating)}{'☆'.repeat(5 - t.csatRating)}</span>
+                {t.csatComment && <span className="csat-quote"> “{t.csatComment}”</span>}
+              </dd>
+            </>
+          )}
         </dl>
       </div>
 

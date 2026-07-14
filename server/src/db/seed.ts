@@ -218,6 +218,11 @@ async function main() {
       value: { timezone: 'America/Phoenix', days: [1, 2, 3, 4, 5], start: '08:00', end: '17:00' },
     },
     {
+      // Matches the seed's own convention: resolved > 7 days ago = Closed.
+      key: 'auto_close',
+      value: { days: 7 },
+    },
+    {
       // Flag keywords — matches boost score and mark rows with 🚩.
       key: 'score_keywords',
       value: [
@@ -461,6 +466,19 @@ async function main() {
         firstRespondedAt: firstResponded,
         resolvedAt: isOpen ? null : resolvedAt,
         closedAt: statusName === 'Closed' ? new Date(resolvedAt.getTime() + 3 * DAY) : null,
+        // ~55% of finished tickets get a CSAT rating, skewed positive.
+        ...(!isOpen && chance(0.55) ? (() => {
+          const r = rand();
+          const rating = r < 0.44 ? 5 : r < 0.74 ? 4 : r < 0.87 ? 3 : r < 0.95 ? 2 : 1;
+          const comment =
+            rating >= 4 && chance(0.3) ? pick(['Fast turnaround, thank you!', 'Great help as always.', 'Sorted before lunch — appreciated.']) :
+            rating <= 2 && chance(0.6) ? pick(['Took way too long.', 'Had to explain the problem three times.', 'Fixed, but the workaround is painful.']) :
+            null;
+          return {
+            csatRating: rating, csatComment: comment,
+            csatAt: new Date(Math.min(resolvedAt.getTime() + int(2, 40) * HOUR, NOW.getTime())),
+          };
+        })() : {}),
       },
       comments: [], events: [], tagIds: [], sla: [],
     };

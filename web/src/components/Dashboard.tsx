@@ -110,6 +110,11 @@ export function Dashboard() {
         <Tile label="Median resolution" value={fmtH(t.median_mttr_hours)} sub="30d, median not mean" />
         <Tile label="Median first response" value={fmtH(t.median_frt_hours)} sub="30d" />
         <Tile label="SLA attainment" value={t.sla_attainment_pct ? `${t.sla_attainment_pct}%` : '—'} sub="resolution SLAs met, 30d" />
+        <Tile
+          label="CSAT"
+          value={t.csat_avg_30 ? `${Number(t.csat_avg_30).toFixed(1)} ★` : '—'}
+          sub={`${t.csat_count_30} ratings, 30d`}
+        />
       </div>
 
       <VolumeChart daily={data.daily} />
@@ -120,6 +125,13 @@ export function Dashboard() {
         <HBars
           title="Ticket Points — last 30 days"
           rows={data.leaderboard.map((l) => ({ label: l.name, value: Number(l.tp), sub: `${l.resolved} resolved` }))}
+        />
+        <HBars
+          title="CSAT distribution — 30d"
+          rows={[5, 4, 3, 2, 1].map((r) => ({
+            label: '★'.repeat(r),
+            value: Number(data.csatDist.find((d) => Number(d.rating) === r)?.count ?? 0),
+          }))}
         />
       </div>
     </div>

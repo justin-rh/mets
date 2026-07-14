@@ -3,9 +3,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   addAgentSkill, addRoutingRule, addStatus, addTemplate, deleteRoutingRule,
   deleteTemplate, fetchAdminConfig, fetchMeta, removeAgentSkill, renameStatus,
-  saveAiThresholds, saveScoreKeywords, saveScoreWeights, saveSlaPolicy,
-  setCategoryApproval, syncSkills, toggleRoutingRule, updateTemplate,
-  type AdminConfig,
+  saveAiThresholds, saveAutoClose, saveScoreKeywords, saveScoreWeights,
+  saveSlaPolicy, setCategoryApproval, syncSkills, toggleRoutingRule,
+  updateTemplate, type AdminConfig,
 } from '../api';
 
 function useInvalidate() {
@@ -60,11 +60,14 @@ function ScoreWeightsCard({ config }: { config: AdminConfig }) {
 function SlaCard({ config }: { config: AdminConfig }) {
   const invalidate = useInvalidate();
   const [rows, setRows] = useState(config.slaPolicies);
+  const [autoCloseDays, setAutoCloseDays] = useState(config.autoClose.days);
   const [saved, setSaved] = useState(false);
   useEffect(() => setRows(config.slaPolicies), [config.slaPolicies]);
+  useEffect(() => setAutoCloseDays(config.autoClose.days), [config.autoClose.days]);
   const save = useMutation({
     mutationFn: async () => {
       for (const r of rows) await saveSlaPolicy(r.id, { firstResponseMinutes: r.firstResponseMinutes, resolutionMinutes: r.resolutionMinutes });
+      if (autoCloseDays !== config.autoClose.days) await saveAutoClose(autoCloseDays);
     },
     onSuccess: () => { setSaved(true); invalidate(); },
   });
@@ -86,6 +89,19 @@ function SlaCard({ config }: { config: AdminConfig }) {
           ))}
         </tbody>
       </table>
+      <label className="admin-field admin-autoclose">
+        Auto-close resolved tickets after
+        <span className="admin-autoclose-input">
+          <input
+            type="number"
+            min={0}
+            max={90}
+            value={autoCloseDays}
+            onChange={(e) => setAutoCloseDays(Number(e.target.value))}
+          />
+          days <em>(0 disables; a requester reply reopens)</em>
+        </span>
+      </label>
       <div className="admin-actions">
         <button className="btn primary" disabled={save.isPending} onClick={() => { setSaved(false); save.mutate(); }}>Save policies</button>
         {saved && <span className="admin-saved">Saved</span>}

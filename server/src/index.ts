@@ -16,6 +16,7 @@ import { ticketRoutes } from './routes/tickets.js';
 import { ensureKbEmbeddings } from './services/kb/kbService.js';
 import { startSkillsSync } from './services/skills.js';
 import { startSlaSweep } from './services/sla/slaService.js';
+import { startAutoCloseSweep } from './services/autoClose.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -78,6 +79,7 @@ await app.register(chatRoutes);
 try {
   await app.listen({ port: env.port, host: '0.0.0.0' });
   startSlaSweep((msg) => app.log.info(msg));
+  startAutoCloseSweep((msg) => app.log.info(msg));
   startSkillsSync((msg) => app.log.info(msg));
   // Embed KB articles in the background (first run downloads the model).
   ensureKbEmbeddings((msg) => app.log.info(msg)).catch((err) =>

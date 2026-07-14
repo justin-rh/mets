@@ -39,7 +39,13 @@ export type TicketDetail = TicketListItem & {
   requester: { id: number; name: string; isVip: boolean; department: string | null; email: string };
   comments: Comment[]; events: TicketEvent[]; sla: any[];
   approvals: TicketApproval[];
+  csatRating: number | null; csatComment: string | null;
 };
+
+export const submitCsat = (id: number, rating: number, comment?: string) =>
+  api<{ ok: boolean; rating: number }>(`/api/tickets/${id}/csat`, {
+    method: 'POST', body: JSON.stringify({ rating, comment: comment || undefined }),
+  });
 
 export type TicketApproval = {
   id: number; state: 'pending' | 'approved' | 'rejected'; note: string | null;
@@ -198,11 +204,13 @@ export type DashboardData = {
     open_count: string; created_30: string; resolved_30: string;
     median_mttr_hours: number | null; median_frt_hours: number | null;
     sla_attainment_pct: string | null;
+    csat_avg_30: string | null; csat_count_30: string;
   };
   daily: { day: string; created: string; resolved: string }[];
   backlogAge: { bucket: string; count: string }[];
   openByQueue: { name: string; count: string }[];
   leaderboard: { name: string; tp: string; resolved: string }[];
+  csatDist: { rating: number; count: string }[];
 };
 
 export const fetchDashboard = () => api<DashboardData>('/api/dashboard');
@@ -246,6 +254,7 @@ export type AdminConfig = {
     slaWarning: number; slaBreached: number; manualBoostRange: number;
   } | null;
   scoreKeywords: { term: string; boost: number }[];
+  autoClose: { days: number };
   aiThresholds: { autoApply: number; suggest: number };
   businessHours: unknown;
   statuses: StatusInfo[];
@@ -266,6 +275,8 @@ export const saveScoreWeights = (weights: NonNullable<AdminConfig['scoreWeights'
   api('/api/admin/score-weights', { method: 'PUT', body: JSON.stringify(weights) });
 export const saveAiThresholds = (t: AdminConfig['aiThresholds']) =>
   api('/api/admin/ai-thresholds', { method: 'PUT', body: JSON.stringify(t) });
+export const saveAutoClose = (days: number) =>
+  api('/api/admin/auto-close', { method: 'PUT', body: JSON.stringify({ days }) });
 export const saveScoreKeywords = (keywords: AdminConfig['scoreKeywords']) =>
   api<{ ok: boolean; rescored: number }>('/api/admin/score-keywords', {
     method: 'PUT', body: JSON.stringify(keywords),

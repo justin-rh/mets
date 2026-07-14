@@ -32,6 +32,7 @@ export async function adminRoutes(app: FastifyInstance) {
     return {
       scoreWeights: byKey['score_weights'] ?? null,
       scoreKeywords: byKey['score_keywords'] ?? [],
+      autoClose: byKey['auto_close'] ?? { days: 7 },
       aiThresholds: byKey['ai_thresholds'] ?? { autoApply: 0.8, suggest: 0.35 },
       businessHours: byKey['business_hours'] ?? null,
       statuses: await db.select().from(statuses).orderBy(asc(statuses.position)),
@@ -155,6 +156,16 @@ export async function adminRoutes(app: FastifyInstance) {
     const body = z.object({ name: z.string().trim().min(2).max(60) }).parse(req.body);
     const [updated] = await db.update(statuses).set({ name: body.name }).where(eq(statuses.id, id)).returning();
     return updated;
+  });
+
+  // Days a Resolved ticket waits before the sweep closes it; 0 disables.
+  app.put('/api/admin/auto-close', async (req) => {
+    await requireAdmin(req.userId);
+    const value = z.object({ days: z.number().int().min(0).max(90) }).parse(req.body);
+    await db.insert(appConfig)
+      .values({ key: 'auto_close', value, updatedAt: new Date() })
+      .onConflictDoUpdate({ target: appConfig.key, set: { value, updatedAt: new Date() } });
+    return { ok: true };
   });
 
   app.patch('/api/admin/sla-policies/:id', async (req) => {
