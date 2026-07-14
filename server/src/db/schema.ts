@@ -429,6 +429,18 @@ export const aiUsage = pgTable('ai_usage', {
 // live here so changing them is a form edit, not a deployment.
 // ---------------------------------------------------------------------------
 
+// Follow any ticket: watchers get bell notifications for every event and
+// public comment on it, regardless of assignment or queue membership.
+export const ticketWatchers = pgTable(
+  'ticket_watchers',
+  {
+    ticketId: bigint('ticket_id', { mode: 'number' }).notNull().references(() => tickets.id),
+    userId: bigint('user_id', { mode: 'number' }).notNull().references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.ticketId, t.userId] })],
+);
+
 // Agent-to-agent DMs. Polling-based (no socket infra) — the web client
 // refetches on a short interval, which is plenty for an internal tool.
 export const chatMessages = pgTable(

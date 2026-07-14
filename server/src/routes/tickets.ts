@@ -229,6 +229,13 @@ export async function ticketRoutes(app: FastifyInstance) {
 
     const incident = await incidentInfo(id);
 
+    const watchers = await db
+      .select({ userId: schema.ticketWatchers.userId, name: users.name })
+      .from(schema.ticketWatchers)
+      .innerJoin(users, eq(users.id, schema.ticketWatchers.userId))
+      .where(eq(schema.ticketWatchers.ticketId, id));
+    const watching = watchers.some((w) => w.userId === req.userId);
+
     // RBAC: requesters see only their own tickets, without internal notes,
     // the audit trail, AI internals, or SLA state.
     if (req.userRole === 'requester') {
@@ -249,10 +256,16 @@ export async function ticketRoutes(app: FastifyInstance) {
         approvals: approvalRows,
         // other requesters' tickets stay private — no child/duplicate lists
         incident: { parent: incident.parent, mergedInto: incident.mergedInto, children: [], duplicates: [] },
+        watching: false, watcherCount: 0, watchers: [], // agent feature
       };
     }
 
-    return { ...t, comments, events, sla, tags: tagRows.map((r) => r.name), ai: ai ?? null, approvals: approvalRows, incident };
+    return {
+      ...t, comments, events, sla, tags: tagRows.map((r) => r.name),
+      ai: ai ?? null, approvals: approvalRows, incident,
+      watching, watcherCount: watchers.length,
+      watchers: watchers.map((w) => ({ id: w.userId, name: w.name })),
+    };
   });
 
   app.post('/api/tickets', async (req) => {
@@ -355,6 +368,53 @@ export async function ticketRoutes(app: FastifyInstance) {
       broadcast = await broadcastIncidentUpdate(id, body.bodyText, author?.name ?? 'the response team');
     }
     return { ...comment, broadcast };
+  });
+
+  // Follow / unfollow a ticket — watchers get bell notifications for
+  // everything that happens on it. Pass userId to subscribe a colleague
+  // ("loop my lead in"); the watcher_added event lands in their bell.
+  app.post('/api/tickets/:id/watch', async (req, reply) => {
+    requireStaff(req);
+    const id = z.coerce.number().parse((req.params as any).id);
+    const body = z.object({
+      watch: z.boolean(),
+      userId: z.number().optional(),
+    }).parse(req.body);
+    const [t] = await db.select({ id: tickets.id }).from(tickets).where(eq(tickets.id, id));
+    if (!t) return reply.status(404).send({ error: 'ticket not found' });
+
+    const targetId = body.userId ?? req.userId;
+    if (targetId !== req.userId) {
+      const [target] = await db.select({ role: users.role, name: users.name }).from(users)
+        .where(and(eq(users.id, targetId), eq(users.isActive, true)));
+      if (!target || (target.role !== 'agent' && target.role !== 'admin')) {
+        return reply.status(400).send({ error: 'watchers must be agents or admins' });
+      }
+      if (!body.watch) {
+        return reply.status(400).send({ error: 'only the watcher themself can unwatch' });
+      }
+      const inserted = await db.insert(schema.ticketWatchers)
+        .values({ ticketId: id, userId: targetId })
+        .onConflictDoNothing()
+        .returning({ userId: schema.ticketWatchers.userId });
+      if (inserted.length > 0) {
+        // The event lands in the new watcher's bell via the watched branch.
+        await db.insert(ticketEvents).values({
+          ticketId: id, actorId: req.userId, actorType: 'user',
+          eventType: 'watcher_added', field: 'watcher', newValue: target.name,
+        });
+      }
+      return { ok: true, added: target.name, alreadyWatching: inserted.length === 0 };
+    }
+
+    if (body.watch) {
+      await db.insert(schema.ticketWatchers).values({ ticketId: id, userId: req.userId })
+        .onConflictDoNothing();
+    } else {
+      await db.delete(schema.ticketWatchers).where(and(
+        eq(schema.ticketWatchers.ticketId, id), eq(schema.ticketWatchers.userId, req.userId)));
+    }
+    return { ok: true, watching: body.watch };
   });
 
   // Likely duplicates of this ticket, with the part-number check precomputed.

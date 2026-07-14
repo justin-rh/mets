@@ -4,7 +4,7 @@ import {
   actingUserId, decideApproval, draftReply, fetchBestFits, fetchMe,
   fetchMergeCandidates, fetchMeta, fetchSuggestions, fetchTicket,
   fetchTicketTemplates, fetchUsers, flagTicket, mergeTicket, openChat, patchTicket,
-  postComment, type IdentifierCheck,
+  postComment, watchTicket, type IdentifierCheck,
 } from '../api';
 import { copyToClipboard, fmtDateTime, initials } from '../format';
 import { SnoozeDialog } from './SnoozeDialog';
@@ -122,6 +122,24 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
       invalidate();
     },
     onError: (e: any) => toast(e?.message ?? 'Could not flag', 'info'),
+  });
+
+  const watch = useMutation({
+    mutationFn: ({ next, userId }: { next: boolean; userId?: number }) =>
+      watchTicket(ticketId, next, userId),
+    onSuccess: (r) => {
+      if (r.added) {
+        toast(r.alreadyWatching
+          ? `${r.added} is already watching this ticket`
+          : `${r.added} added as a watcher — they'll see it in their bell`, 'success');
+      } else {
+        toast(r.watching
+          ? 'Watching — every update and reply lands in your bell'
+          : 'Stopped watching', 'info');
+      }
+      qc.invalidateQueries({ queryKey: ['ticket', ticketId] });
+      qc.invalidateQueries({ queryKey: ['notifications'] });
+    },
   });
 
   const decide = useMutation({
@@ -417,6 +435,31 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
           >
             ⚑ Flag
           </button>
+          <button
+            className={`btn ${t.watching ? 'watching' : ''}`}
+            title={t.watchers?.length
+              ? `Watching: ${t.watchers.map((w) => w.name).join(', ')}${t.watching ? ' — click to stop' : ' — click to join'}`
+              : 'Get bell notifications for everything on this ticket'}
+            disabled={watch.isPending}
+            onClick={() => watch.mutate({ next: !t.watching })}
+          >
+            {t.watching ? '👁 Watching' : '👁 Watch'}
+            {t.watcherCount > 0 && <span className="watch-count">{t.watcherCount}</span>}
+          </button>
+          <select
+            className="watch-add"
+            value=""
+            title="Subscribe a colleague — they get bell updates and a heads-up that you added them"
+            disabled={watch.isPending}
+            onChange={(e) => {
+              if (e.target.value) watch.mutate({ next: true, userId: Number(e.target.value) });
+            }}
+          >
+            <option value="" disabled>➕ Add watcher…</option>
+            {meta?.agents
+              .filter((a) => !t.watchers?.some((w) => w.id === a.id))
+              .map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
           {!t.incident?.mergedInto && (
             <button
               className={`btn ${mergeOpen ? 'active' : ''}`}

@@ -2194,3 +2194,16 @@ button.logo-home {
   border-radius: var(--r);
 }
 .mail-notify-thread { border-left: 3px solid var(--accent); }
+
+/* watchers */
+.btn.watching { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.watch-count {
+  margin-left: 5px;
+  font-family: var(--font-data);
+  font-size: 10px;
+  padding: 0 5px;
+  border: 1px solid currentColor;
+  border-radius: 8px;
+}
+
+.watch-add { font: inherit; font-size: 12px; max-width: 130px; }

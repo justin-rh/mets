@@ -42,6 +42,8 @@ export type TicketDetail = TicketListItem & {
   comments: Comment[]; events: TicketEvent[]; sla: any[];
   approvals: TicketApproval[];
   csatRating: number | null; csatComment: string | null;
+  watching: boolean; watcherCount: number;
+  watchers: { id: number; name: string }[];
   incident: {
     parent: { id: number; number: string; subject: string } | null;
     mergedInto: { id: number; number: string; subject: string } | null;
@@ -416,10 +418,17 @@ export const setAvailability = (id: number, isAvailable: boolean) =>
 
 export type NotificationPrefs = {
   assignedToMe: boolean; slaAlerts: boolean; queueActivity: boolean; emailReplies: boolean;
+  watchedTickets: boolean;
 };
 export type NotificationItem = {
-  id: number; type: string; number: string; subject: string; at: string;
+  id: string; type: string; number: string; subject: string; at: string;
 };
+
+export const watchTicket = (id: number, watch: boolean, userId?: number) =>
+  api<{ ok: boolean; watching?: boolean; added?: string; alreadyWatching?: boolean }>(
+    `/api/tickets/${id}/watch`,
+    { method: 'POST', body: JSON.stringify({ watch, userId }) },
+  );
 
 export const fetchNotifications = () =>
   api<{ prefs: NotificationPrefs; items: NotificationItem[] }>('/api/notifications');

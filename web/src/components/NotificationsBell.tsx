@@ -9,6 +9,8 @@ const TYPE_META: Record<string, { icon: string; label: string }> = {
   sla_breached: { icon: '⚠️', label: 'SLA breached' },
   created: { icon: '📥', label: 'New in your queue' },
   email_reply: { icon: '✉️', label: 'Requester replied' },
+  watched_comment: { icon: '👁', label: 'New reply on watched ticket' },
+  watcher_added: { icon: '👁', label: 'You were added as a watcher' },
 };
 
 const PREF_LABELS: [keyof NotificationPrefs, string][] = [
@@ -16,6 +18,7 @@ const PREF_LABELS: [keyof NotificationPrefs, string][] = [
   ['slaAlerts', 'SLA warnings & breaches on my tickets'],
   ['queueActivity', 'New tickets in my queues'],
   ['emailReplies', 'Email replies on my tickets'],
+  ['watchedTickets', 'Everything on tickets I watch'],
 ];
 
 export function NotificationsBell() {
@@ -94,7 +97,9 @@ export function NotificationsBell() {
           )}
           <div className="notif-list">
             {(data?.items ?? []).map((n) => {
-              const meta = TYPE_META[n.type] ?? { icon: '•', label: n.type };
+              // Unknown types only come from the watched-tickets branch.
+              const meta = TYPE_META[n.type]
+                ?? { icon: '👁', label: `Watched: ${n.type.replace(/_/g, ' ')}` };
               return (
                 <a key={n.id} className="notif-item" href={`/?ticket=${n.number}`}>
                   <span className="notif-icon">{meta.icon}</span>
