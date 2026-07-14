@@ -15,10 +15,11 @@ const cursorFirst: CollisionDetection = (args) => {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   actingUserId, bulkTickets, fetchMe, fetchMeta, fetchTickets, fetchUsers,
-  patchTicket, setActingUserId, type ListParams, type TicketChanges,
-  type TicketListItem,
+  parseSearch, patchTicket, setActingUserId, type ListParams, type NlFilters,
+  type TicketChanges, type TicketListItem,
 } from './api';
 import { RequesterPortal } from './components/RequesterPortal';
+import { isEntra, signOut } from './auth';
 import { MODES, type Mode } from './board';
 import { Admin } from './components/Admin';
 import { BulkBar } from './components/BulkBar';
@@ -58,6 +59,8 @@ export default function App() {
     return v ? Number(v) : undefined;
   });
   const [draggingId, setDraggingId] = useState<number | null>(null);
+  // Natural-language search: AI-parsed filters override the view while active.
+  const [nlFilter, setNlFilter] = useState<{ interpretation: string; filters: NlFilters } | null>(null);
   const [snoozeIds, setSnoozeIds] = useState<number[] | null>(null);
   const [newTicketOpen, setNewTicketOpen] = useState(false);
   const [page, setPage] = useState<'queue' | 'dashboards' | 'kb' | 'email' | 'admin'>('queue');
@@ -91,7 +94,19 @@ export default function App() {
     : mode === 'My Categories' ? 'my_queues'
     : mode === 'Closed' ? 'closed'
     : 'open';
-  const params = { view, queueId, assigneeId: assigneeFilter, requesterId: requesterFilter, sort, search: debouncedSearch };
+  const params: ListParams = nlFilter
+    ? { view: 'open', sort, ...nlFilter.filters }
+    : { view, queueId, assigneeId: assigneeFilter, requesterId: requesterFilter, sort, search: debouncedSearch };
+
+  const nlParse = useMutation({
+    mutationFn: (query: string) => parseSearch(query),
+    onSuccess: (r) => {
+      setNlFilter({ interpretation: r.interpretation, filters: r.filters });
+      setSearch('');
+      toast(`✨ ${r.interpretation}`, 'info');
+    },
+    onError: () => toast('Could not parse that — try plain keywords', 'info'),
+  });
 
   const { data: meta } = useQuery({ queryKey: ['meta'], queryFn: fetchMeta });
   const { data: ticketList, isFetching } = useQuery({
@@ -325,12 +340,33 @@ export default function App() {
         <button className="btn accent new-ticket-btn" onClick={() => setNewTicketOpen(true)}>
           + New Ticket
         </button>
-        <input
-          className="search"
-          placeholder="Search tickets… (T-1000042, subject)"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+        <span className="search-wrap">
+          <input
+            className="search"
+            placeholder="Search… press Enter to ask in plain English"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && search.trim().length >= 3 && !nlParse.isPending) {
+                nlParse.mutate(search.trim());
+              }
+            }}
+          />
+          <button
+            className="nl-search-btn"
+            title='Ask in plain English — e.g. "open printer tickets in phoenix older than a week"'
+            disabled={search.trim().length < 3 || nlParse.isPending}
+            onClick={() => nlParse.mutate(search.trim())}
+          >
+            {nlParse.isPending ? '…' : '✨'}
+          </button>
+        </span>
+        {isEntra ? (
+          <span className="sso-user">
+            {me?.name ?? '…'}
+            <button className="btn ghost" title="Sign out" onClick={() => signOut()}>Sign out</button>
+          </span>
+        ) : (
         <select
           className="user-switcher"
           title="Acting as (dev auth)"
@@ -352,6 +388,7 @@ export default function App() {
             meta?.agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)
           )}
         </select>
+        )}
         <NotificationsBell key={userId} />
         <button
           className="theme-toggle"
@@ -388,6 +425,12 @@ export default function App() {
           <span className="filter-chip">
             Submitted by: {meta?.agents.find((a) => a.id === requesterFilter)?.name ?? `user #${requesterFilter}`}
             <button onClick={() => setRequesterFilter(undefined)} title="Clear filter">✕</button>
+          </span>
+        )}
+        {nlFilter && (
+          <span className="filter-chip nl-chip" title={nlFilter.interpretation}>
+            ✨ {nlFilter.interpretation}
+            <button onClick={() => setNlFilter(null)} title="Clear AI search">✕</button>
           </span>
         )}
         <span className="mode-hint">

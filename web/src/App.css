@@ -2118,3 +2118,47 @@ select, textarea, input[type='text'], .modal input {
   letter-spacing: 1px;
   text-transform: uppercase;
 }
+
+/* natural-language search */
+.search-wrap { display: flex; align-items: center; gap: 4px; }
+.nl-search-btn {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--ink-soft);
+  border-radius: var(--r);
+  color: var(--text-on-dark);
+  font-size: 14px;
+  padding: 5px 9px;
+  cursor: pointer;
+}
+.nl-search-btn:hover:not(:disabled) { border-color: var(--accent); }
+.nl-search-btn:disabled { opacity: 0.4; cursor: default; }
+.nl-chip {
+  border-color: var(--accent);
+  max-width: 420px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* SSO sign-in */
+.auth-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ink-deep);
+  color: var(--text-on-dark);
+}
+.auth-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 40px 56px;
+  border: 1px solid var(--ink-soft);
+  border-top: 3px solid var(--accent);
+  border-radius: var(--r);
+  text-align: center;
+}
+.auth-logo { font-size: 28px; }
+.sso-user { display: flex; align-items: center; gap: 8px; font-size: 13px; }

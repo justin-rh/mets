@@ -29,16 +29,28 @@ declare module 'fastify' {
 const app = Fastify({ logger: true });
 await app.register(cors, { origin: true });
 
-// Dev auth adapter: the client says who it's acting as. The Entra OIDC
-// adapter replaces this hook with real session validation (config swap).
-// The role rides along on every request so routes can enforce RBAC without
-// a lookup (30s cache — roles effectively never change mid-session).
+// Auth adapter. dev: the client says who it's acting as (x-user-id).
+// entra: validate the Microsoft ID token and map it to a METS user
+// (services/auth/entra.ts) — same request surface either way, so routes
+// never know which mode is running. The role rides along on every request
+// for RBAC (30s cache — roles effectively never change mid-session).
 const roleCache = new Map<number, { role: FastifyRequest['userRole']; at: number }>();
 app.decorateRequest('userId', 0);
 app.decorateRequest('userRole', 'requester');
-app.addHook('onRequest', async (req) => {
-  const header = req.headers['x-user-id'];
-  req.userId = header ? Number(header) : 1;
+app.addHook('onRequest', async (req, reply) => {
+  if (env.authProvider === 'entra') {
+    if (req.url === '/api/health') return; // probes stay unauthenticated
+    try {
+      const { authenticateEntraRequest } = await import('./services/auth/entra.js');
+      req.userId = await authenticateEntraRequest(req.headers.authorization);
+    } catch {
+      return reply.status(401).send({ error: 'sign in required' });
+    }
+  } else {
+    const header = req.headers['x-user-id'];
+    req.userId = header ? Number(header) : 1;
+  }
+
   const hit = roleCache.get(req.userId);
   if (hit && Date.now() - hit.at < 30_000) {
     req.userRole = hit.role;

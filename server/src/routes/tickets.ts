@@ -20,6 +20,13 @@ const listQuery = z.object({
   sort: z.enum(['date', 'newest', 'score', 'priority', 'requester', 'description', 'random']).default('date'),
   search: z.string().trim().max(200).optional(),
   limit: z.coerce.number().min(1).max(500).default(200),
+  // Structured filters — mostly fed by natural-language search.
+  categoryId: z.coerce.number().optional(),
+  tags: z.string().trim().max(240).optional(), // comma-separated, ANDed
+  olderThanDays: z.coerce.number().min(0).max(3650).optional(),
+  newerThanDays: z.coerce.number().min(0).max(3650).optional(),
+  priorityAtMost: z.coerce.number().min(1).max(4).optional(),
+  unassigned: z.enum(['1']).optional(),
 });
 
 const changesBody = z.object({
@@ -68,6 +75,15 @@ export async function ticketRoutes(app: FastifyInstance) {
     if (q.search) {
       conds.push(or(ilike(tickets.subject, `%${q.search}%`), ilike(tickets.number, `%${q.search}%`))!);
     }
+    if (q.categoryId) conds.push(eq(tickets.categoryId, q.categoryId));
+    for (const tag of (q.tags ?? '').split(',').map((s) => s.trim()).filter(Boolean)) {
+      conds.push(sql`exists (select 1 from ticket_tags tt join tags tg on tg.id = tt.tag_id
+        where tt.ticket_id = ${tickets.id} and tg.name = ${tag})`);
+    }
+    if (q.olderThanDays) conds.push(sql`${tickets.createdAt} < now() - make_interval(days => ${q.olderThanDays})`);
+    if (q.newerThanDays) conds.push(sql`${tickets.createdAt} > now() - make_interval(days => ${q.newerThanDays})`);
+    if (q.priorityAtMost) conds.push(sql`${tickets.priority} <= ${q.priorityAtMost}`);
+    if (q.unassigned === '1') conds.push(sql`${tickets.assigneeId} is null`);
 
     const order =
       q.sort === 'newest' ? [desc(tickets.id)] // arrival order, immune to backdated timestamps

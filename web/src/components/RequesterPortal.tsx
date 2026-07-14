@@ -8,6 +8,7 @@ import { age, fmtDateTime } from '../format';
 import { KnowledgeBase } from './KnowledgeBase';
 import { NewTicketDialog } from './NewTicketDialog';
 import { Toasts } from './Toasts';
+import { isEntra, signOut } from '../auth';
 
 function CsatWidget({ ticketId, rated }: { ticketId: number; rated: number | null }) {
   const qc = useQueryClient();
@@ -171,19 +172,26 @@ export function RequesterPortal({ userId, onSwitchUser, theme, onToggleTheme }: 
         <button className="btn accent new-ticket-btn" onClick={() => setNewOpen(true)}>
           + New Ticket
         </button>
-        <select
-          className="user-switcher"
-          title="Acting as (dev auth)"
-          value={userId}
-          onChange={(e) => onSwitchUser(Number(e.target.value))}
-        >
-          <optgroup label="Staff">
-            {staff.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-          </optgroup>
-          <optgroup label="Requesters">
-            {requesters.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-          </optgroup>
-        </select>
+        {isEntra ? (
+          <span className="sso-user">
+            {me?.name ?? '…'}
+            <button className="btn ghost" title="Sign out" onClick={() => signOut()}>Sign out</button>
+          </span>
+        ) : (
+          <select
+            className="user-switcher"
+            title="Acting as (dev auth)"
+            value={userId}
+            onChange={(e) => onSwitchUser(Number(e.target.value))}
+          >
+            <optgroup label="Staff">
+              {staff.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </optgroup>
+            <optgroup label="Requesters">
+              {requesters.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </optgroup>
+          </select>
+        )}
         <button className="theme-toggle" title="Toggle theme" onClick={onToggleTheme}>
           {theme === 'light' ? '☾' : '☀'}
         </button>

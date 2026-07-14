@@ -8,7 +8,9 @@ config({ path: rootEnv });
 export const env = {
   databaseUrl: process.env.DATABASE_URL ?? 'postgres://mets:mets_dev@localhost:5433/mets',
   port: Number(process.env.PORT ?? 3001),
-  authProvider: process.env.AUTH_PROVIDER ?? 'dev',
+  authProvider: process.env.AUTH_PROVIDER ?? 'dev', // 'dev' | 'entra' — see docs/SSO.md
+  entraTenantId: process.env.ENTRA_TENANT_ID ?? '',
+  entraClientId: process.env.ENTRA_CLIENT_ID ?? '',
   mailProvider: process.env.MAIL_PROVIDER ?? 'mock',
   aiProvider: process.env.AI_PROVIDER ?? 'mock',
   storageProvider: process.env.STORAGE_PROVIDER ?? 'local',

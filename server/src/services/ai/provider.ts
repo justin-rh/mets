@@ -111,11 +111,40 @@ export type ArticleOutcome = {
   outputTokens: number;
 };
 
+export const SearchFilterSchema = z.object({
+  interpretation: z.string().describe('Short human echo of what will be filtered, e.g. "open Printing & Labels tickets tagged phoenix-az, older than 7 days"'),
+  queueSlug: z.string().nullable().describe('Exact queue slug from the list, or null'),
+  categoryName: z.string().nullable().describe('Exact category name from the list, or null'),
+  tags: z.array(z.string()).describe('Exact tags from the list; locations are slugs like phoenix-az. Places in the query map to location tags. Do NOT add topic tags when a category already captures the topic.'),
+  status: z.enum(['open', 'closed', 'any']).describe('open unless the query asks for closed/resolved or all/any'),
+  unassignedOnly: z.boolean(),
+  priorityAtMost: z.number().nullable().describe('1-4 when the query names a priority or says critical/high; P2-or-higher means 2'),
+  olderThanDays: z.number().nullable(),
+  newerThanDays: z.number().nullable(),
+  textSearch: z.string().nullable().describe('Residual free-text to substring-match the subject, ONLY when no category/queue captures it'),
+  confidence: z.number().describe('0-1'),
+});
+export type SearchFilterResult = z.infer<typeof SearchFilterSchema>;
+
+export type SearchParseContext = {
+  queues: { slug: string; name: string }[];
+  categories: string[];
+  tags: string[];
+};
+
+export type SearchParseOutcome = {
+  result: SearchFilterResult;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+};
+
 export interface AIProvider {
   triage(input: TriageInput, ctx: TriageContext): Promise<TriageOutcome>;
   draftReply(input: DraftInput): Promise<DraftOutcome>;
   assessIncident(input: IncidentInput): Promise<IncidentOutcome>;
   draftArticle(input: ArticleInput): Promise<ArticleOutcome>;
+  parseSearch(query: string, ctx: SearchParseContext): Promise<SearchParseOutcome>;
 }
 
 // ---------------------------------------------------------------------------
@@ -350,6 +379,44 @@ Worth an article?`,
       outputTokens: response.usage.output_tokens,
     };
   }
+
+  async parseSearch(query: string, ctx: SearchParseContext): Promise<SearchParseOutcome> {
+    const response = await this.client.messages.parse({
+      model: env.aiModel,
+      max_tokens: 800,
+      system: [{
+        type: 'text',
+        cache_control: { type: 'ephemeral' },
+        text: `You translate plain-English helpdesk queue searches into structured
+filters. Map to the EXACT names below; anything you can't map goes to
+textSearch (or null). Time phrases: "older than a week" = olderThanDays 7,
+"this week"/"last 7 days" = newerThanDays 7, "today" = newerThanDays 1.
+Don't invent filters the query doesn't ask for. Topics ("printer",
+"password") belong in categoryName — use tags only for places (location
+slugs) or when the query literally says "tagged X".
+
+Queues (slug: name):
+${ctx.queues.map((q) => `- ${q.slug}: ${q.name}`).join('\n')}
+
+Categories:
+${ctx.categories.map((c) => `- ${c}`).join('\n')}
+
+Tags (locations are slugs):
+${ctx.tags.map((t) => `- ${t}`).join('\n')}`,
+      }],
+      messages: [{ role: 'user', content: `Search: ${query.slice(0, 300)}` }],
+      output_config: { format: zodOutputFormat(SearchFilterSchema) },
+    });
+    if (!response.parsed_output) {
+      throw new Error(`search parse failed (stop_reason: ${response.stop_reason})`);
+    }
+    return {
+      result: response.parsed_output,
+      model: response.model,
+      inputTokens: response.usage.input_tokens + (response.usage.cache_read_input_tokens ?? 0) + (response.usage.cache_creation_input_tokens ?? 0),
+      outputTokens: response.usage.output_tokens,
+    };
+  }
 }
 
 /** Keyword-based mock for offline dev and as a demo fallback. */
@@ -431,6 +498,31 @@ class MockProvider implements AIProvider {
         title: input.tickets[0]?.subject.slice(0, 80) ?? 'Suspected incident',
         summary: `${input.tickets.length} similar tickets arrived in a short window.`,
         confidence: 0.7,
+      },
+      model: 'mock', inputTokens: 0, outputTokens: 0,
+    };
+  }
+
+  async parseSearch(query: string, ctx: SearchParseContext): Promise<SearchParseOutcome> {
+    const q = query.toLowerCase();
+    const days = q.match(/older than (?:a |an )?(\d+)?\s*(day|week|month)/);
+    const mult = days?.[2] === 'week' ? 7 : days?.[2] === 'month' ? 30 : 1;
+    const tag = ctx.tags.find((t) => q.includes(t.replace(/-/g, ' ')) || q.includes(t));
+    const category = ctx.categories.find((c) => q.includes(c.toLowerCase()))
+      ?? (q.match(/print|label/) ? 'Printing & Labels' : q.match(/password|locked/) ? 'Access & Accounts' : null);
+    return {
+      result: {
+        interpretation: `mock parse of "${query.slice(0, 60)}"`,
+        queueSlug: ctx.queues.find((x) => q.includes(x.name.toLowerCase()))?.slug ?? null,
+        categoryName: category,
+        tags: tag ? [tag] : [],
+        status: q.includes('closed') || q.includes('resolved') ? 'closed' : 'open',
+        unassignedOnly: q.includes('unassigned'),
+        priorityAtMost: q.match(/\bp1\b|critical/) ? 1 : q.match(/\bp2\b|high/) ? 2 : null,
+        olderThanDays: days ? (Number(days[1] ?? 1)) * mult : null,
+        newerThanDays: null,
+        textSearch: null,
+        confidence: 0.5,
       },
       model: 'mock', inputTokens: 0, outputTokens: 0,
     };

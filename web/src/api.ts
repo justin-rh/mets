@@ -94,7 +94,16 @@ export type ListParams = {
   view: 'open' | 'mine' | 'unassigned' | 'my_queues' | 'snoozed' | 'closed' | 'all';
   queueId?: number; assigneeId?: number; requesterId?: number;
   sort: string; search?: string; limit?: number;
+  categoryId?: number; tags?: string;
+  olderThanDays?: number; newerThanDays?: number;
+  priorityAtMost?: number; unassigned?: '1';
 };
+
+export type NlFilters = Partial<Pick<ListParams,
+  'view' | 'queueId' | 'categoryId' | 'tags' | 'olderThanDays' | 'newerThanDays' | 'priorityAtMost' | 'unassigned' | 'search'>>;
+export const parseSearch = (query: string) =>
+  api<{ interpretation: string; confidence: number; filters: NlFilters }>(
+    '/api/search/parse', { method: 'POST', body: JSON.stringify({ query }) });
 
 export function actingUserId(): number {
   return Number(localStorage.getItem('mets-user') ?? '1');
@@ -104,13 +113,18 @@ export function setActingUserId(id: number) {
 }
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  // dev: the acting-as header. entra: a real Microsoft ID token.
+  const { isEntra, getIdToken } = await import('./auth');
+  const authHeaders: Record<string, string> = isEntra
+    ? { authorization: `Bearer ${(await getIdToken()) ?? ''}` }
+    : { 'x-user-id': String(actingUserId()) };
   const res = await fetch(path, {
     ...init,
     headers: {
       // content-type only when there is a body — Fastify 400s on an
       // empty JSON body (e.g. bare DELETEs)
       ...(init?.body ? { 'content-type': 'application/json' } : {}),
-      'x-user-id': String(actingUserId()),
+      ...authHeaders,
       ...init?.headers,
     },
   });
@@ -130,6 +144,12 @@ export function fetchTickets(p: ListParams) {
   if (p.requesterId) q.set('requesterId', String(p.requesterId));
   if (p.search) q.set('search', p.search);
   if (p.limit) q.set('limit', String(p.limit));
+  if (p.categoryId) q.set('categoryId', String(p.categoryId));
+  if (p.tags) q.set('tags', p.tags);
+  if (p.olderThanDays) q.set('olderThanDays', String(p.olderThanDays));
+  if (p.newerThanDays) q.set('newerThanDays', String(p.newerThanDays));
+  if (p.priorityAtMost) q.set('priorityAtMost', String(p.priorityAtMost));
+  if (p.unassigned) q.set('unassigned', p.unassigned);
   return api<TicketListItem[]>(`/api/tickets?${q}`);
 }
 
