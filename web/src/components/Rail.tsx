@@ -90,12 +90,13 @@ function AgentCard({ a, isMe, active, menuOpen, leadQueues, canToggleOoo, onTogg
 }
 
 /** Left rail: you first, divider, then other agents alphabetically. */
-export function AgentRail({ meta, queueId, mode, assigneeFilter, onSelectAssignee }: {
+export function AgentRail({ meta, queueId, mode, assigneeFilter, onSelectAssignee, onCollapse }: {
   meta: Meta | undefined;
   queueId?: number;
   mode: Mode;
   assigneeFilter?: number;
   onSelectAssignee: (id: number | undefined) => void;
+  onCollapse?: () => void;
 }) {
   const [menuAgentId, setMenuAgentId] = useState<number | null>(null);
   const { data: meUser } = useQuery({ queryKey: ['me', actingUserId()], queryFn: fetchMe });
@@ -131,7 +132,12 @@ export function AgentRail({ meta, queueId, mode, assigneeFilter, onSelectAssigne
 
   return (
     <aside className="rail rail-left">
-      <div className="rail-title">Agents — drop to assign, click for options</div>
+      <div className="rail-title rail-title-row">
+        Agents — drop to assign, click for options
+        {onCollapse && (
+          <button className="rail-collapse" title="Collapse this rail" onClick={onCollapse}>«</button>
+        )}
+      </div>
       <div className="agent-list">
         {myAgent && card(myAgent, true)}
         {myAgent && others.length > 0 && <div className="rail-divider" />}
@@ -142,11 +148,12 @@ export function AgentRail({ meta, queueId, mode, assigneeFilter, onSelectAssigne
 }
 
 /** Right rail: quick assigns, then your queues / divider / other queues, holding area. */
-export function ActionRail({ mode, meta, queueId, onSelectQueue }: {
+export function ActionRail({ mode, meta, queueId, onSelectQueue, onCollapse }: {
   mode: Mode;
   meta: Meta | undefined;
   queueId?: number;
   onSelectQueue: (id: number | undefined) => void;
+  onCollapse?: () => void;
 }) {
   if (!meta) return <aside className="rail rail-right" />;
   const myTeamIds = new Set(meta.agents.find((a) => a.id === actingUserId())?.teamIds ?? []);
@@ -168,7 +175,12 @@ export function ActionRail({ mode, meta, queueId, onSelectQueue }: {
 
   return (
     <aside className="rail rail-right">
-      <div className="rail-title">Quick actions</div>
+      <div className="rail-title rail-title-row">
+        Quick actions
+        {onCollapse && (
+          <button className="rail-collapse" title="Collapse this rail" onClick={onCollapse}>»</button>
+        )}
+      </div>
       <DropCard id="assign-me" className="assign-me">
         <strong>Assign to me</strong>
         <span className="rail-sub">or use the button on any ticket</span>

@@ -44,9 +44,27 @@ export type TicketDetail = TicketListItem & {
   csatRating: number | null; csatComment: string | null;
   incident: {
     parent: { id: number; number: string; subject: string } | null;
+    mergedInto: { id: number; number: string; subject: string } | null;
     children: { id: number; number: string; subject: string; status: string }[];
+    duplicates: { id: number; number: string; subject: string }[];
   };
 };
+
+export type IdentifierCheck = {
+  conflict: boolean; shared: string[];
+  onlyInSource: string[]; onlyInTarget: string[];
+};
+export type MergeCandidate = {
+  id: number; number: string; subject: string; requester: string;
+  similarity: number; check: IdentifierCheck;
+};
+export const fetchMergeCandidates = (id: number) =>
+  api<MergeCandidate[]>(`/api/tickets/${id}/merge-candidates`);
+export const mergeTicket = (id: number, targetId: number, force = false) =>
+  api<{ merged: boolean; requiresConfirmation?: boolean; target?: string; check: IdentifierCheck }>(
+    `/api/tickets/${id}/merge`,
+    { method: 'POST', body: JSON.stringify({ targetId, force }) },
+  );
 
 export const flagTicket = (id: number, flag: {
   kind: 'wrong_category' | 'needs_approval' | 'misrouted';

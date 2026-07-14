@@ -19,13 +19,13 @@ const STOPWORDS = new Set([
   'need', 'needs', 'help', 'please', 'issue', 'problem', 'error', 'working',
 ]);
 
-function tokens(text: string): Set<string> {
+export function tokens(text: string): Set<string> {
   return new Set(
     text.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && !STOPWORDS.has(w)),
   );
 }
 
-function sharedTokens(a: Set<string>, b: Set<string>): number {
+export function sharedTokens(a: Set<string>, b: Set<string>): number {
   let shared = 0;
   for (const w of a) if (b.has(w)) shared++;
   return shared;
@@ -186,43 +186,68 @@ export async function detectMajorIncident(ticketId: number) {
 }
 
 /**
- * A public agent reply on an incident parent fans out to every child as a
- * SOTO Bot comment, and counts as the children's first response.
+ * A public agent reply on an incident parent (or a ticket that absorbed
+ * duplicates) fans out to every linked ticket as a SOTO Bot comment, and
+ * counts as incident children's first response.
  */
 export async function broadcastIncidentUpdate(parentId: number, body: string, authorName: string) {
-  const children = await incidentChildren(parentId);
-  if (children.length === 0) return 0;
+  const linked = await db
+    .select({
+      id: tickets.id, linkType: ticketLinks.type,
+      firstRespondedAt: tickets.firstRespondedAt,
+    })
+    .from(ticketLinks)
+    .innerJoin(tickets, eq(tickets.id, ticketLinks.ticketId))
+    .where(and(
+      eq(ticketLinks.linkedTicketId, parentId),
+      sql`${ticketLinks.type} in ('child_of', 'duplicate_of')`,
+    ));
+  if (linked.length === 0) return 0;
   const [parent] = await db.select({ number: tickets.number }).from(tickets)
     .where(eq(tickets.id, parentId));
   const bot = await getBotUser();
   const { completeFirstResponse } = await import('./sla/slaService.js');
 
-  for (const child of children) {
+  for (const child of linked) {
+    const intro = child.linkType === 'duplicate_of'
+      ? `Update from ${authorName} on ${parent?.number} (your ticket was merged into it):`
+      : `Incident update from ${authorName} (${parent?.number}):`;
     await db.insert(ticketComments).values({
       ticketId: child.id, authorId: bot.id, visibility: 'public', source: 'api',
-      bodyText: `Incident update from ${authorName} (${parent?.number}):\n\n${body}\n\n— SOTO Bot`,
+      bodyText: `${intro}\n\n${body}\n\n— SOTO Bot`,
     });
     await db.update(tickets).set({ updatedAt: new Date() }).where(eq(tickets.id, child.id));
-    if (!child.firstRespondedAt) {
+    if (child.linkType === 'child_of' && !child.firstRespondedAt) {
       await db.update(tickets).set({ firstRespondedAt: new Date() }).where(eq(tickets.id, child.id));
       await completeFirstResponse(child.id);
     }
   }
-  return children.length;
+  return linked.length;
 }
 
-/** Parent/children view for the ticket detail. */
+/** Parent/children/duplicate view for the ticket detail. */
 export async function incidentInfo(ticketId: number) {
-  const [parentRow] = await db
+  const linkedParent = (type: 'child_of' | 'duplicate_of') => db
     .select({ id: tickets.id, number: tickets.number, subject: tickets.subject })
     .from(ticketLinks)
     .innerJoin(tickets, eq(tickets.id, ticketLinks.linkedTicketId))
-    .where(and(eq(ticketLinks.ticketId, ticketId), eq(ticketLinks.type, 'child_of')))
+    .where(and(eq(ticketLinks.ticketId, ticketId), eq(ticketLinks.type, type)))
     .orderBy(asc(ticketLinks.linkedTicketId))
-    .limit(1);
+    .limit(1)
+    .then((r) => r[0] ?? null);
+  const [parentRow, mergedInto] = await Promise.all([
+    linkedParent('child_of'), linkedParent('duplicate_of'),
+  ]);
   const children = await incidentChildren(ticketId);
+  const duplicates = await db
+    .select({ id: tickets.id, number: tickets.number, subject: tickets.subject })
+    .from(ticketLinks)
+    .innerJoin(tickets, eq(tickets.id, ticketLinks.ticketId))
+    .where(and(eq(ticketLinks.linkedTicketId, ticketId), eq(ticketLinks.type, 'duplicate_of')));
   return {
-    parent: parentRow ?? null,
+    parent: parentRow,
+    mergedInto,
     children: children.map((c) => ({ id: c.id, number: c.number, subject: c.subject, status: c.statusName })),
+    duplicates,
   };
 }

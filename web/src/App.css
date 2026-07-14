@@ -53,6 +53,14 @@
   padding: 6px 8px;
   max-width: 170px;
   font-family: var(--font-ui);
+  /* The select lives on the dark header — render its native popup dark too,
+     otherwise Windows paints light-grey text on a white list. */
+  color-scheme: dark;
+}
+.user-switcher option,
+.user-switcher optgroup {
+  background: var(--ink-deep);
+  color: var(--text-on-dark);
 }
 
 /* ===== view tabs / toolbar ===== */
@@ -2026,4 +2034,87 @@ select, textarea, input[type='text'], .modal input {
 .lb-hint { font-size: 11.5px; color: var(--text-muted); margin: 10px 2px 0; }
 @media (max-width: 1060px) {
   .lb-bar-cell, .lb-table th:nth-child(4) { display: none; }
+}
+
+/* merge panel */
+.merge-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border: 1px solid var(--line-strong);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--r);
+  font-size: 12.5px;
+}
+.merge-title { font-weight: 700; }
+.merge-option { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
+.merge-option input { margin-top: 3px; }
+.merge-option-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.merge-option-head { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.merge-option-sub { display: flex; gap: 8px; align-items: center; font-size: 11px; color: var(--text-muted); }
+.merge-badge {
+  font-family: var(--font-data);
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: var(--r);
+}
+.merge-badge-ok { color: var(--ok, #2e7d32); border: 1px solid currentColor; }
+.merge-badge-warn { color: var(--alarm); border: 1px solid currentColor; }
+.merge-empty { color: var(--text-muted); font-size: 12px; }
+.merge-conflict {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--alarm);
+  border-radius: var(--r);
+  font-size: 12px;
+}
+.merge-conflict span { font-family: var(--font-data); font-size: 11px; }
+.merge-conflict span:last-child { font-family: var(--font-ui); color: var(--text-muted); }
+
+/* collapsible rails */
+.rail-title-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.rail-collapse {
+  background: none;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r);
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1;
+  padding: 1px 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.rail-collapse:hover { color: var(--ink); border-color: var(--ink); }
+.rail-strip {
+  width: 30px;
+  flex-shrink: 0;
+  align-self: stretch;
+  max-height: calc(100vh - 140px);
+  position: sticky;
+  top: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  background: var(--surface-card);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.rail-strip:hover { color: var(--ink); border-color: var(--ink); }
+.rail-strip-chevron { font-size: 13px; }
+.rail-strip-label {
+  writing-mode: vertical-rl;
+  font-family: var(--font-data);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
 }

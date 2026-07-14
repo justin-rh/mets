@@ -63,6 +63,12 @@ export default function App() {
   const [page, setPage] = useState<'queue' | 'dashboards' | 'kb' | 'email' | 'admin'>('queue');
   const [userId, setUserId] = useState(actingUserId());
   const [theme, setTheme] = useState(() => localStorage.getItem('mets-theme') ?? 'light');
+  // Rails collapse to slim strips; a drag in flight temporarily expands
+  // them so drop targets are always reachable.
+  const [leftCollapsed, setLeftCollapsed] = useState(() => localStorage.getItem('mets-rail-left') === '1');
+  const [rightCollapsed, setRightCollapsed] = useState(() => localStorage.getItem('mets-rail-right') === '1');
+  useEffect(() => { localStorage.setItem('mets-rail-left', leftCollapsed ? '1' : '0'); }, [leftCollapsed]);
+  useEffect(() => { localStorage.setItem('mets-rail-right', rightCollapsed ? '1' : '0'); }, [rightCollapsed]);
   const { data: me } = useQuery({ queryKey: ['me', userId], queryFn: fetchMe });
   const { data: directory } = useQuery({ queryKey: ['users'], queryFn: fetchUsers, staleTime: 300_000 });
 
@@ -292,7 +298,13 @@ export default function App() {
   }
 
   return (
-    <DndContext sensors={sensors} collisionDetection={cursorFirst} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={cursorFirst}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onDragCancel={() => setDraggingId(null)}
+    >
       <header className="menubar">
         <div className="logo">MET<span>S</span></div>
         <nav>
@@ -402,13 +414,21 @@ export default function App() {
       </div>
 
       <div className="board">
-        <AgentRail
-          meta={meta}
-          queueId={queueId}
-          mode={mode}
-          assigneeFilter={assigneeFilter}
-          onSelectAssignee={(id) => { setAssigneeFilter(id); if (id && mode !== 'All Tickets') setMode('All Tickets'); }}
-        />
+        {leftCollapsed && !draggingId ? (
+          <button className="rail-strip" onClick={() => setLeftCollapsed(false)} title="Expand the agents rail">
+            <span className="rail-strip-chevron">»</span>
+            <span className="rail-strip-label">Agents</span>
+          </button>
+        ) : (
+          <AgentRail
+            meta={meta}
+            queueId={queueId}
+            mode={mode}
+            assigneeFilter={assigneeFilter}
+            onSelectAssignee={(id) => { setAssigneeFilter(id); if (id && mode !== 'All Tickets') setMode('All Tickets'); }}
+            onCollapse={leftCollapsed ? undefined : () => setLeftCollapsed(true)}
+          />
+        )}
         {mode === 'AI Triage' ? (
           <main className="queue-list">
             <TriagePanel />
@@ -472,7 +492,20 @@ export default function App() {
           </div>
         </main>
         )}
-        <ActionRail mode={mode} meta={meta} queueId={queueId} onSelectQueue={setQueueId} />
+        {rightCollapsed && !draggingId ? (
+          <button className="rail-strip" onClick={() => setRightCollapsed(false)} title="Expand the actions rail">
+            <span className="rail-strip-chevron">«</span>
+            <span className="rail-strip-label">Actions & Queues</span>
+          </button>
+        ) : (
+          <ActionRail
+            mode={mode}
+            meta={meta}
+            queueId={queueId}
+            onSelectQueue={setQueueId}
+            onCollapse={rightCollapsed ? undefined : () => setRightCollapsed(true)}
+          />
+        )}
       </div>
       </>)}
 

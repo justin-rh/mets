@@ -231,8 +231,8 @@ export async function ticketRoutes(app: FastifyInstance) {
         } : null,
         tags: tagRows.map((r) => r.name),
         approvals: approvalRows,
-        // other requesters' tickets stay private — no child list
-        incident: { parent: incident.parent, children: [] },
+        // other requesters' tickets stay private — no child/duplicate lists
+        incident: { parent: incident.parent, mergedInto: incident.mergedInto, children: [], duplicates: [] },
       };
     }
 
@@ -339,6 +339,28 @@ export async function ticketRoutes(app: FastifyInstance) {
       broadcast = await broadcastIncidentUpdate(id, body.bodyText, author?.name ?? 'the response team');
     }
     return { ...comment, broadcast };
+  });
+
+  // Likely duplicates of this ticket, with the part-number check precomputed.
+  app.get('/api/tickets/:id/merge-candidates', async (req) => {
+    requireStaff(req);
+    const id = z.coerce.number().parse((req.params as any).id);
+    const { mergeCandidates } = await import('../services/merge.js');
+    return mergeCandidates(id);
+  });
+
+  // Merge this ticket (the duplicate) into a target. Mismatched part/order
+  // numbers stop the merge until force=true — similar-looking codes are not
+  // the same code.
+  app.post('/api/tickets/:id/merge', async (req) => {
+    requireStaff(req);
+    const id = z.coerce.number().parse((req.params as any).id);
+    const body = z.object({
+      targetId: z.number(),
+      force: z.boolean().default(false),
+    }).parse(req.body);
+    const { mergeTickets } = await import('../services/merge.js');
+    return mergeTickets(id, body.targetId, req.userId, body.force);
   });
 
   // Agent flags from the expanded ticket: wrong category (feeds the AI

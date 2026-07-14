@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  actingUserId, decideApproval, draftReply, fetchBestFits, fetchMe, fetchMeta,
-  fetchSuggestions, fetchTicket, fetchTicketTemplates, flagTicket, openChat,
-  patchTicket, postComment,
+  actingUserId, decideApproval, draftReply, fetchBestFits, fetchMe,
+  fetchMergeCandidates, fetchMeta, fetchSuggestions, fetchTicket,
+  fetchTicketTemplates, flagTicket, mergeTicket, openChat, patchTicket,
+  postComment, type IdentifierCheck,
 } from '../api';
 import { copyToClipboard, fmtDateTime, initials } from '../format';
 import { SnoozeDialog } from './SnoozeDialog';
@@ -22,6 +23,9 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
   const [flagKind, setFlagKind] = useState<'wrong_category' | 'needs_approval' | 'misrouted'>('wrong_category');
   const [flagCategoryId, setFlagCategoryId] = useState('');
   const [flagNote, setFlagNote] = useState('');
+  const [mergeOpen, setMergeOpen] = useState(false);
+  const [mergeTargetId, setMergeTargetId] = useState<number | null>(null);
+  const [mergeConflict, setMergeConflict] = useState<IdentifierCheck | null>(null);
 
   const copyLink = async (number: string) => {
     const url = `${window.location.origin}/?ticket=${number}`;
@@ -74,6 +78,27 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
     staleTime: 300_000,
   });
   const { data: me } = useQuery({ queryKey: ['me', actingUserId()], queryFn: fetchMe });
+  const { data: mergeCands } = useQuery({
+    queryKey: ['merge-candidates', ticketId],
+    queryFn: () => fetchMergeCandidates(ticketId),
+    enabled: mergeOpen,
+  });
+  const merge = useMutation({
+    mutationFn: ({ force }: { force: boolean }) => mergeTicket(ticketId, mergeTargetId!, force),
+    onSuccess: (r) => {
+      if (r.requiresConfirmation) {
+        setMergeConflict(r.check);
+        return;
+      }
+      toast(`Merged into ${r.target} — requester notified, updates will fan out`, 'success');
+      setMergeOpen(false);
+      setMergeConflict(null);
+      setMergeTargetId(null);
+      invalidate();
+    },
+    onError: (e: any) => toast(e?.message ?? 'Merge failed', 'info'),
+  });
+
   const flag = useMutation({
     mutationFn: () => flagTicket(ticketId, {
       kind: flagKind,
@@ -137,6 +162,35 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
               {t.incident.parent.number}
             </button>
             <span className="incident-hint">{t.incident.parent.subject.replace(/^Major incident:\s*/i, '')}</span>
+          </div>
+        )}
+        {t.incident?.mergedInto && (
+          <div className="incident-banner incident-child">
+            ⇄ Merged into{' '}
+            <button
+              className="kb-chip"
+              title={t.incident.mergedInto.subject}
+              onClick={() => window.open(`/?ticket=${t.incident.mergedInto!.number}`, '_blank')}
+            >
+              {t.incident.mergedInto.number}
+            </button>
+            <span className="incident-hint">updates there fan out to this requester</span>
+          </div>
+        )}
+        {(t.incident?.duplicates?.length ?? 0) > 0 && (
+          <div className="incident-banner incident-child">
+            ⇄ Absorbed duplicates:{' '}
+            {t.incident.duplicates.map((d) => (
+              <button
+                key={d.id}
+                className="kb-chip"
+                title={d.subject}
+                onClick={() => window.open(`/?ticket=${d.number}`, '_blank')}
+              >
+                {d.number}
+              </button>
+            ))}
+            <span className="incident-hint">public replies here reach their requesters too</span>
           </div>
         )}
         {t.approvals?.map((a) => (
@@ -354,7 +408,80 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
           >
             ⚑ Flag
           </button>
+          {!t.incident?.mergedInto && (
+            <button
+              className={`btn ${mergeOpen ? 'active' : ''}`}
+              title="Merge this ticket into another as a duplicate"
+              onClick={() => { setMergeOpen((v) => !v); setMergeConflict(null); }}
+            >
+              ⇄ Merge
+            </button>
+          )}
         </div>
+        {mergeOpen && (
+          <div className="merge-panel">
+            <div className="merge-title">Merge this ticket into…</div>
+            {(mergeCands ?? []).map((c) => (
+              <label key={c.id} className="merge-option">
+                <input
+                  type="radio"
+                  name={`merge-${ticketId}`}
+                  checked={mergeTargetId === c.id}
+                  onChange={() => { setMergeTargetId(c.id); setMergeConflict(null); }}
+                />
+                <span className="merge-option-main">
+                  <span className="merge-option-head">
+                    <span className="ticket-number">{c.number}</span> {c.subject}
+                  </span>
+                  <span className="merge-option-sub">
+                    {c.requester}
+                    {c.check.shared.length > 0 && (
+                      <span className="merge-badge merge-badge-ok" title="Both tickets cite these exact identifiers">
+                        ✓ shares {c.check.shared.slice(0, 2).join(', ')}
+                      </span>
+                    )}
+                    {c.check.conflict && (
+                      <span className="merge-badge merge-badge-warn" title="These tickets reference different part/order numbers">
+                        ⚠ different part #s
+                      </span>
+                    )}
+                  </span>
+                </span>
+              </label>
+            ))}
+            {mergeCands && mergeCands.length === 0 && (
+              <div className="merge-empty">No similar open tickets found.</div>
+            )}
+            {mergeConflict && (
+              <div className="merge-conflict">
+                <strong>⚠ Hold on — these cite different identifiers.</strong>
+                <span>This ticket: {mergeConflict.onlyInSource.join(', ') || '—'}</span>
+                <span>Target: {mergeConflict.onlyInTarget.join(', ') || '—'}</span>
+                <span>Part and order numbers that look alike are usually different things. Merge only if you're sure it's the same issue.</span>
+              </div>
+            )}
+            <div className="flag-actions">
+              <button className="btn" onClick={() => { setMergeOpen(false); setMergeConflict(null); }}>Cancel</button>
+              {mergeConflict ? (
+                <button
+                  className="btn primary"
+                  disabled={merge.isPending}
+                  onClick={() => merge.mutate({ force: true })}
+                >
+                  Merge anyway
+                </button>
+              ) : (
+                <button
+                  className="btn primary"
+                  disabled={mergeTargetId == null || merge.isPending}
+                  onClick={() => merge.mutate({ force: false })}
+                >
+                  {merge.isPending ? 'Merging…' : 'Merge as duplicate'}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
         {flagOpen && (
           <div className="flag-panel">
             <label className="flag-option">
