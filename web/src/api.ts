@@ -48,6 +48,14 @@ export type TicketDetail = TicketListItem & {
   };
 };
 
+export const flagTicket = (id: number, flag: {
+  kind: 'wrong_category' | 'needs_approval' | 'misrouted';
+  categoryId?: number; note?: string;
+}) =>
+  api<{ ok: boolean; message: string }>(`/api/tickets/${id}/flag`, {
+    method: 'POST', body: JSON.stringify(flag),
+  });
+
 export const submitCsat = (id: number, rating: number, comment?: string) =>
   api<{ ok: boolean; rating: number }>(`/api/tickets/${id}/csat`, {
     method: 'POST', body: JSON.stringify({ rating, comment: comment || undefined }),
@@ -215,11 +223,18 @@ export type DashboardData = {
   daily: { day: string; created: string; resolved: string }[];
   backlogAge: { bucket: string; count: string }[];
   openByQueue: { name: string; count: string }[];
-  leaderboard: { name: string; tp: string; resolved: string }[];
   csatDist: { rating: number; count: string }[];
 };
 
+export type LeaderboardRow = {
+  id: number; name: string; resolved: string; tp: string;
+  sla_pct: string | null; median_frt_hours: number | null;
+  csat: string | null; csat_count: string;
+};
+
 export const fetchDashboard = () => api<DashboardData>('/api/dashboard');
+export const fetchLeaderboard = (days: number) =>
+  api<{ days: number; rows: LeaderboardRow[] }>(`/api/dashboard/leaderboard?days=${days}`);
 
 export type KbHit = { id: number; title: string; snippet: string; score: number };
 export type KbDraft = { id: number; title: string; createdAt: string; sourceTicket: string | null };

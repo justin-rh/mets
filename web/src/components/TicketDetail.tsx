@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   actingUserId, decideApproval, draftReply, fetchBestFits, fetchMe, fetchMeta,
-  fetchSuggestions, fetchTicket, fetchTicketTemplates, openChat, patchTicket,
-  postComment,
+  fetchSuggestions, fetchTicket, fetchTicketTemplates, flagTicket, openChat,
+  patchTicket, postComment,
 } from '../api';
 import { copyToClipboard, fmtDateTime, initials } from '../format';
 import { SnoozeDialog } from './SnoozeDialog';
@@ -18,6 +18,10 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
   const [showActivity, setShowActivity] = useState(false);
   const [snoozeOpen, setSnoozeOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [flagOpen, setFlagOpen] = useState(false);
+  const [flagKind, setFlagKind] = useState<'wrong_category' | 'needs_approval' | 'misrouted'>('wrong_category');
+  const [flagCategoryId, setFlagCategoryId] = useState('');
+  const [flagNote, setFlagNote] = useState('');
 
   const copyLink = async (number: string) => {
     const url = `${window.location.origin}/?ticket=${number}`;
@@ -70,6 +74,22 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
     staleTime: 300_000,
   });
   const { data: me } = useQuery({ queryKey: ['me', actingUserId()], queryFn: fetchMe });
+  const flag = useMutation({
+    mutationFn: () => flagTicket(ticketId, {
+      kind: flagKind,
+      categoryId: flagKind === 'wrong_category' && flagCategoryId ? Number(flagCategoryId) : undefined,
+      note: flagNote.trim() || undefined,
+    }),
+    onSuccess: (r) => {
+      toast(r.message, 'success');
+      setFlagOpen(false);
+      setFlagNote('');
+      setFlagCategoryId('');
+      invalidate();
+    },
+    onError: (e: any) => toast(e?.message ?? 'Could not flag', 'info'),
+  });
+
   const decide = useMutation({
     mutationFn: ({ id, approve, note }: { id: number; approve: boolean; note?: string }) =>
       decideApproval(id, approve, note),
@@ -327,7 +347,79 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
           >
             💬 Chat
           </button>
+          <button
+            className={`btn ${flagOpen ? 'active' : ''}`}
+            title="Flag this ticket: wrong category, needs approval, or misrouted"
+            onClick={() => setFlagOpen((v) => !v)}
+          >
+            ⚑ Flag
+          </button>
         </div>
+        {flagOpen && (
+          <div className="flag-panel">
+            <label className="flag-option">
+              <input
+                type="radio"
+                name={`flag-${ticketId}`}
+                checked={flagKind === 'wrong_category'}
+                onChange={() => setFlagKind('wrong_category')}
+              />
+              <span>
+                Wrong category
+                <em>corrections teach the AI</em>
+              </span>
+            </label>
+            {flagKind === 'wrong_category' && (
+              <select
+                className="flag-category"
+                value={flagCategoryId}
+                onChange={(e) => setFlagCategoryId(e.target.value)}
+              >
+                <option value="">Not sure — just flag it</option>
+                {meta?.categories?.map((c: any) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            )}
+            <label className="flag-option">
+              <input
+                type="radio"
+                name={`flag-${ticketId}`}
+                checked={flagKind === 'needs_approval'}
+                onChange={() => setFlagKind('needs_approval')}
+              />
+              <span>
+                Needs manager approval
+                <em>parks it until the requester's manager signs off</em>
+              </span>
+            </label>
+            <label className="flag-option">
+              <input
+                type="radio"
+                name={`flag-${ticketId}`}
+                checked={flagKind === 'misrouted'}
+                onChange={() => setFlagKind('misrouted')}
+              />
+              <span>
+                Not a fit for this queue
+                <em>unassigns and sends it back to intake for re-triage</em>
+              </span>
+            </label>
+            <textarea
+              className="flag-note"
+              rows={2}
+              placeholder="Why? (optional — saved as an internal note)"
+              value={flagNote}
+              onChange={(e) => setFlagNote(e.target.value)}
+            />
+            <div className="flag-actions">
+              <button className="btn" onClick={() => setFlagOpen(false)}>Cancel</button>
+              <button className="btn primary" disabled={flag.isPending} onClick={() => flag.mutate()}>
+                {flag.isPending ? 'Flagging…' : 'Flag ticket'}
+              </button>
+            </div>
+          </div>
+        )}
         <dl className="detail-meta">
           <dt>Status</dt>
           <dd>

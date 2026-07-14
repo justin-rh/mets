@@ -442,7 +442,7 @@ export default function App() {
             <span className="col-tags">Tags</span>
             <span className="col-queue">Queue · Cat.</span>
             <span className="col-requester">Requester</span>
-            <span title="Priority">Pri</span>
+            <span className="col-pri" title="Priority">Pri</span>
             <span className="col-right col-score">Score</span>
             <span className="col-right col-age">Age</span>
             <span>SLA</span>

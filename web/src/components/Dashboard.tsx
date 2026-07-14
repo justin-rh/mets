@@ -1,6 +1,86 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { fetchDashboard, type DashboardData } from '../api';
+import { fetchDashboard, fetchLeaderboard, type DashboardData } from '../api';
+import { initials } from '../format';
+
+const MEDALS = ['🥇', '🥈', '🥉'];
+const RANGES = [
+  { days: 7, label: 'Week' },
+  { days: 30, label: 'Month' },
+  { days: 90, label: 'Quarter' },
+];
+
+function Leaderboard() {
+  const [days, setDays] = useState(30);
+  const { data } = useQuery({
+    queryKey: ['leaderboard', days],
+    queryFn: () => fetchLeaderboard(days),
+    refetchInterval: 60_000,
+  });
+  const rows = data?.rows ?? [];
+  const maxTp = Math.max(1, ...rows.map((r) => Number(r.tp)));
+  const fmtH = (v: number | null) =>
+    v == null ? '—' : v >= 24 ? `${(v / 24).toFixed(1)}d` : `${v.toFixed(1)}h`;
+
+  return (
+    <div className="chart-card leaderboard-card">
+      <div className="chart-head">
+        <h3>TP Leaderboard — Ticket Points earned</h3>
+        <span className="lb-ranges">
+          {RANGES.map((r) => (
+            <button
+              key={r.days}
+              className={`lb-range ${days === r.days ? 'active' : ''}`}
+              onClick={() => setDays(r.days)}
+            >
+              {r.label}
+            </button>
+          ))}
+        </span>
+      </div>
+      <table className="lb-table">
+        <thead>
+          <tr>
+            <th className="lb-rank" />
+            <th>Agent</th>
+            <th className="lb-num">TP</th>
+            <th />
+            <th className="lb-num">Resolved</th>
+            <th className="lb-num" title="Resolution SLAs met">SLA</th>
+            <th className="lb-num" title="Median first response">First resp.</th>
+            <th className="lb-num" title="Average requester rating">CSAT</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={r.id} className={i < 3 ? 'lb-podium' : ''}>
+              <td className="lb-rank">{MEDALS[i] ?? i + 1}</td>
+              <td className="lb-agent">
+                <span className="avatar">{initials(r.name)}</span>
+                {r.name}
+              </td>
+              <td className="lb-num lb-tp">{r.tp}</td>
+              <td className="lb-bar-cell">
+                <span className="lb-bar" style={{ width: `${Math.round((Number(r.tp) / maxTp) * 100)}%` }} />
+              </td>
+              <td className="lb-num">{r.resolved}</td>
+              <td className="lb-num">{r.sla_pct != null ? `${r.sla_pct}%` : '—'}</td>
+              <td className="lb-num">{fmtH(r.median_frt_hours)}</td>
+              <td className="lb-num">{r.csat != null ? `${r.csat}★` : '—'}</td>
+            </tr>
+          ))}
+          {rows.length === 0 && (
+            <tr><td colSpan={8} className="lb-empty">No resolutions in this window yet.</td></tr>
+          )}
+        </tbody>
+      </table>
+      <p className="lb-hint">
+        TP = the score of every ticket an agent resolved: harder, older, higher-priority
+        tickets are worth more. The quality columns keep it honest.
+      </p>
+    </div>
+  );
+}
 
 function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
@@ -123,10 +203,6 @@ export function Dashboard() {
         <HBars title="Open backlog by age" rows={backlog} />
         <HBars title="Open tickets by queue" rows={data.openByQueue.map((q) => ({ label: q.name, value: Number(q.count) }))} />
         <HBars
-          title="Ticket Points — last 30 days"
-          rows={data.leaderboard.map((l) => ({ label: l.name, value: Number(l.tp), sub: `${l.resolved} resolved` }))}
-        />
-        <HBars
           title="CSAT distribution — 30d"
           rows={[5, 4, 3, 2, 1].map((r) => ({
             label: '★'.repeat(r),
@@ -134,6 +210,8 @@ export function Dashboard() {
           }))}
         />
       </div>
+
+      <Leaderboard />
     </div>
   );
 }

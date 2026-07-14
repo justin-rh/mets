@@ -341,6 +341,75 @@ export async function ticketRoutes(app: FastifyInstance) {
     return { ...comment, broadcast };
   });
 
+  // Agent flags from the expanded ticket: wrong category (feeds the AI
+  // learning loop), needs manager approval (forces the gate), or misrouted
+  // (back to intake for re-triage). Always audited; note becomes an
+  // internal comment.
+  app.post('/api/tickets/:id/flag', async (req, reply) => {
+    requireStaff(req);
+    const id = z.coerce.number().parse((req.params as any).id);
+    const body = z.object({
+      kind: z.enum(['wrong_category', 'needs_approval', 'misrouted']),
+      categoryId: z.number().optional(),
+      note: z.string().trim().max(500).optional(),
+    }).parse(req.body);
+
+    const [t] = await db.select({ id: tickets.id, number: tickets.number })
+      .from(tickets).where(eq(tickets.id, id));
+    if (!t) return reply.status(404).send({ error: 'ticket not found' });
+
+    let message = '';
+    if (body.kind === 'wrong_category') {
+      if (body.categoryId) {
+        const [cat] = await db.select({ name: categories.name }).from(categories)
+          .where(eq(categories.id, body.categoryId));
+        if (!cat) return reply.status(400).send({ error: 'no such category' });
+        // Route through the correction pipeline when the AI classified this
+        // ticket — the correction becomes a pattern future triage follows.
+        const [enrichment] = await db.select({ id: schema.aiEnrichments.id })
+          .from(schema.aiEnrichments)
+          .where(and(eq(schema.aiEnrichments.ticketId, id), eq(schema.aiEnrichments.feature, 'triage')))
+          .orderBy(desc(schema.aiEnrichments.createdAt)).limit(1);
+        if (enrichment) {
+          const { correctEnrichment } = await import('../services/ai/enrichment.js');
+          await correctEnrichment(enrichment.id, req.userId, { categoryId: body.categoryId });
+          message = `Recategorized to ${cat.name} — the AI learns from this correction`;
+        } else {
+          await applyTicketChanges(id, { id: req.userId }, { categoryId: body.categoryId });
+          message = `Recategorized to ${cat.name}`;
+        }
+      } else {
+        message = 'Flagged for category review';
+      }
+    } else if (body.kind === 'needs_approval') {
+      const { maybeRequestApproval } = await import('../services/approvalService.js');
+      const approval = await maybeRequestApproval(id, { force: true });
+      if (!approval) return reply.status(409).send({ error: 'ticket already has an approval' });
+      const [approver] = await db.select({ name: users.name }).from(users)
+        .where(eq(users.id, approval.approverId));
+      message = `Parked for approval — sent to ${approver?.name ?? 'the manager'}`;
+    } else {
+      const [intake] = await db.select({ id: teams.id, name: teams.name })
+        .from(teams).orderBy(asc(teams.id)).limit(1);
+      await applyTicketChanges(id, { id: req.userId }, {
+        queueId: intake!.id, assigneeId: null,
+      });
+      message = `Sent back to ${intake!.name} for re-triage`;
+    }
+
+    await db.insert(ticketEvents).values({
+      ticketId: id, actorId: req.userId, actorType: 'user', eventType: 'flagged',
+      field: body.kind, newValue: body.note ?? undefined,
+    });
+    if (body.note) {
+      await db.insert(ticketComments).values({
+        ticketId: id, authorId: req.userId, visibility: 'internal',
+        bodyText: `⚑ Flagged (${body.kind.replace('_', ' ')}): ${body.note}`, source: 'agent',
+      });
+    }
+    return { ok: true, message };
+  });
+
   // CSAT: the requester (or whoever filed it for them) rates a resolved or
   // closed ticket 1–5, once.
   app.post('/api/tickets/:id/csat', async (req, reply) => {

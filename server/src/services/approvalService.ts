@@ -8,9 +8,10 @@ const { approvals, tickets, ticketComments, ticketEvents, users, teams, teamMemb
  * Approval gate: request-type tickets landing in a requires-approval category
  * (equipment, licenses, …) park at the intake queue in Awaiting Approval
  * (pending — SLA pauses) until the requester's manager signs off. Fired from
- * the category-change hook in applyTicketChanges.
+ * the category-change hook in applyTicketChanges — or with `force` when an
+ * agent flags a ticket as needing sign-off regardless of the gate.
  */
-export async function maybeRequestApproval(ticketId: number) {
+export async function maybeRequestApproval(ticketId: number, opts: { force?: boolean } = {}) {
   const [t] = await db
     .select({
       type: tickets.type, queueId: tickets.queueId, requesterId: tickets.requesterId,
@@ -18,9 +19,10 @@ export async function maybeRequestApproval(ticketId: number) {
       requiresApproval: categories.requiresApproval, categoryName: categories.name,
     })
     .from(tickets)
-    .innerJoin(categories, eq(categories.id, tickets.categoryId))
+    .leftJoin(categories, eq(categories.id, tickets.categoryId))
     .where(eq(tickets.id, ticketId));
-  if (!t || t.type !== 'request' || !t.requiresApproval) return null;
+  if (!t) return null;
+  if (!opts.force && (t.type !== 'request' || !t.requiresApproval)) return null;
 
   const [existing] = await db.select({ id: approvals.id }).from(approvals)
     .where(eq(approvals.ticketId, ticketId));
@@ -71,7 +73,7 @@ export async function maybeRequestApproval(ticketId: number) {
   const bot = await getBotUser();
   await db.insert(ticketComments).values({
     ticketId, authorId: bot.id, visibility: 'public', source: 'api',
-    bodyText: `Hi ${requester?.name.split(' ')[0] ?? 'there'},\n\n${t.categoryName} requests need a sign-off before they're worked. ${t.number} has been sent to ${approver?.name ?? 'your manager'} for approval — you'll get an update here as soon as they decide.\n\n— SOTO Bot`,
+    bodyText: `Hi ${requester?.name.split(' ')[0] ?? 'there'},\n\n${t.categoryName ? `${t.categoryName} requests need` : 'This request needs'} a sign-off before it's worked. ${t.number} has been sent to ${approver?.name ?? 'your manager'} for approval — you'll get an update here as soon as they decide.\n\n— SOTO Bot`,
   });
 
   return approval!;

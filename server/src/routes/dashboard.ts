@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { sql } from 'drizzle-orm';
+import { z } from 'zod';
 import { db } from '../db/index.js';
 
 /**
@@ -72,13 +73,35 @@ export async function dashboardRoutes(app: FastifyInstance) {
       group by tm.name order by count desc
     `)).rows;
 
-    const leaderboard = (await db.execute(sql`
-      select u.name, sum(t.score) as tp, count(*) as resolved
-      from tickets t join users u on u.id = t.assignee_id
-      where t.resolved_at > now() - interval '30 days'
-      group by u.name order by tp desc limit 10
-    `)).rows;
+    return { tiles, daily, backlogAge, openByQueue, csatDist };
+  });
 
-    return { tiles, daily, backlogAge, openByQueue, leaderboard, csatDist };
+  // TP leaderboard: rank agents by Ticket Points earned (score of tickets
+  // they resolved in the window) with the quality stats that keep it honest —
+  // SLA hit rate, first-response speed, and CSAT.
+  app.get('/api/dashboard/leaderboard', async (req) => {
+    const { days } = z.object({
+      days: z.coerce.number().refine((d) => [7, 30, 90].includes(d)).default(30),
+    }).parse(req.query as any);
+
+    const rows = (await db.execute(sql`
+      select u.id, u.name,
+        count(*) as resolved,
+        coalesce(sum(t.score), 0) as tp,
+        round(100.0 * count(*) filter (where si.id is not null and si.breached_at is null)
+          / nullif(count(*) filter (where si.id is not null), 0), 0) as sla_pct,
+        percentile_cont(0.5) within group
+          (order by extract(epoch from t.first_responded_at - t.created_at) / 3600) as median_frt_hours,
+        round(avg(t.csat_rating)::numeric, 1) as csat,
+        count(t.csat_rating) as csat_count
+      from tickets t
+      join users u on u.id = t.assignee_id
+      left join sla_instances si on si.ticket_id = t.id and si.metric = 'resolution'
+      where t.resolved_at > now() - make_interval(days => ${days})
+      group by u.id, u.name
+      order by tp desc
+      limit 12
+    `)).rows;
+    return { days, rows };
   });
 }
