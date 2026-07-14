@@ -74,8 +74,14 @@ export function TicketRow({ ticket: t, selected, expanded, onToggleSelect, onTog
             <span className="queue-cell-category">{t.category ?? 'uncategorized'}</span>
           )}
         </span>
-        <span className="ticket-requester" title={t.requester.name}>
+        <span
+          className="ticket-requester"
+          title={t.submittedBy
+            ? `${t.requester.name} — submitted on their behalf by ${t.submittedBy.name}`
+            : t.requester.name}
+        >
           {t.requester.name}
+          {t.submittedBy && <span className="on-behalf">*</span>}
           {t.requester.isVip && <span className="vip" title="VIP">★</span>}
         </span>
         <span className={`pri-badge p${t.priority}`}>P{t.priority}</span>

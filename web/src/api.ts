@@ -20,6 +20,7 @@ export type TicketListItem = {
   status: StatusInfo; queue: { id: number; name: string };
   requester: { id: number; name: string; isVip: boolean };
   assignee: { id: number; name: string } | null;
+  submittedBy: { id: number; name: string } | null;
   category: string | null; tags: string[]; sla: SlaInfo | null;
 };
 
@@ -157,8 +158,13 @@ export type AiDecisionStats = {
 export const fetchDecisions = () =>
   api<{ decisions: AiDecision[]; stats: AiDecisionStats }>('/api/ai/decisions');
 
-export const createTicket = (data: { subject: string; description: string; type?: string; priority?: number }) =>
+export const createTicket = (data: {
+  subject: string; description: string; type?: string; priority?: number; onBehalfOfId?: number;
+}) =>
   api<{ id: number; number: string }>('/api/tickets', { method: 'POST', body: JSON.stringify(data) });
+
+export type DirectoryUser = { id: number; name: string; department: string | null; location: string | null };
+export const fetchUsers = () => api<DirectoryUser[]>('/api/users');
 
 // --- Dashboard & KB ---
 

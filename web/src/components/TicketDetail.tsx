@@ -310,7 +310,16 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
           <dt>Assignee</dt>
           <dd>{t.assignee?.name ?? 'Unassigned'}</dd>
           <dt>Requester</dt>
-          <dd>{t.requester.name}{t.requester.isVip ? ' ★' : ''} · {t.requester.department ?? '—'}</dd>
+          <dd>
+            {t.requester.name}
+            {t.submittedBy && (
+              <span className="on-behalf" title={`Submitted on their behalf by ${t.submittedBy.name}`}>*</span>
+            )}
+            {t.requester.isVip ? ' ★' : ''} · {t.requester.department ?? '—'}
+            {t.submittedBy && (
+              <span className="on-behalf-note">submitted by {t.submittedBy.name}</span>
+            )}
+          </dd>
           <dt>Category</dt>
           <dd>{t.category ?? '—'}</dd>
           {t.tags.length > 0 && (

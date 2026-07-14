@@ -32,6 +32,7 @@ const changesBody = z.object({
 export async function ticketRoutes(app: FastifyInstance) {
   const requester = alias(users, 'requester');
   const assignee = alias(users, 'assignee');
+  const submitter = alias(users, 'submitter');
 
   app.get('/api/tickets', async (req) => {
     const q = listQuery.parse(req.query);
@@ -81,6 +82,7 @@ export async function ticketRoutes(app: FastifyInstance) {
         queue: { id: teams.id, name: teams.name },
         requester: { id: requester.id, name: requester.name, isVip: requester.isVip },
         assignee: { id: assignee.id, name: assignee.name },
+        submittedBy: { id: submitter.id, name: submitter.name },
         category: categories.name,
       })
       .from(tickets)
@@ -88,6 +90,7 @@ export async function ticketRoutes(app: FastifyInstance) {
       .innerJoin(teams, eq(teams.id, tickets.queueId))
       .innerJoin(requester, eq(requester.id, tickets.requesterId))
       .leftJoin(assignee, eq(assignee.id, tickets.assigneeId))
+      .leftJoin(submitter, eq(submitter.id, tickets.submittedById))
       .leftJoin(categories, eq(categories.id, tickets.categoryId))
       .where(conds.length ? and(...conds) : undefined)
       .orderBy(...order)
@@ -136,6 +139,7 @@ export async function ticketRoutes(app: FastifyInstance) {
         queue: { id: teams.id, name: teams.name },
         requester: { id: requester.id, name: requester.name, isVip: requester.isVip, department: requester.department, email: requester.email },
         assignee: { id: assignee.id, name: assignee.name },
+        submittedBy: { id: submitter.id, name: submitter.name },
         category: categories.name,
       })
       .from(tickets)
@@ -143,6 +147,7 @@ export async function ticketRoutes(app: FastifyInstance) {
       .innerJoin(teams, eq(teams.id, tickets.queueId))
       .innerJoin(requester, eq(requester.id, tickets.requesterId))
       .leftJoin(assignee, eq(assignee.id, tickets.assigneeId))
+      .leftJoin(submitter, eq(submitter.id, tickets.submittedById))
       .leftJoin(categories, eq(categories.id, tickets.categoryId))
       .where(eq(tickets.id, id));
     if (!t) return reply.status(404).send({ error: 'ticket not found' });
@@ -204,10 +209,15 @@ export async function ticketRoutes(app: FastifyInstance) {
       description: z.string().trim().min(1).max(20_000),
       type: z.enum(['incident', 'request', 'change']).default('incident'),
       priority: z.number().min(1).max(4).default(3),
+      onBehalfOfId: z.number().optional(), // file for another user
     }).parse(req.body);
 
+    const { onBehalfOfId, ...ticketBody } = body;
     const created = await createTicketCore({
-      ...body, requesterId: req.userId, source: 'portal',
+      ...ticketBody,
+      requesterId: onBehalfOfId ?? req.userId,
+      submittedById: onBehalfOfId ? req.userId : undefined,
+      source: 'portal',
     });
 
     // AI enrichment runs off the request path — categorization/queue/priority

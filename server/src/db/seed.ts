@@ -433,6 +433,10 @@ async function main() {
         statusId: statusByName[statusName]!.id,
         priority, score,
         requesterId: requester.id,
+        // ~5% filed by a colleague (assistant, manager, walk-up at a desk)
+        submittedById: chance(0.05)
+          ? pick(requesters.filter((r) => r.id !== requester.id)).id
+          : null,
         assigneeId: assignee?.id ?? null,
         queueId: queue.id,
         categoryId: categoryByName[catName]!.id,

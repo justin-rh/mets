@@ -174,6 +174,7 @@ export async function createTicketCore(input: {
   subject: string;
   description: string;
   requesterId: number;
+  submittedById?: number; // filed on the requester's behalf
   source: 'portal' | 'email' | 'agent' | 'api';
   type?: 'incident' | 'request' | 'change';
   priority?: number;
@@ -181,6 +182,9 @@ export async function createTicketCore(input: {
   const [defaultStatus] = await db.select().from(statuses).where(eq(statuses.isDefault, true)).limit(1);
   const [defaultQueue] = await db.select().from(teams).orderBy(teams.id).limit(1);
   if (!defaultStatus || !defaultQueue) throw new Error('no default status/queue configured');
+
+  const submittedById =
+    input.submittedById && input.submittedById !== input.requesterId ? input.submittedById : null;
 
   const [created] = await db.insert(tickets).values({
     subject: input.subject,
@@ -190,13 +194,22 @@ export async function createTicketCore(input: {
     statusId: defaultStatus.id,
     queueId: defaultQueue.id,
     requesterId: input.requesterId,
+    submittedById,
     source: input.source,
   }).returning();
 
   await db.insert(ticketEvents).values({
-    ticketId: created!.id, actorId: input.requesterId, actorType: 'user', eventType: 'created',
-    field: 'source', newValue: input.source,
+    ticketId: created!.id, actorId: submittedById ?? input.requesterId, actorType: 'user',
+    eventType: 'created', field: 'source', newValue: input.source,
   });
+  if (submittedById) {
+    const [onBehalf] = await db.select({ name: users.name }).from(users)
+      .where(eq(users.id, input.requesterId));
+    await db.insert(ticketEvents).values({
+      ticketId: created!.id, actorId: submittedById, actorType: 'user',
+      eventType: 'submitted_on_behalf', field: 'requester', newValue: onBehalf?.name,
+    });
+  }
 
   // Tag with the requester's location ('remote' included).
   const [requester] = await db.select({ location: users.location }).from(users)

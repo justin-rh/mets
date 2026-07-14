@@ -164,6 +164,10 @@ export const tickets = pgTable(
     priority: smallint('priority').notNull().default(3), // 1 (highest) - 4
     score: integer('score').notNull().default(0), // cached; recomputed by scoring job
     requesterId: bigint('requester_id', { mode: 'number' }).notNull().references(() => users.id),
+    // Set only when someone filed the ticket for another user — the ticket
+    // belongs to the requester (their VIP status, location, SLA); this is
+    // who actually typed it in.
+    submittedById: bigint('submitted_by_id', { mode: 'number' }).references(() => users.id),
     assigneeId: bigint('assignee_id', { mode: 'number' }).references(() => users.id),
     queueId: bigint('queue_id', { mode: 'number' }).notNull().references(() => teams.id), // single owning queue
     categoryId: bigint('category_id', { mode: 'number' }).references(() => categories.id),
