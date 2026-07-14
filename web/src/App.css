@@ -2172,3 +2172,25 @@ button.logo-home {
   font: inherit;
   color: inherit;
 }
+
+/* queue notifications admin */
+.qnotify-list { display: flex; flex-direction: column; gap: 4px; }
+.qnotify-row {
+  display: grid;
+  grid-template-columns: 200px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 3px 0;
+}
+.qnotify-name { font-size: 12.5px; font-weight: 600; }
+.qnotify-row:not(.configured) .qnotify-name { font-weight: 400; color: var(--text-muted); }
+.qnotify-row input {
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 8px;
+  background: transparent;
+  color: inherit;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r);
+}
+.mail-notify-thread { border-left: 3px solid var(--accent); }

@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { asc, eq } from 'drizzle-orm';
+import { asc, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { db, schema } from '../db/index.js';
 import { mailboxFor, processInboundEmail } from '../services/mail/mockMail.js';
@@ -18,6 +18,23 @@ export async function mailRoutes(app: FastifyInstance) {
   app.get('/api/mail/mailbox', async (req) => {
     const q = z.object({ email: z.string().email() }).parse(req.query);
     return mailboxFor(q.email);
+  });
+
+  // Outbound notifications sent to an address (queue-entry emails, etc.).
+  app.get('/api/mail/outbound', async (req) => {
+    const q = z.object({ email: z.string().email() }).parse(req.query);
+    const { mailOutbound, tickets } = schema;
+    return db
+      .select({
+        id: mailOutbound.id, subject: mailOutbound.subject, body: mailOutbound.body,
+        kind: mailOutbound.kind, createdAt: mailOutbound.createdAt,
+        ticketNumber: tickets.number,
+      })
+      .from(mailOutbound)
+      .leftJoin(tickets, eq(tickets.id, mailOutbound.ticketId))
+      .where(eq(mailOutbound.toEmail, q.email.trim().toLowerCase()))
+      .orderBy(desc(mailOutbound.id))
+      .limit(20);
   });
 
   // Sample senders for the simulator's From picker.

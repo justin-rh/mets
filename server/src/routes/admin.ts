@@ -5,7 +5,7 @@ import { db, schema } from '../db/index.js';
 import { invalidateScoreWeightsCache, recomputeScore } from '../services/scoring.js';
 import { deriveSkillsFromHistory } from '../services/skills.js';
 
-const { appConfig, statuses, slaPolicies, routingRules, users, tickets, skills, agentSkills, responseTemplates, categories } = schema;
+const { appConfig, statuses, slaPolicies, routingRules, users, tickets, skills, agentSkills, responseTemplates, categories, teams } = schema;
 
 /** All admin mutations require the admin role — the RBAC requirement, live. */
 async function requireAdmin(userId: number) {
@@ -45,6 +45,9 @@ export async function adminRoutes(app: FastifyInstance) {
       slaPolicies: await db.select().from(slaPolicies).orderBy(asc(slaPolicies.id)),
       routingRules: await db.select().from(routingRules).orderBy(asc(routingRules.position)),
       templates: await db.select().from(responseTemplates).orderBy(asc(responseTemplates.name)),
+      queueNotifications: await db
+        .select({ id: teams.id, name: teams.name, notifyEmails: teams.notifyEmails })
+        .from(teams).orderBy(asc(teams.name)),
       categories: await db.select({
         id: categories.id, name: categories.name, requiresApproval: categories.requiresApproval,
       }).from(categories).orderBy(asc(categories.name)),
@@ -73,6 +76,28 @@ export async function adminRoutes(app: FastifyInstance) {
     const [updated] = await db.update(responseTemplates)
       .set({ ...body, updatedAt: new Date() })
       .where(eq(responseTemplates.id, id)).returning();
+    return updated;
+  });
+
+  // Addresses emailed whenever a ticket enters the queue (comma-separated).
+  app.patch('/api/admin/queues/:id/notify', async (req) => {
+    await requireAdmin(req.userId);
+    const id = z.coerce.number().parse((req.params as any).id);
+    const body = z.object({
+      notifyEmails: z.string().trim().max(500).nullable(),
+    }).parse(req.body);
+    const emails = body.notifyEmails
+      ? body.notifyEmails.split(',').map((e) => e.trim().toLowerCase()).filter(Boolean)
+      : [];
+    for (const e of emails) {
+      if (!z.string().email().safeParse(e).success) {
+        throw Object.assign(new Error(`not an email address: ${e}`), { statusCode: 400 });
+      }
+    }
+    const [updated] = await db.update(teams)
+      .set({ notifyEmails: emails.length ? emails.join(', ') : null })
+      .where(eq(teams.id, id))
+      .returning({ id: teams.id, notifyEmails: teams.notifyEmails });
     return updated;
   });
 

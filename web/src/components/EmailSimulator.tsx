@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchMailbox, fetchSenders, sendInboundEmail } from '../api';
+import { fetchMailbox, fetchOutbound, fetchSenders, sendInboundEmail } from '../api';
 import { fmtDateTime } from '../format';
 
 export function EmailSimulator() {
@@ -18,6 +18,12 @@ export function EmailSimulator() {
     queryFn: () => fetchMailbox(effectiveFrom),
     enabled: !!effectiveFrom,
     refetchInterval: 5_000, // agent replies appear "live" in the inbox
+  });
+  const { data: outbound } = useQuery({
+    queryKey: ['outbound', effectiveFrom],
+    queryFn: () => fetchOutbound(effectiveFrom),
+    enabled: !!effectiveFrom,
+    refetchInterval: 5_000,
   });
 
   const send = useMutation({
@@ -80,7 +86,34 @@ export function EmailSimulator() {
 
       <div className="mail-inbox">
         <div className="rail-title">Inbox of {effectiveFrom || '…'}</div>
-        {mailbox?.threads.length === 0 && (
+        {(outbound?.length ?? 0) > 0 && (
+          <div className="mail-thread mail-notify-thread">
+            <div className="mail-thread-head">
+              <strong>📧 Notifications ({outbound!.length})</strong>
+              <span className="mail-thread-meta">queue-entry alerts sent to this address</span>
+            </div>
+            {outbound!.map((m) => (
+              <div key={m.id} className="mail-entry mail-ack">
+                <div className="mail-entry-head">
+                  <span>
+                    helpdesk@masterelectronics.com
+                    {m.ticketNumber && (
+                      <button
+                        className="btn ghost mail-reply-btn"
+                        onClick={() => window.open(`/?ticket=${m.ticketNumber}`, '_blank')}
+                      >
+                        open {m.ticketNumber} ↗
+                      </button>
+                    )}
+                  </span>
+                  <span className="comment-time">{fmtDateTime(m.createdAt)}</span>
+                </div>
+                <div className="mail-entry-body"><strong>{m.subject}</strong>{'\n'}{m.body}</div>
+              </div>
+            ))}
+          </div>
+        )}
+        {mailbox?.threads.length === 0 && (outbound?.length ?? 0) === 0 && (
           <div className="empty">No email tickets yet for this address — send one.</div>
         )}
         {mailbox?.threads.map((t) => (

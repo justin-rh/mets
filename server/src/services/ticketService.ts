@@ -163,6 +163,13 @@ export async function applyTicketChanges(ticketId: number, actor: Actor, changes
     await maybeRequestApproval(ticketId).catch(() => {});
   }
 
+  // Entering a queue with notify_emails configured sends the queue-entry
+  // email (deduped per ticket per queue, so bounces don't re-fire).
+  if (result.changed && changes.queueId !== undefined) {
+    const { notifyQueueEntry } = await import('./mail/mockMail.js');
+    await notifyQueueEntry(ticketId).catch(() => {});
+  }
+
   // On resolve, the AI checks whether the fix is worth a KB article — slow
   // (a full write), so it runs off the request path entirely.
   if (result.changed && changes.statusId !== undefined) {
@@ -242,6 +249,10 @@ export async function createTicketCore(input: {
   // Global acknowledgment auto-response (if one is configured and active).
   const { runAutoResponses } = await import('./templates.js');
   await runAutoResponses(created!.id, 'created').catch(() => {});
+
+  // Queue-entry email for wherever routing landed it (once per queue).
+  const { notifyQueueEntry } = await import('./mail/mockMail.js');
+  await notifyQueueEntry(created!.id).catch(() => {});
 
   return created!;
 }

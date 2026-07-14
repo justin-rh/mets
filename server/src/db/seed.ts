@@ -145,7 +145,11 @@ async function main() {
   const statusByName = Object.fromEntries(statusRows.map((s) => [s.name, s]));
 
   const teamRows = await db.insert(teams).values(
-    QUEUES.map((q) => ({ name: q.name, slug: q.slug, description: q.description, assignmentPolicy: q.policy as any })),
+    QUEUES.map((q) => ({
+      name: q.name, slug: q.slug, description: q.description, assignmentPolicy: q.policy as any,
+      // Demo: the SOC list hears about everything landing in Security & Access.
+      notifyEmails: q.slug === 'security-access' ? 'soc@masterelectronics.com' : null,
+    })),
   ).returning();
   const teamBySlug = Object.fromEntries(teamRows.map((t) => [t.slug, t]));
 

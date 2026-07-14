@@ -335,6 +335,7 @@ export type AdminConfig = {
   routingRules: { id: number; name: string; position: number; enabled: boolean; conditions: unknown; actions: unknown }[];
   templates: ResponseTemplate[];
   categories: { id: number; name: string; requiresApproval: boolean }[];
+  queueNotifications: { id: number; name: string; notifyEmails: string | null }[];
 };
 
 export type ResponseTemplate = {
@@ -376,6 +377,16 @@ export const toggleRoutingRule = (id: number, enabled: boolean) =>
   api(`/api/admin/routing-rules/${id}`, { method: 'PATCH', body: JSON.stringify({ enabled }) });
 export const deleteRoutingRule = (id: number) =>
   api(`/api/admin/routing-rules/${id}`, { method: 'DELETE' });
+
+export const saveQueueNotify = (id: number, notifyEmails: string | null) =>
+  api(`/api/admin/queues/${id}/notify`, { method: 'PATCH', body: JSON.stringify({ notifyEmails }) });
+
+export type OutboundMail = {
+  id: number; subject: string; body: string; kind: string;
+  createdAt: string; ticketNumber: string | null;
+};
+export const fetchOutbound = (email: string) =>
+  api<OutboundMail[]>(`/api/mail/outbound?email=${encodeURIComponent(email)}`);
 
 export const setCategoryApproval = (id: number, requiresApproval: boolean) =>
   api(`/api/admin/categories/${id}`, { method: 'PATCH', body: JSON.stringify({ requiresApproval }) });

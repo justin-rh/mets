@@ -4,8 +4,9 @@ import {
   addAgentSkill, addRoutingRule, addStatus, addTemplate, deleteRoutingRule,
   deleteTemplate, fetchAdminConfig, fetchMeta, removeAgentSkill, renameStatus,
   runEscalationSweep, saveAiThresholds, saveAutoClose, saveEscalation,
-  saveScoreKeywords, saveScoreWeights, saveSlaPolicy, setCategoryApproval,
-  syncSkills, toggleRoutingRule, updateTemplate, type AdminConfig,
+  saveQueueNotify, saveScoreKeywords, saveScoreWeights, saveSlaPolicy,
+  setCategoryApproval, syncSkills, toggleRoutingRule, updateTemplate,
+  type AdminConfig,
 } from '../api';
 
 function useInvalidate() {
@@ -407,6 +408,50 @@ function KeywordsCard({ config }: { config: AdminConfig }) {
   );
 }
 
+function QueueNotifyCard({ config }: { config: AdminConfig }) {
+  const invalidate = useInvalidate();
+  const [drafts, setDrafts] = useState<Record<number, string>>({});
+  const [savedId, setSavedId] = useState<number | null>(null);
+  const save = useMutation({
+    mutationFn: ({ id, emails }: { id: number; emails: string | null }) => saveQueueNotify(id, emails),
+    onSuccess: (_r, v) => { setSavedId(v.id); invalidate(); },
+  });
+
+  const valueFor = (q: AdminConfig['queueNotifications'][number]) =>
+    drafts[q.id] ?? q.notifyEmails ?? '';
+
+  return (
+    <div className="admin-card admin-card-wide">
+      <h3>Queue email notifications</h3>
+      <p className="admin-hint">
+        Every ticket that <strong>enters</strong> a queue (created, routed,
+        AI-moved, or dragged) emails these addresses — once per ticket per
+        queue. Comma-separate multiple. Best for low-volume, high-stakes
+        queues; subscribing the intake queue means email for nearly every ticket.
+      </p>
+      <div className="qnotify-list">
+        {config.queueNotifications.map((q) => (
+          <div key={q.id} className={`qnotify-row ${q.notifyEmails ? 'configured' : ''}`}>
+            <span className="qnotify-name">{q.notifyEmails ? '📧' : ''} {q.name}</span>
+            <input
+              placeholder="none — add addresses to notify"
+              value={valueFor(q)}
+              onChange={(e) => { setSavedId(null); setDrafts({ ...drafts, [q.id]: e.target.value }); }}
+            />
+            <button
+              className="btn"
+              disabled={save.isPending || valueFor(q) === (q.notifyEmails ?? '')}
+              onClick={() => save.mutate({ id: q.id, emails: valueFor(q).trim() || null })}
+            >
+              {savedId === q.id ? '✓' : 'Save'}
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function EscalationCard({ config }: { config: AdminConfig }) {
   const invalidate = useInvalidate();
   const [cfg, setCfg] = useState(config.escalation);
@@ -601,7 +646,7 @@ const ADMIN_SECTIONS = [
   {
     key: 'routing', label: 'Routing & Approvals', icon: '🧭',
     hint: 'Where tickets go and who signs off',
-    cards: [RulesCard, ApprovalGatesCard, EscalationCard],
+    cards: [RulesCard, ApprovalGatesCard, EscalationCard, QueueNotifyCard],
   },
   {
     key: 'automation', label: 'AI & Automation', icon: '✨',

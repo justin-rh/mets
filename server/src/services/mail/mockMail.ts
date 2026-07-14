@@ -133,3 +133,71 @@ export async function mailboxFor(email: string) {
 
   return { email: normalized, threads };
 }
+
+/**
+ * Outbound mail. Mock transport = a mail_outbound row the Email simulator
+ * displays; the Graph adapter swaps in a real send and keeps the row as the
+ * sent-mail record. Returns false when a dedupeKey already sent.
+ */
+export async function sendMail(input: {
+  to: string;
+  subject: string;
+  body: string;
+  kind?: string;
+  ticketId?: number;
+  dedupeKey?: string;
+}): Promise<boolean> {
+  const { mailOutbound } = schema;
+  if (input.dedupeKey) {
+    const [dupe] = await db.select({ id: mailOutbound.id }).from(mailOutbound)
+      .where(eq(mailOutbound.dedupeKey, input.dedupeKey)).limit(1);
+    if (dupe) return false;
+  }
+  await db.insert(mailOutbound).values({
+    toEmail: input.to.trim().toLowerCase(),
+    subject: input.subject,
+    body: input.body,
+    kind: input.kind ?? 'notification',
+    ticketId: input.ticketId,
+    dedupeKey: input.dedupeKey,
+  });
+  return true;
+}
+
+/**
+ * Queue-entry notification: when a ticket enters a queue with notify_emails
+ * configured (created into it, routed, AI-moved, or dragged), each address
+ * gets a summary email — once per ticket per queue. Meant for low-volume,
+ * high-stakes queues; subscribing the intake queue means email for nearly
+ * every ticket.
+ */
+export async function notifyQueueEntry(ticketId: number) {
+  const [t] = await db
+    .select({
+      id: tickets.id, number: tickets.number, subject: tickets.subject,
+      description: tickets.description, priority: tickets.priority,
+      queueId: tickets.queueId, queueName: schema.teams.name,
+      notifyEmails: schema.teams.notifyEmails,
+      requesterName: users.name,
+    })
+    .from(tickets)
+    .innerJoin(schema.teams, eq(schema.teams.id, tickets.queueId))
+    .innerJoin(users, eq(users.id, tickets.requesterId))
+    .where(eq(tickets.id, ticketId));
+  if (!t?.notifyEmails) return 0;
+
+  const recipients = t.notifyEmails.split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
+  let sent = 0;
+  for (const to of recipients) {
+    const ok = await sendMail({
+      to,
+      subject: `[${t.number}] New ticket in ${t.queueName}: ${t.subject}`,
+      body: `A ticket just entered ${t.queueName}.\n\nTicket: ${t.number}\nRequester: ${t.requesterName}\nPriority: P${t.priority}\nSubject: ${t.subject}\n\n${t.description.slice(0, 500)}\n\nOpen it: http://mets.masterelectronics.com/?ticket=${t.number}`,
+      kind: 'queue_notification',
+      ticketId: t.id,
+      dedupeKey: `queue:${t.queueId}:${t.id}:${to}`,
+    });
+    if (ok) sent++;
+  }
+  return sent;
+}

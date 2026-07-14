@@ -74,6 +74,8 @@ export const teams = pgTable('teams', {
   description: text('description'),
   assignmentPolicy: assignmentPolicy('assignment_policy').notNull().default('manual'),
   lastAssignedUserId: bigint('last_assigned_user_id', { mode: 'number' }), // round-robin pointer
+  // Comma-separated addresses emailed whenever a ticket enters this queue.
+  notifyEmails: text('notify_emails'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -443,6 +445,24 @@ export const chatMessages = pgTable(
     index('chat_from_to_idx').on(t.fromId, t.toId, t.id),
     index('chat_to_unread_idx').on(t.toId, t.readAt),
   ],
+);
+
+// Outbound mail. The mock adapter writes rows here (the Email simulator
+// reads them); the Graph adapter sends for real and still records the row.
+export const mailOutbound = pgTable(
+  'mail_outbound',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    toEmail: text('to_email').notNull(),
+    subject: text('subject').notNull(),
+    body: text('body').notNull(),
+    kind: text('kind').notNull().default('notification'),
+    ticketId: bigint('ticket_id', { mode: 'number' }).references(() => tickets.id),
+    // e.g. queue:<queueId>:<ticketId> — one notification per ticket per queue
+    dedupeKey: text('dedupe_key'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('mail_outbound_to_idx').on(t.toEmail, t.id), index('mail_outbound_dedupe_idx').on(t.dedupeKey)],
 );
 
 export const appConfig = pgTable('app_config', {
