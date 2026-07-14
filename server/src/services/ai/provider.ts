@@ -82,10 +82,35 @@ export type IncidentOutcome = {
   outputTokens: number;
 };
 
+export const ArticleSchema = z.object({
+  worthArticle: z.boolean().describe('true only if this resolution is a repeatable procedure other people will hit, and no existing title already covers it'),
+  title: z.string().describe('KB-style how-to title, e.g. "Fix Zebra labels printing offset"'),
+  bodyMarkdown: z.string().describe('The article: Symptoms, Cause, Fix (numbered steps). Written for the affected user or a junior agent. Only facts from the ticket — never invent steps.'),
+  reason: z.string().describe('One sentence: why this is or is not worth an article'),
+  confidence: z.number().describe('0-1'),
+});
+export type ArticleResult = z.infer<typeof ArticleSchema>;
+
+export type ArticleInput = {
+  subject: string;
+  description: string;
+  categoryName: string;
+  thread: { author: string; visibility: string; body: string }[];
+  existingTitles: string[];
+};
+
+export type ArticleOutcome = {
+  result: ArticleResult;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+};
+
 export interface AIProvider {
   triage(input: TriageInput, ctx: TriageContext): Promise<TriageOutcome>;
   draftReply(input: DraftInput): Promise<DraftOutcome>;
   assessIncident(input: IncidentInput): Promise<IncidentOutcome>;
+  draftArticle(input: ArticleInput): Promise<ArticleOutcome>;
 }
 
 // ---------------------------------------------------------------------------
@@ -260,6 +285,54 @@ One incident, or coincidence?`,
       outputTokens: response.usage.output_tokens,
     };
   }
+
+  async draftArticle(input: ArticleInput): Promise<ArticleOutcome> {
+    const response = await this.client.messages.parse({
+      model: env.aiModel,
+      max_tokens: 2500,
+      system: `You maintain the IT knowledge base for Master Electronics. When a
+ticket resolves, you decide whether the resolution is worth a KB article and,
+if so, draft it.
+
+Worth an article: a repeatable procedure or fix that other employees or
+agents will plausibly need — configuration steps, a workaround, a gotcha.
+NOT worth one: one-off hardware swaps, account-specific changes, anything an
+existing article already covers (titles provided), or resolutions where the
+thread never actually says what fixed it. Be conservative — a bad article is
+worse than none.
+
+When drafting: use only facts stated in the ticket thread. Structure as
+Symptoms / Cause / Fix with numbered steps. Write for the affected user (or a
+junior agent for admin-side steps). No invented menu paths, no guessed
+settings.`,
+      messages: [
+        {
+          role: 'user',
+          content: `Resolved ticket in category "${input.categoryName}":
+Subject: ${input.subject}
+Description: ${input.description.slice(0, 1500)}
+
+Resolution thread:
+${input.thread.map((c) => `${c.author}${c.visibility === 'internal' ? ' (internal)' : ''}: ${c.body.slice(0, 600)}`).join('\n---\n')}
+
+Existing article titles (do not duplicate):
+${input.existingTitles.map((t) => `- ${t}`).join('\n')}
+
+Worth an article?`,
+        },
+      ],
+      output_config: { format: zodOutputFormat(ArticleSchema) },
+    });
+    if (!response.parsed_output) {
+      throw new Error(`article draft parse failed (stop_reason: ${response.stop_reason})`);
+    }
+    return {
+      result: response.parsed_output,
+      model: response.model,
+      inputTokens: response.usage.input_tokens + (response.usage.cache_read_input_tokens ?? 0) + (response.usage.cache_creation_input_tokens ?? 0),
+      outputTokens: response.usage.output_tokens,
+    };
+  }
 }
 
 /** Keyword-based mock for offline dev and as a demo fallback. */
@@ -329,6 +402,20 @@ class MockProvider implements AIProvider {
         title: input.tickets[0]?.subject.slice(0, 80) ?? 'Suspected incident',
         summary: `${input.tickets.length} similar tickets arrived in a short window.`,
         confidence: 0.7,
+      },
+      model: 'mock', inputTokens: 0, outputTokens: 0,
+    };
+  }
+
+  async draftArticle(input: ArticleInput): Promise<ArticleOutcome> {
+    const substantive = input.thread.filter((c) => c.body.length > 60);
+    return {
+      result: {
+        worthArticle: substantive.length >= 2,
+        title: `How to resolve: ${input.subject.slice(0, 70)}`,
+        bodyMarkdown: `## Symptoms\n${input.description.slice(0, 300)}\n\n## Fix\n${substantive.map((c, i) => `${i + 1}. ${c.body.slice(0, 200)}`).join('\n')}`,
+        reason: 'Mock heuristic: multi-step resolution thread.',
+        confidence: 0.65,
       },
       model: 'mock', inputTokens: 0, outputTokens: 0,
     };

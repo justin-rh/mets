@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { db, schema } from '../db/index.js';
 import { hybridSearch, suggestionsForTicket } from '../services/kb/kbService.js';
@@ -11,20 +11,67 @@ const { kbArticles, kbChunks, tickets, ticketComments, users, aiUsage } = schema
 export async function kbRoutes(app: FastifyInstance) {
   app.get('/api/kb', async (req) => {
     const q = z.object({ q: z.string().trim().max(300).optional() }).parse(req.query);
-    if (q.q) return { results: await hybridSearch(q.q, 8), articles: null };
+    // AI-drafted articles awaiting review — staff only; search never sees them.
+    const drafts = req.userRole === 'admin' || req.userRole === 'agent'
+      ? await db
+          .select({
+            id: kbArticles.id, title: kbArticles.title, createdAt: kbArticles.createdAt,
+            sourceTicket: tickets.number,
+          })
+          .from(kbArticles)
+          .leftJoin(tickets, eq(tickets.id, kbArticles.sourceTicketId))
+          .where(eq(kbArticles.status, 'draft'))
+          .orderBy(asc(kbArticles.createdAt))
+      : [];
+    if (q.q) return { results: await hybridSearch(q.q, 8), articles: null, drafts };
     const all = await db
       .select({ id: kbArticles.id, title: kbArticles.title, updatedAt: kbArticles.updatedAt })
       .from(kbArticles)
       .where(eq(kbArticles.status, 'published'))
       .orderBy(asc(kbArticles.title));
-    return { results: null, articles: all };
+    return { results: null, articles: all, drafts };
   });
 
   app.get('/api/kb/:id', async (req, reply) => {
     const id = z.coerce.number().parse((req.params as any).id);
-    const [article] = await db.select().from(kbArticles).where(eq(kbArticles.id, id));
+    const [article] = await db
+      .select({
+        id: kbArticles.id, title: kbArticles.title, bodyText: kbArticles.bodyText,
+        status: kbArticles.status, updatedAt: kbArticles.updatedAt,
+        sourceTicket: tickets.number,
+      })
+      .from(kbArticles)
+      .leftJoin(tickets, eq(tickets.id, kbArticles.sourceTicketId))
+      .where(eq(kbArticles.id, id));
     if (!article) return reply.status(404).send({ error: 'article not found' });
+    if (article.status !== 'published') requireStaff(req);
     return article;
+  });
+
+  // Review actions for AI drafts. Publishing embeds the article so hybrid
+  // search picks it up immediately.
+  app.post('/api/kb/:id/publish', async (req, reply) => {
+    requireStaff(req);
+    const id = z.coerce.number().parse((req.params as any).id);
+    const [updated] = await db.update(kbArticles)
+      .set({ status: 'published', updatedAt: new Date() })
+      .where(and(eq(kbArticles.id, id), eq(kbArticles.status, 'draft')))
+      .returning();
+    if (!updated) return reply.status(404).send({ error: 'no such draft' });
+    const { ensureKbEmbeddings } = await import('../services/kb/kbService.js');
+    await ensureKbEmbeddings();
+    return updated;
+  });
+
+  app.post('/api/kb/:id/discard', async (req, reply) => {
+    requireStaff(req);
+    const id = z.coerce.number().parse((req.params as any).id);
+    const [updated] = await db.update(kbArticles)
+      .set({ status: 'archived', updatedAt: new Date() })
+      .where(and(eq(kbArticles.id, id), eq(kbArticles.status, 'draft')))
+      .returning();
+    if (!updated) return reply.status(404).send({ error: 'no such draft' });
+    return { ok: true };
   });
 
   // KB + similar-resolved-ticket suggestions for the expanded ticket view.

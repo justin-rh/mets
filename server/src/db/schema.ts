@@ -367,6 +367,8 @@ export const kbArticles = pgTable('kb_articles', {
   bodyHtml: text('body_html'),
   status: kbStatus('status').notNull().default('draft'),
   authorId: bigint('author_id', { mode: 'number' }).references(() => users.id),
+  // Set when AI drafted this from a resolved ticket.
+  sourceTicketId: bigint('source_ticket_id', { mode: 'number' }).references(() => tickets.id),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

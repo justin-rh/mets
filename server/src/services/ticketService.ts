@@ -162,6 +162,19 @@ export async function applyTicketChanges(ticketId: number, actor: Actor, changes
     const { maybeRequestApproval } = await import('./approvalService.js');
     await maybeRequestApproval(ticketId).catch(() => {});
   }
+
+  // On resolve, the AI checks whether the fix is worth a KB article — slow
+  // (a full write), so it runs off the request path entirely.
+  if (result.changed && changes.statusId !== undefined) {
+    const [s] = await db.select({ category: statuses.category })
+      .from(tickets).innerJoin(statuses, eq(statuses.id, tickets.statusId))
+      .where(eq(tickets.id, ticketId));
+    if (s?.category === 'resolved') {
+      void import('./kbDrafts.js')
+        .then((m) => m.maybeDraftArticle(ticketId))
+        .catch(() => {});
+    }
+  }
   return result;
 }
 

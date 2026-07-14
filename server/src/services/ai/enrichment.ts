@@ -89,7 +89,7 @@ function guessQueueId(categoryName: string, queues: (typeof teams.$inferSelect)[
   return queues.find((q) => q.slug === slug)?.id ?? queues[0]!.id;
 }
 
-async function overDailyBudget(): Promise<boolean> {
+export async function overDailyBudget(): Promise<boolean> {
   const [row] = await db
     .select({ total: sql<number>`coalesce(sum(input_tokens + output_tokens), 0)`.mapWith(Number) })
     .from(aiUsage)

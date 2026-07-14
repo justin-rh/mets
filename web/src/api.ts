@@ -220,11 +220,23 @@ export type DashboardData = {
 export const fetchDashboard = () => api<DashboardData>('/api/dashboard');
 
 export type KbHit = { id: number; title: string; snippet: string; score: number };
-export type KbIndex = { results: KbHit[] | null; articles: { id: number; title: string; updatedAt: string }[] | null };
-export type KbArticle = { id: number; title: string; bodyText: string; updatedAt: string };
+export type KbDraft = { id: number; title: string; createdAt: string; sourceTicket: string | null };
+export type KbIndex = {
+  results: KbHit[] | null;
+  articles: { id: number; title: string; updatedAt: string }[] | null;
+  drafts: KbDraft[];
+};
+export type KbArticle = {
+  id: number; title: string; bodyText: string; updatedAt: string;
+  status: string; sourceTicket: string | null;
+};
 
 export const searchKb = (q: string) => api<KbIndex>(`/api/kb${q ? `?q=${encodeURIComponent(q)}` : ''}`);
 export const fetchArticle = (id: number) => api<KbArticle>(`/api/kb/${id}`);
+export const publishArticle = (id: number) =>
+  api<KbArticle>(`/api/kb/${id}/publish`, { method: 'POST', body: '{}' });
+export const discardArticle = (id: number) =>
+  api(`/api/kb/${id}/discard`, { method: 'POST', body: '{}' });
 
 export type Suggestions = {
   articles: KbHit[];
