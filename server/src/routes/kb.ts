@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { db, schema } from '../db/index.js';
 import { hybridSearch, suggestionsForTicket } from '../services/kb/kbService.js';
 import { getAIProvider } from '../services/ai/provider.js';
+import { requireStaff } from './guards.js';
 
 const { kbArticles, kbChunks, tickets, ticketComments, users, aiUsage } = schema;
 
@@ -28,12 +29,14 @@ export async function kbRoutes(app: FastifyInstance) {
 
   // KB + similar-resolved-ticket suggestions for the expanded ticket view.
   app.get('/api/tickets/:id/suggestions', async (req) => {
+    requireStaff(req);
     const id = z.coerce.number().parse((req.params as any).id);
     return suggestionsForTicket(id);
   });
 
   // Draft a grounded reply with Claude; the agent edits before sending.
   app.post('/api/tickets/:id/draft-reply', async (req, reply) => {
+    requireStaff(req);
     const id = z.coerce.number().parse((req.params as any).id);
     const [t] = await db
       .select({

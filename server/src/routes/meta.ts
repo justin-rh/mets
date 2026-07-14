@@ -64,10 +64,14 @@ export async function metaRoutes(app: FastifyInstance) {
     return { statuses: statusRows, queues: queueRows, agents, tags: tagRows, categories: categoryRows };
   });
 
-  // Directory for the on-behalf-of picker: every active person (bot excluded).
+  // Directory for the on-behalf-of picker and the dev user switcher:
+  // every active person (bot excluded).
   app.get('/api/users', async () => {
     return db
-      .select({ id: users.id, name: users.name, department: users.department, location: users.location })
+      .select({
+        id: users.id, name: users.name, role: users.role,
+        department: users.department, location: users.location,
+      })
       .from(users)
       .where(sql`${users.isActive} and ${users.role} != 'readonly'`)
       .orderBy(users.name);

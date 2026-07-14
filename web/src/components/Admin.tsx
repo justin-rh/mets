@@ -3,8 +3,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   addAgentSkill, addRoutingRule, addStatus, addTemplate, deleteRoutingRule,
   deleteTemplate, fetchAdminConfig, fetchMeta, removeAgentSkill, renameStatus,
-  saveAiThresholds, saveScoreWeights, saveSlaPolicy, setCategoryApproval,
-  syncSkills, toggleRoutingRule, updateTemplate, type AdminConfig,
+  saveAiThresholds, saveScoreKeywords, saveScoreWeights, saveSlaPolicy,
+  setCategoryApproval, syncSkills, toggleRoutingRule, updateTemplate,
+  type AdminConfig,
 } from '../api';
 
 function useInvalidate() {
@@ -324,6 +325,65 @@ function ExpertiseCard({ config }: { config: AdminConfig }) {
   );
 }
 
+function KeywordsCard({ config }: { config: AdminConfig }) {
+  const invalidate = useInvalidate();
+  const [term, setTerm] = useState('');
+  const [boost, setBoost] = useState('15');
+  const [saved, setSaved] = useState<string | null>(null);
+
+  const save = useMutation({
+    mutationFn: (keywords: AdminConfig['scoreKeywords']) => saveScoreKeywords(keywords),
+    onSuccess: (r) => { setSaved(`Saved — ${r.rescored} open tickets rescored`); invalidate(); },
+  });
+  const add = () => {
+    setSaved(null);
+    save.mutate([...config.scoreKeywords, { term: term.trim().toLowerCase(), boost: Number(boost) }]);
+    setTerm('');
+  };
+  const remove = (t: string) => {
+    setSaved(null);
+    save.mutate(config.scoreKeywords.filter((k) => k.term !== t));
+  };
+
+  return (
+    <div className="admin-card">
+      <h3>Flag keywords</h3>
+      <p className="admin-hint">
+        Tickets whose subject or description contains a keyword get flagged 🚩
+        in the queue and boosted by the given score. Case-insensitive; changes
+        rescore every open ticket instantly.
+      </p>
+      <div className="admin-status-list">
+        {config.scoreKeywords.map((k) => (
+          <span key={k.term} className="admin-status">
+            🚩 {k.term} <em>+{k.boost}</em>
+            <button className="skill-remove" title="Remove keyword" onClick={() => remove(k.term)}>✕</button>
+          </span>
+        ))}
+        {config.scoreKeywords.length === 0 && <span className="admin-hint">No keywords yet.</span>}
+      </div>
+      <div className="admin-inline-form">
+        <input
+          placeholder="Keyword (e.g. outage)"
+          value={term}
+          onChange={(e) => setTerm(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && term.trim().length >= 2) add(); }}
+        />
+        <input type="number" value={boost} onChange={(e) => setBoost(e.target.value)} style={{ width: 64 }} title="Score boost" />
+        <button
+          className="btn"
+          disabled={term.trim().length < 2 || save.isPending
+            || config.scoreKeywords.some((k) => k.term === term.trim().toLowerCase())}
+          onClick={add}
+        >
+          Add
+        </button>
+        {saved && <span className="admin-saved">{saved}</span>}
+      </div>
+    </div>
+  );
+}
+
 function ApprovalGatesCard({ config }: { config: AdminConfig }) {
   const invalidate = useInvalidate();
   const toggle = useMutation({
@@ -443,6 +503,7 @@ export function Admin() {
         <AiCard config={config} />
         <StatusesCard config={config} />
         <ExpertiseCard config={config} />
+        <KeywordsCard config={config} />
         <ApprovalGatesCard config={config} />
         <RulesCard config={config} />
         <TemplatesCard config={config} />

@@ -22,6 +22,7 @@ export type TicketListItem = {
   assignee: { id: number; name: string } | null;
   submittedBy: { id: number; name: string } | null;
   category: string | null; tags: string[]; sla: SlaInfo | null;
+  flags: { term: string; boost: number }[];
 };
 
 export type Comment = {
@@ -163,7 +164,10 @@ export const createTicket = (data: {
 }) =>
   api<{ id: number; number: string }>('/api/tickets', { method: 'POST', body: JSON.stringify(data) });
 
-export type DirectoryUser = { id: number; name: string; department: string | null; location: string | null };
+export type DirectoryUser = {
+  id: number; name: string; role: string;
+  department: string | null; location: string | null;
+};
 export const fetchUsers = () => api<DirectoryUser[]>('/api/users');
 
 // --- Chat ---
@@ -241,6 +245,7 @@ export type AdminConfig = {
     agePerBusinessDay: number; ageCap: number; vip: number;
     slaWarning: number; slaBreached: number; manualBoostRange: number;
   } | null;
+  scoreKeywords: { term: string; boost: number }[];
   aiThresholds: { autoApply: number; suggest: number };
   businessHours: unknown;
   statuses: StatusInfo[];
@@ -261,6 +266,10 @@ export const saveScoreWeights = (weights: NonNullable<AdminConfig['scoreWeights'
   api('/api/admin/score-weights', { method: 'PUT', body: JSON.stringify(weights) });
 export const saveAiThresholds = (t: AdminConfig['aiThresholds']) =>
   api('/api/admin/ai-thresholds', { method: 'PUT', body: JSON.stringify(t) });
+export const saveScoreKeywords = (keywords: AdminConfig['scoreKeywords']) =>
+  api<{ ok: boolean; rescored: number }>('/api/admin/score-keywords', {
+    method: 'PUT', body: JSON.stringify(keywords),
+  });
 export const addStatus = (s: { name: string; category: string }) =>
   api('/api/admin/statuses', { method: 'POST', body: JSON.stringify(s) });
 export const renameStatus = (id: number, name: string) =>

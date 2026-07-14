@@ -7,6 +7,7 @@ import { applyTicketChanges, autoAssign, autoAssignByExpertise, bestFitAgents, c
 import { enrichTicket } from '../services/ai/enrichment.js';
 import { completeFirstResponse } from '../services/sla/slaService.js';
 import { templatesForTicket } from '../services/templates.js';
+import { requireStaff } from './guards.js';
 
 const { tickets, statuses, teams, users, ticketTags, tags, slaInstances, ticketComments, ticketEvents, categories } = schema;
 
@@ -59,6 +60,10 @@ export async function ticketRoutes(app: FastifyInstance) {
     if (q.queueId) conds.push(eq(tickets.queueId, q.queueId));
     if (q.assigneeId) conds.push(eq(tickets.assigneeId, q.assigneeId));
     if (q.requesterId) conds.push(eq(tickets.requesterId, q.requesterId));
+    // RBAC: requesters only ever see tickets they own or filed for someone.
+    if (req.userRole === 'requester') {
+      conds.push(or(eq(tickets.requesterId, req.userId), eq(tickets.submittedById, req.userId))!);
+    }
     if (q.search) {
       conds.push(or(ilike(tickets.subject, `%${q.search}%`), ilike(tickets.number, `%${q.search}%`))!);
     }
@@ -84,6 +89,7 @@ export async function ticketRoutes(app: FastifyInstance) {
         assignee: { id: assignee.id, name: assignee.name },
         submittedBy: { id: submitter.id, name: submitter.name },
         category: categories.name,
+        customFields: tickets.customFields,
       })
       .from(tickets)
       .innerJoin(statuses, eq(statuses.id, tickets.statusId))
@@ -117,8 +123,9 @@ export async function ticketRoutes(app: FastifyInstance) {
     }
     const slaByTicket = new Map(slaRows.map((s) => [s.ticketId, s]));
 
-    return rows.map((r) => ({
+    return rows.map(({ customFields, ...r }) => ({
       ...r,
+      flags: ((customFields as any)?.flaggedKeywords ?? []) as { term: string; boost: number }[],
       tags: tagsByTicket.get(r.id) ?? [],
       sla: slaByTicket.get(r.id) ?? null,
     }));
@@ -200,6 +207,27 @@ export async function ticketRoutes(app: FastifyInstance) {
       .where(eq(schema.approvals.ticketId, id))
       .orderBy(desc(schema.approvals.createdAt));
 
+    // RBAC: requesters see only their own tickets, without internal notes,
+    // the audit trail, AI internals, or SLA state.
+    if (req.userRole === 'requester') {
+      if (t.requester.id !== req.userId && (t as any).submittedBy?.id !== req.userId) {
+        return reply.status(403).send({ error: 'not your ticket' });
+      }
+      return {
+        ...t,
+        comments: comments.filter((c) => c.visibility === 'public'),
+        events: [], sla: [],
+        // Enough AI state for the post-submit routing screen, nothing more.
+        ai: ai ? {
+          status: ai.status,
+          confidence: { category: (ai.confidence as any)?.category ?? 0 },
+          result: { category: (ai.result as any)?.category },
+        } : null,
+        tags: tagRows.map((r) => r.name),
+        approvals: approvalRows,
+      };
+    }
+
     return { ...t, comments, events, sla, tags: tagRows.map((r) => r.name), ai: ai ?? null, approvals: approvalRows };
   });
 
@@ -231,6 +259,7 @@ export async function ticketRoutes(app: FastifyInstance) {
 
   // Top agents for this ticket by expertise/queue/load fit.
   app.get('/api/tickets/:id/fit', async (req) => {
+    requireStaff(req);
     const id = z.coerce.number().parse((req.params as any).id);
     return bestFitAgents(id);
   });
@@ -238,22 +267,51 @@ export async function ticketRoutes(app: FastifyInstance) {
   // Response templates rendered for this ticket ({{variables}} resolved),
   // matching-category templates first.
   app.get('/api/tickets/:id/templates', async (req) => {
+    requireStaff(req);
     const id = z.coerce.number().parse((req.params as any).id);
     return templatesForTicket(id, req.userId);
   });
 
   app.patch('/api/tickets/:id', async (req) => {
+    requireStaff(req);
     const id = z.coerce.number().parse((req.params as any).id);
     const changes = changesBody.parse(req.body) as TicketChanges;
     return applyTicketChanges(id, { id: req.userId }, changes);
   });
 
-  app.post('/api/tickets/:id/comments', async (req) => {
+  app.post('/api/tickets/:id/comments', async (req, reply) => {
     const id = z.coerce.number().parse((req.params as any).id);
     const body = z.object({
       bodyText: z.string().trim().min(1).max(10_000),
       visibility: z.enum(['public', 'internal']).default('public'),
     }).parse(req.body);
+
+    // RBAC: requesters reply publicly on their own tickets only; a reply on
+    // a resolved/closed ticket reopens it (same behavior as email replies).
+    if (req.userRole === 'requester') {
+      const [t] = await db.select({
+        requesterId: tickets.requesterId, submittedById: tickets.submittedById,
+        statusId: tickets.statusId,
+      }).from(tickets).where(eq(tickets.id, id));
+      if (!t || (t.requesterId !== req.userId && t.submittedById !== req.userId)) {
+        return reply.status(403).send({ error: 'not your ticket' });
+      }
+      const [comment] = await db.insert(ticketComments).values({
+        ticketId: id, authorId: req.userId, visibility: 'public',
+        bodyText: body.bodyText, source: 'portal',
+      }).returning();
+      await db.update(tickets).set({ updatedAt: new Date() }).where(eq(tickets.id, id));
+      const [status] = await db.select().from(statuses).where(eq(statuses.id, t.statusId));
+      if (status && (status.category === 'resolved' || status.category === 'closed')) {
+        const [openStatus] = await db.select().from(statuses)
+          .where(eq(statuses.category, 'open')).orderBy(asc(statuses.position)).limit(1);
+        if (openStatus) {
+          await applyTicketChanges(id, { id: null, type: 'system' }, { statusId: openStatus.id });
+        }
+      }
+      return comment;
+    }
+
     const [comment] = await db.insert(ticketComments).values({
       ticketId: id, authorId: req.userId, visibility: body.visibility,
       bodyText: body.bodyText, source: 'agent',
@@ -272,6 +330,7 @@ export async function ticketRoutes(app: FastifyInstance) {
   });
 
   app.post('/api/tickets/bulk', async (req) => {
+    requireStaff(req);
     const body = z.object({
       ticketIds: z.array(z.number()).min(1).max(100),
       action: z.enum(['update', 'auto_assign', 'expertise_assign']).default('update'),

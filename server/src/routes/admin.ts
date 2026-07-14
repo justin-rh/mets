@@ -31,6 +31,7 @@ export async function adminRoutes(app: FastifyInstance) {
     const byKey = Object.fromEntries(configRows.map((r) => [r.key, r.value]));
     return {
       scoreWeights: byKey['score_weights'] ?? null,
+      scoreKeywords: byKey['score_keywords'] ?? [],
       aiThresholds: byKey['ai_thresholds'] ?? { autoApply: 0.8, suggest: 0.35 },
       businessHours: byKey['business_hours'] ?? null,
       statuses: await db.select().from(statuses).orderBy(asc(statuses.position)),
@@ -102,6 +103,22 @@ export async function adminRoutes(app: FastifyInstance) {
     await db.insert(appConfig)
       .values({ key: 'score_weights', value: weights, updatedAt: new Date() })
       .onConflictDoUpdate({ target: appConfig.key, set: { value: weights, updatedAt: new Date() } });
+    invalidateScoreWeightsCache();
+    const rescored = await rescoreOpenTickets();
+    return { ok: true, rescored };
+  });
+
+  // Flag keywords: matches in subject/description boost the score and mark
+  // the row. Saving rescores every open ticket immediately.
+  app.put('/api/admin/score-keywords', async (req) => {
+    await requireAdmin(req.userId);
+    const keywords = z.array(z.object({
+      term: z.string().trim().min(2).max(40),
+      boost: z.number().min(-50).max(100),
+    })).max(50).parse(req.body);
+    await db.insert(appConfig)
+      .values({ key: 'score_keywords', value: keywords, updatedAt: new Date() })
+      .onConflictDoUpdate({ target: appConfig.key, set: { value: keywords, updatedAt: new Date() } });
     invalidateScoreWeightsCache();
     const rescored = await rescoreOpenTickets();
     return { ok: true, rescored };

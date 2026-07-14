@@ -52,7 +52,13 @@ export function TicketRow({ ticket: t, selected, expanded, onToggleSelect, onTog
         />
         <span className={`type-chip type-${t.type}`}>{TYPE_LABEL[t.type]}</span>
         <span className="ticket-number">{t.number}</span>
-        <span className="ticket-subject" title={t.subject}>
+        <span
+          className="ticket-subject"
+          title={t.flags?.length
+            ? `${t.subject}\n🚩 ${t.flags.map((f) => `${f.term} (+${f.boost})`).join(', ')}`
+            : t.subject}
+        >
+          {t.flags?.length > 0 && <span className="flag-icon">🚩</span>}
           {t.subject}
           {t.snoozedUntil && <span className="snooze-flag" title={`Snoozed: ${t.snoozeReason ?? ''}`}> ⏸</span>}
         </span>

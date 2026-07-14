@@ -14,9 +14,11 @@ const cursorFirst: CollisionDetection = (args) => {
 };
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  actingUserId, bulkTickets, fetchMeta, fetchTickets, patchTicket,
-  setActingUserId, type ListParams, type TicketChanges, type TicketListItem,
+  actingUserId, bulkTickets, fetchMe, fetchMeta, fetchTickets, fetchUsers,
+  patchTicket, setActingUserId, type ListParams, type TicketChanges,
+  type TicketListItem,
 } from './api';
+import { RequesterPortal } from './components/RequesterPortal';
 import { MODES, type Mode } from './board';
 import { Admin } from './components/Admin';
 import { BulkBar } from './components/BulkBar';
@@ -61,6 +63,8 @@ export default function App() {
   const [page, setPage] = useState<'queue' | 'dashboards' | 'kb' | 'email' | 'admin'>('queue');
   const [userId, setUserId] = useState(actingUserId());
   const [theme, setTheme] = useState(() => localStorage.getItem('mets-theme') ?? 'light');
+  const { data: me } = useQuery({ queryKey: ['me', userId], queryFn: fetchMe });
+  const { data: directory } = useQuery({ queryKey: ['users'], queryFn: fetchUsers, staleTime: 300_000 });
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -267,6 +271,26 @@ export default function App() {
     });
   };
 
+  const switchUser = (id: number) => {
+    setActingUserId(id);
+    setUserId(id);
+    qc.invalidateQueries();
+  };
+
+  // RBAC: requesters get the self-service portal, not the agent board.
+  // Everything agent-side is also 403'd server-side for this role.
+  if (me?.role === 'requester') {
+    return (
+      <RequesterPortal
+        key={`portal-${userId}`}
+        userId={userId}
+        onSwitchUser={switchUser}
+        theme={theme}
+        onToggleTheme={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}
+      />
+    );
+  }
+
   return (
     <DndContext sensors={sensors} collisionDetection={cursorFirst} onDragStart={onDragStart} onDragEnd={onDragEnd}>
       <header className="menubar">
@@ -292,14 +316,22 @@ export default function App() {
           className="user-switcher"
           title="Acting as (dev auth)"
           value={userId}
-          onChange={(e) => {
-            const id = Number(e.target.value);
-            setActingUserId(id);
-            setUserId(id);
-            qc.invalidateQueries();
-          }}
+          onChange={(e) => switchUser(Number(e.target.value))}
         >
-          {meta?.agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+          {directory ? (
+            <>
+              <optgroup label="Staff">
+                {directory.filter((u) => u.role !== 'requester')
+                  .map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+              </optgroup>
+              <optgroup label="Requesters">
+                {directory.filter((u) => u.role === 'requester')
+                  .map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+              </optgroup>
+            </>
+          ) : (
+            meta?.agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)
+          )}
         </select>
         <NotificationsBell key={userId} />
         <button

@@ -20,6 +20,7 @@ let cache: { weights: Weights; at: number } | null = null;
 /** Drop the cached weights so admin edits take effect immediately. */
 export function invalidateScoreWeightsCache() {
   cache = null;
+  keywordCache = null;
 }
 
 export async function getScoreWeights(): Promise<Weights> {
@@ -28,6 +29,26 @@ export async function getScoreWeights(): Promise<Weights> {
   const weights = row ? ({ ...DEFAULT_WEIGHTS, ...(row.value as object) } as Weights) : DEFAULT_WEIGHTS;
   cache = { weights, at: Date.now() };
   return weights;
+}
+
+// Admin-configurable flag keywords: a match in subject/description boosts the
+// score and flags the row (🚩). Matched terms persist to custom_fields so the
+// queue can show them without re-scanning text.
+export type ScoreKeyword = { term: string; boost: number };
+
+let keywordCache: { keywords: ScoreKeyword[]; at: number } | null = null;
+
+export async function getScoreKeywords(): Promise<ScoreKeyword[]> {
+  if (keywordCache && Date.now() - keywordCache.at < 60_000) return keywordCache.keywords;
+  const [row] = await db.select().from(schema.appConfig).where(eq(schema.appConfig.key, 'score_keywords'));
+  const keywords = (row?.value as ScoreKeyword[] | undefined) ?? [];
+  keywordCache = { keywords, at: Date.now() };
+  return keywords;
+}
+
+export function matchKeywords(keywords: ScoreKeyword[], subject: string, description: string) {
+  const text = `${subject}\n${description}`.toLowerCase();
+  return keywords.filter((k) => k.term && text.includes(k.term.toLowerCase()));
 }
 
 function businessDaysBetween(a: Date, b: Date): number {
@@ -44,12 +65,16 @@ function businessDaysBetween(a: Date, b: Date): number {
 /** Recompute and persist a ticket's score. Call inside the same tx as changes. */
 export async function recomputeScore(tx: typeof db, ticketId: number): Promise<number> {
   const w = await getScoreWeights();
+  const keywords = await getScoreKeywords();
   const [t] = await tx
     .select({
       priority: schema.tickets.priority,
       createdAt: schema.tickets.createdAt,
       resolvedAt: schema.tickets.resolvedAt,
       manualBoost: schema.tickets.manualBoost,
+      subject: schema.tickets.subject,
+      description: schema.tickets.description,
+      customFields: schema.tickets.customFields,
       isVip: schema.users.isVip,
     })
     .from(schema.tickets)
@@ -69,13 +94,23 @@ export async function recomputeScore(tx: typeof db, ticketId: number): Promise<n
     if (slaRow.state === 'breached') slaPts = w.slaBreached;
     else if (slaRow.state === 'running' && slaRow.warnAt && slaRow.warnAt <= now) slaPts = w.slaWarning;
   }
+  const matched = matchKeywords(keywords, t.subject, t.description);
+  const keywordPts = matched.reduce((n, k) => n + k.boost, 0);
+
   const score =
     (w.priority[String(t.priority)] ?? 0) +
     Math.min(w.agePerBusinessDay * businessDaysBetween(t.createdAt, end), w.ageCap) +
     (t.isVip ? w.vip : 0) +
     slaPts +
+    keywordPts +
     t.manualBoost;
 
-  await tx.update(schema.tickets).set({ score }).where(eq(schema.tickets.id, ticketId));
+  await tx.update(schema.tickets).set({
+    score,
+    customFields: {
+      ...((t.customFields as object) ?? {}),
+      flaggedKeywords: matched.map((k) => ({ term: k.term, boost: k.boost })),
+    },
+  }).where(eq(schema.tickets.id, ticketId));
   return score;
 }

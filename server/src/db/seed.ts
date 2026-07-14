@@ -217,6 +217,18 @@ async function main() {
       key: 'business_hours',
       value: { timezone: 'America/Phoenix', days: [1, 2, 3, 4, 5], start: '08:00', end: '17:00' },
     },
+    {
+      // Flag keywords — matches boost score and mark rows with 🚩.
+      key: 'score_keywords',
+      value: [
+        { term: 'urgent', boost: 15 },
+        { term: 'outage', boost: 20 },
+        { term: 'phishing', boost: 15 },
+        { term: 'suspicious', boost: 12 },
+        { term: 'locked out', boost: 10 },
+        { term: 'expedite', boost: 10 },
+      ],
+    },
   ]);
 
   await db.insert(routingRules).values([
@@ -661,6 +673,19 @@ async function main() {
   ];
   await db.insert(chatMessages).values(chatRows);
 
+  // Rescore open tickets through the real engine so keyword flags/boosts are
+  // baked into the seeded data (seed's local computeScore doesn't know them).
+  const { recomputeScore } = await import('../services/scoring.js');
+  const openIds = (await db.execute(sql`
+    select t.id from tickets t join statuses s on s.id = t.status_id
+    where s.category not in ('resolved','closed')
+  `)).rows as { id: number }[];
+  for (const r of openIds) await recomputeScore(db, Number(r.id));
+  const flagged = (await db.execute(sql`
+    select count(*) as n from tickets
+    where jsonb_array_length(coalesce(custom_fields->'flaggedKeywords', '[]'::jsonb)) > 0
+  `)).rows[0] as any;
+
   // Derive agent expertise from the freshly seeded resolution history.
   const { deriveSkillsFromHistory } = await import('../services/skills.js');
   const skillSync = await deriveSkillsFromHistory();
@@ -680,6 +705,7 @@ async function main() {
     comments: commentRows.length,
     events: eventRows.length,
     kbArticles: KB_ARTICLES.length,
+    keywordFlagged: Number(flagged?.n ?? 0),
   };
   console.table(summary);
   await pool.end();

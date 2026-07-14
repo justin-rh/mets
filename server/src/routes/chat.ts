@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { and, asc, eq, isNull, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db, schema } from '../db/index.js';
+import { requireStaff } from './guards.js';
 
 const { chatMessages, users } = schema;
 
@@ -9,6 +10,7 @@ const { chatMessages, users } = schema;
 export async function chatRoutes(app: FastifyInstance) {
   // Every partner I've ever messaged with: last message preview + unread count.
   app.get('/api/chat/conversations', async (req) => {
+    requireStaff(req);
     const rows = (await db.execute(sql`
       with pairs as (
         select case when from_id = ${req.userId} then to_id else from_id end as partner_id,
@@ -45,6 +47,7 @@ export async function chatRoutes(app: FastifyInstance) {
   // Thread with one user, oldest first. ?markRead=1 while the thread is on
   // screen so reading is what clears the badge.
   app.get('/api/chat/with/:userId', async (req) => {
+    requireStaff(req);
     const partnerId = z.coerce.number().parse((req.params as any).userId);
     const markRead = (req.query as any)?.markRead === '1';
     if (markRead) {
@@ -63,6 +66,7 @@ export async function chatRoutes(app: FastifyInstance) {
   });
 
   app.post('/api/chat/with/:userId', async (req, reply) => {
+    requireStaff(req);
     const partnerId = z.coerce.number().parse((req.params as any).userId);
     const body = z.object({ body: z.string().trim().min(1).max(4000) }).parse(req.body);
     if (partnerId === req.userId) return reply.status(400).send({ error: 'that way lies madness' });

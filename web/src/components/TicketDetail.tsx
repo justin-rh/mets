@@ -338,6 +338,18 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
               </dd>
             </>
           )}
+          {((t as any).customFields?.flaggedKeywords?.length ?? 0) > 0 && (
+            <>
+              <dt>Flags</dt>
+              <dd className="detail-tags">
+                {(t as any).customFields.flaggedKeywords.map((f: { term: string; boost: number }) => (
+                  <span key={f.term} className="tag flag-tag" title={`Keyword match boosts score by ${f.boost}`}>
+                    🚩 {f.term} +{f.boost}
+                  </span>
+                ))}
+              </dd>
+            </>
+          )}
           <dt>Source</dt>
           <dd>{t.source}</dd>
           <dt>Created</dt>
