@@ -404,18 +404,18 @@ export default function App() {
               onChange={toggleSelectAll}
               title={`Select all (${ticketRows.length})`}
             />
-            <span>Type</span>
+            <span className="col-type">Type</span>
             <span>Ticket</span>
             <span>Subject</span>
-            <span>Tags</span>
-            <span>Queue · Cat.</span>
-            <span>Requester</span>
+            <span className="col-tags">Tags</span>
+            <span className="col-queue">Queue · Cat.</span>
+            <span className="col-requester">Requester</span>
             <span title="Priority">Pri</span>
-            <span className="col-right">Score</span>
-            <span className="col-right">Age</span>
+            <span className="col-right col-score">Score</span>
+            <span className="col-right col-age">Age</span>
             <span>SLA</span>
-            <span>Status</span>
-            <span title="Assignee">Agt</span>
+            <span className="col-status">Status</span>
+            <span className="col-agt" title="Assignee">Agt</span>
           </div>
           <div className={`ticket-list ${isFetching ? 'fetching' : ''}`}>
             {ticketRows.map((t) => (
