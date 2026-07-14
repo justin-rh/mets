@@ -166,7 +166,9 @@ export function RequesterPortal({ userId, onSwitchUser, theme, onToggleTheme }: 
   return (
     <div className="portal">
       <header className="menubar">
-        <div className="logo">MET<span>S</span></div>
+        <button className="logo logo-home" title="Back to my tickets" onClick={() => setTab('tickets')}>
+          MET<span>S</span>
+        </button>
         <span className="portal-badge">Support Portal</span>
         <div className="spacer" />
         <button className="btn accent new-ticket-btn" onClick={() => setNewOpen(true)}>

@@ -328,7 +328,22 @@ export default function App() {
       onDragCancel={() => setDraggingId(null)}
     >
       <header className="menubar">
-        <div className="logo">MET<span>S</span></div>
+        <button
+          className="logo logo-home"
+          title="Back to the queue"
+          onClick={() => {
+            setPage('queue');
+            setMode('All Tickets');
+            setQueueId(undefined);
+            setAssigneeFilter(undefined);
+            setRequesterFilter(undefined);
+            setNlFilter(null);
+            setSearch('');
+            setShowSnoozed(false);
+          }}
+        >
+          MET<span>S</span>
+        </button>
         <nav>
           <a className={page === 'queue' ? 'active' : ''} href="#" onClick={(e) => { e.preventDefault(); setPage('queue'); }}>Queue</a>
           <a className={page === 'dashboards' ? 'active' : ''} href="#" onClick={(e) => { e.preventDefault(); setPage('dashboards'); }}>Dashboards</a>
