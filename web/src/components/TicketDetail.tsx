@@ -377,15 +377,27 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
               </dd>
             </>
           )}
-          {((t as any).customFields?.flaggedKeywords?.length ?? 0) > 0 && (
+          {(((t as any).customFields?.flaggedKeywords?.length ?? 0) > 0
+            || (t as any).customFields?.sentimentFlag
+            || (t as any).customFields?.shouting) && (
             <>
               <dt>Flags</dt>
               <dd className="detail-tags">
-                {(t as any).customFields.flaggedKeywords.map((f: { term: string; boost: number }) => (
+                {((t as any).customFields?.flaggedKeywords ?? []).map((f: { term: string; boost: number }) => (
                   <span key={f.term} className="tag flag-tag" title={`Keyword match boosts score by ${f.boost}`}>
                     🚩 {f.term} +{f.boost}
                   </span>
                 ))}
+                {(t as any).customFields?.sentimentFlag && (
+                  <span className="tag flag-tag" title="From AI triage — boosts the score">
+                    {(t as any).customFields.sentimentFlag === 'frustrated' ? '😤 frustrated' : '⚡ urgent tone'}
+                  </span>
+                )}
+                {(t as any).customFields?.shouting && (
+                  <span className="tag shout-tag" title="Mostly capital letters — score docked. Inside voice, please.">
+                    🔇 all caps
+                  </span>
+                )}
               </dd>
             </>
           )}

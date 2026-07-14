@@ -211,6 +211,7 @@ async function main() {
         priority: { '1': 40, '2': 25, '3': 12, '4': 5 },
         agePerBusinessDay: 2, ageCap: 20, vip: 15,
         slaWarning: 10, slaBreached: 25, manualBoostRange: 10,
+        sentimentFrustrated: 10, sentimentUrgent: 5, allCapsPenalty: 10,
       },
     },
     {
@@ -690,6 +691,16 @@ async function main() {
     { fromId: agA.id, toId: adminUser.id, body: 'Also — approvals are piling up in the Hardware queue, might be worth a sweep', createdAt: chatAt(1.5), readAt: null },
   ];
   await db.insert(chatMessages).values(chatRows);
+
+  // A couple of shouters, so the ALL-CAPS penalty is visible in demo data.
+  await db.execute(sql`
+    update tickets set subject = upper(subject), description = upper(description)
+    where id in (
+      select t.id from tickets t join statuses s on s.id = t.status_id
+      where s.category in ('new','open') and t.snoozed_until is null
+      order by t.id limit 2
+    )
+  `);
 
   // Rescore open tickets through the real engine so keyword flags/boosts are
   // baked into the seeded data (seed's local computeScore doesn't know them).

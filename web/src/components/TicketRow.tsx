@@ -59,6 +59,15 @@ export function TicketRow({ ticket: t, selected, expanded, onToggleSelect, onTog
             : t.subject}
         >
           {t.flags?.length > 0 && <span className="flag-icon">🚩</span>}
+          {t.sentiment === 'frustrated' && (
+            <span className="sent-icon" title="AI read the requester as frustrated — score boosted">😤</span>
+          )}
+          {t.sentiment === 'urgent' && (
+            <span className="sent-icon" title="AI read urgency in the tone — score boosted">⚡</span>
+          )}
+          {t.shouting && (
+            <span className="sent-icon" title="Written in ALL CAPS — score docked. Shouting does not make it more urgent.">🔇</span>
+          )}
           {t.subject}
           {t.snoozedUntil && <span className="snooze-flag" title={`Snoozed: ${t.snoozeReason ?? ''}`}> ⏸</span>}
         </span>

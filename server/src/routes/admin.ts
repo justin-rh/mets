@@ -100,6 +100,9 @@ export async function adminRoutes(app: FastifyInstance) {
       slaWarning: z.number().min(0).max(100),
       slaBreached: z.number().min(0).max(200),
       manualBoostRange: z.number().min(0).max(50),
+      sentimentFrustrated: z.number().min(0).max(100).default(10),
+      sentimentUrgent: z.number().min(0).max(100).default(5),
+      allCapsPenalty: z.number().min(0).max(100).default(10),
     }).parse(req.body);
     await db.insert(appConfig)
       .values({ key: 'score_weights', value: weights, updatedAt: new Date() })

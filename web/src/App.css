@@ -1945,3 +1945,7 @@ select, textarea, input[type='text'], .modal input {
   .admin-tab { flex-shrink: 0; }
   .admin-tab-hint { display: none; }
 }
+
+/* sentiment + shouting */
+.sent-icon { font-size: 11px; margin-right: 4px; cursor: help; }
+.shout-tag { color: var(--text-muted); border: 1px dashed var(--line-strong); background: transparent; }

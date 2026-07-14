@@ -46,7 +46,14 @@ function ScoreWeightsCard({ config }: { config: AdminConfig }) {
         {num('VIP requester', w.vip, (v) => setW({ ...w, vip: v }))}
         {num('SLA warning', w.slaWarning, (v) => setW({ ...w, slaWarning: v }))}
         {num('SLA breached', w.slaBreached, (v) => setW({ ...w, slaBreached: v }))}
+        {num('😤 Frustrated requester', (w as any).sentimentFrustrated ?? 10, (v) => setW({ ...w, sentimentFrustrated: v } as any))}
+        {num('⚡ Urgent tone', (w as any).sentimentUrgent ?? 5, (v) => setW({ ...w, sentimentUrgent: v } as any))}
+        {num('🔇 ALL-CAPS penalty', (w as any).allCapsPenalty ?? 10, (v) => setW({ ...w, allCapsPenalty: v } as any))}
       </div>
+      <p className="admin-hint">
+        Sentiment comes from AI triage. The ALL-CAPS penalty <em>subtracts</em> —
+        shouting does not make a ticket more urgent here.
+      </p>
       <div className="admin-actions">
         <button className="btn primary" disabled={save.isPending} onClick={() => save.mutate()}>
           {save.isPending ? 'Rescoring…' : 'Save & rescore'}

@@ -127,6 +127,8 @@ export async function ticketRoutes(app: FastifyInstance) {
     return rows.map(({ customFields, ...r }) => ({
       ...r,
       flags: ((customFields as any)?.flaggedKeywords ?? []) as { term: string; boost: number }[],
+      sentiment: ((customFields as any)?.sentimentFlag ?? null) as string | null,
+      shouting: Boolean((customFields as any)?.shouting),
       tags: tagsByTicket.get(r.id) ?? [],
       sla: slaByTicket.get(r.id) ?? null,
     }));

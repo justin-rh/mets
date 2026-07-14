@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { db, schema } from '../db/index.js';
 
 type Weights = {
@@ -8,12 +8,31 @@ type Weights = {
   vip: number;
   slaWarning: number;
   slaBreached: number;
+  sentimentFrustrated: number;
+  sentimentUrgent: number;
+  allCapsPenalty: number;
 };
 
 const DEFAULT_WEIGHTS: Weights = {
   priority: { '1': 40, '2': 25, '3': 12, '4': 5 },
   agePerBusinessDay: 2, ageCap: 20, vip: 15, slaWarning: 10, slaBreached: 25,
+  sentimentFrustrated: 10, sentimentUrgent: 5, allCapsPenalty: 10,
 };
+
+/**
+ * Shouting detector: a subject or description that is mostly capital
+ * letters. SHOUTING DOES NOT MAKE YOUR TICKET MORE URGENT — house rule,
+ * it makes it less.
+ */
+export function isShouting(subject: string, description: string): boolean {
+  const shouty = (s: string) => {
+    const letters = s.replace(/[^a-zA-Z]/g, '');
+    if (letters.length < 12) return false;
+    const upper = s.replace(/[^A-Z]/g, '').length;
+    return upper / letters.length > 0.75;
+  };
+  return shouty(subject) || shouty(description);
+}
 
 let cache: { weights: Weights; at: number } | null = null;
 
@@ -97,12 +116,33 @@ export async function recomputeScore(tx: typeof db, ticketId: number): Promise<n
   const matched = matchKeywords(keywords, t.subject, t.description);
   const keywordPts = matched.reduce((n, k) => n + k.boost, 0);
 
+  // Sentiment from the latest AI triage: upset requesters get a nudge up.
+  const [enr] = await tx
+    .select({ result: schema.aiEnrichments.result })
+    .from(schema.aiEnrichments)
+    .where(and(
+      eq(schema.aiEnrichments.ticketId, ticketId),
+      eq(schema.aiEnrichments.feature, 'triage'),
+    ))
+    .orderBy(desc(schema.aiEnrichments.createdAt))
+    .limit(1);
+  const sentiment = ((enr?.result as any)?.sentiment ?? 'neutral') as string;
+  const sentimentPts =
+    sentiment === 'frustrated' ? w.sentimentFrustrated
+    : sentiment === 'urgent' ? w.sentimentUrgent
+    : 0;
+
+  // …and SHOUTING gets a nudge down.
+  const shouting = isShouting(t.subject, t.description);
+
   const score =
     (w.priority[String(t.priority)] ?? 0) +
     Math.min(w.agePerBusinessDay * businessDaysBetween(t.createdAt, end), w.ageCap) +
     (t.isVip ? w.vip : 0) +
     slaPts +
     keywordPts +
+    sentimentPts -
+    (shouting ? w.allCapsPenalty : 0) +
     t.manualBoost;
 
   await tx.update(schema.tickets).set({
@@ -110,6 +150,8 @@ export async function recomputeScore(tx: typeof db, ticketId: number): Promise<n
     customFields: {
       ...((t.customFields as object) ?? {}),
       flaggedKeywords: matched.map((k) => ({ term: k.term, boost: k.boost })),
+      sentimentFlag: sentimentPts > 0 ? sentiment : null,
+      shouting,
     },
   }).where(eq(schema.tickets.id, ticketId));
   return score;

@@ -23,6 +23,8 @@ export type TicketListItem = {
   submittedBy: { id: number; name: string } | null;
   category: string | null; tags: string[]; sla: SlaInfo | null;
   flags: { term: string; boost: number }[];
+  sentiment: 'frustrated' | 'urgent' | null;
+  shouting: boolean;
 };
 
 export type Comment = {

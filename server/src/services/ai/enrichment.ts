@@ -185,6 +185,11 @@ export async function enrichTicket(ticketId: number, mode: EnrichMode = 'suggest
     result: r, confidence: r.confidence,
   }).returning();
 
+  // The score reads sentiment from the enrichment just inserted — rescore so
+  // an upset requester climbs the queue (and SHOUTING sinks) immediately.
+  const { recomputeScore } = await import('../scoring.js');
+  await recomputeScore(db, ticketId);
+
   // With a category on the ticket, look for a burst of similar reports —
   // a confirmed burst becomes a linked major incident.
   if (mode === 'auto') {
