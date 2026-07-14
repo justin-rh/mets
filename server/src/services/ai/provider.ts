@@ -40,7 +40,7 @@ export type TriageCorrection = {
 export type TriageContext = {
   categories: { name: string; description: string | null; queueSlug: string }[];
   queues: { slug: string; name: string; description: string | null }[];
-  /** Employee directory for on-behalf-of detection. */
+  /** On-behalf-of candidates: directory entries matching the ticket text (pre-filtered, capped). */
   directory: { name: string; department: string | null; location: string | null }[];
   /** Recent agent corrections — injected as patterns to follow. */
   corrections: TriageCorrection[];
@@ -181,15 +181,13 @@ priority:
 
 On-behalf-of detection: sometimes the submitter is filing for ANOTHER person
 ("filing this for our VP", "Hannah at the warehouse needs…", "my new hire
-can't log in"). When the text clearly identifies a specific person from the
-directory below as the actual beneficiary, set onBehalfOf to their EXACT
-directory name. Rules: never the submitter themself; a person merely
+can't log in"). Each ticket lists its possible beneficiaries — the directory
+entries whose names appear in the ticket text. When the text clearly
+identifies one of them as the actual beneficiary, set onBehalfOf to their
+EXACT listed name. Rules: never the submitter themself; a person merely
 mentioned (cc'd, quoted, their manager) is NOT the beneficiary; if the name
-is ambiguous (two matches) or not in the directory, use null. Most tickets
-are for the submitter — null is the common answer.
-
-Employee directory:
-${ctx.directory.map((u) => `- ${u.name} (${u.department ?? '—'}, ${u.location ?? '—'})`).join('\n')}
+is ambiguous (two candidates match) or the list is empty, use null. Most
+tickets are for the submitter — null is the common answer.
 
 Confidence values: report your honest certainty per field, 0 to 1. Use lower
 values when the ticket is vague, spans multiple categories, or the priority
@@ -216,10 +214,14 @@ class ClaudeProvider implements AIProvider {
       messages: [
         {
           role: 'user',
-          // Corrections ride in the user turn (not the system block) so the
-          // cached static prompt prefix survives new feedback.
+          // Corrections and beneficiary candidates ride in the user turn (not
+          // the system block) so the cached static prompt prefix survives
+          // new feedback and per-ticket variation.
           content: `${ctx.corrections.length ? `Agents recently corrected these AI classifications — follow these patterns when similar tickets appear:
 ${ctx.corrections.map((c) => `- "${c.subject}": AI chose ${c.aiChose}; agents corrected to ${c.agentCorrectedTo}`).join('\n')}
+
+` : ''}${ctx.directory.length ? `Possible beneficiaries (directory entries whose names appear in this ticket):
+${ctx.directory.map((u) => `- ${u.name} (${u.department ?? '—'}, ${u.location ?? '—'})`).join('\n')}
 
 ` : ''}Triage this ticket:
 Subject: ${input.subject}

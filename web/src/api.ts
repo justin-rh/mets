@@ -67,8 +67,8 @@ export const mergeTicket = (id: number, targetId: number, force = false) =>
   );
 
 export const flagTicket = (id: number, flag: {
-  kind: 'wrong_category' | 'needs_approval' | 'misrouted';
-  categoryId?: number; note?: string;
+  kind: 'wrong_category' | 'needs_approval' | 'misrouted' | 'wrong_user';
+  categoryId?: number; userId?: number; note?: string;
 }) =>
   api<{ ok: boolean; message: string }>(`/api/tickets/${id}/flag`, {
     method: 'POST', body: JSON.stringify(flag),

@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   actingUserId, decideApproval, draftReply, fetchBestFits, fetchMe,
   fetchMergeCandidates, fetchMeta, fetchSuggestions, fetchTicket,
-  fetchTicketTemplates, flagTicket, mergeTicket, openChat, patchTicket,
+  fetchTicketTemplates, fetchUsers, flagTicket, mergeTicket, openChat, patchTicket,
   postComment, type IdentifierCheck,
 } from '../api';
 import { copyToClipboard, fmtDateTime, initials } from '../format';
@@ -20,8 +20,9 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
   const [snoozeOpen, setSnoozeOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [flagOpen, setFlagOpen] = useState(false);
-  const [flagKind, setFlagKind] = useState<'wrong_category' | 'needs_approval' | 'misrouted'>('wrong_category');
+  const [flagKind, setFlagKind] = useState<'wrong_category' | 'needs_approval' | 'misrouted' | 'wrong_user'>('wrong_category');
   const [flagCategoryId, setFlagCategoryId] = useState('');
+  const [flagUserId, setFlagUserId] = useState('');
   const [flagNote, setFlagNote] = useState('');
   const [mergeOpen, setMergeOpen] = useState(false);
   const [mergeTargetId, setMergeTargetId] = useState<number | null>(null);
@@ -83,6 +84,12 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
     queryFn: () => fetchMergeCandidates(ticketId),
     enabled: mergeOpen,
   });
+  const { data: directory } = useQuery({
+    queryKey: ['users'],
+    queryFn: fetchUsers,
+    staleTime: 300_000,
+    enabled: flagOpen,
+  });
   const merge = useMutation({
     mutationFn: ({ force }: { force: boolean }) => mergeTicket(ticketId, mergeTargetId!, force),
     onSuccess: (r) => {
@@ -103,6 +110,7 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
     mutationFn: () => flagTicket(ticketId, {
       kind: flagKind,
       categoryId: flagKind === 'wrong_category' && flagCategoryId ? Number(flagCategoryId) : undefined,
+      userId: flagKind === 'wrong_user' && flagUserId ? Number(flagUserId) : undefined,
       note: flagNote.trim() || undefined,
     }),
     onSuccess: (r) => {
@@ -110,6 +118,7 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
       setFlagOpen(false);
       setFlagNote('');
       setFlagCategoryId('');
+      setFlagUserId('');
       invalidate();
     },
     onError: (e: any) => toast(e?.message ?? 'Could not flag', 'info'),
@@ -403,7 +412,7 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
           </button>
           <button
             className={`btn ${flagOpen ? 'active' : ''}`}
-            title="Flag this ticket: wrong category, needs approval, or misrouted"
+            title="Flag this ticket: wrong category, needs approval, misrouted, or wrong user"
             onClick={() => setFlagOpen((v) => !v)}
           >
             ⚑ Flag
@@ -532,6 +541,32 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
                 <em>unassigns and sends it back to intake for re-triage</em>
               </span>
             </label>
+            <label className="flag-option">
+              <input
+                type="radio"
+                name={`flag-${ticketId}`}
+                checked={flagKind === 'wrong_user'}
+                onChange={() => setFlagKind('wrong_user')}
+              />
+              <span>
+                Wrong user
+                <em>really for someone else — swaps the requester, teaches the AI</em>
+              </span>
+            </label>
+            {flagKind === 'wrong_user' && (
+              <select
+                className="flag-category"
+                value={flagUserId}
+                onChange={(e) => setFlagUserId(e.target.value)}
+              >
+                <option value="">Not sure — just flag it</option>
+                {(directory ?? [])
+                  .filter((u) => u.id !== t.requester.id)
+                  .map((u) => (
+                    <option key={u.id} value={u.id}>{u.name} ({u.department ?? u.location ?? '—'})</option>
+                  ))}
+              </select>
+            )}
             <textarea
               className="flag-note"
               rows={2}

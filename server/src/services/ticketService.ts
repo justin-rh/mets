@@ -258,12 +258,14 @@ export async function createTicketCore(input: {
 }
 
 /**
- * AI-detected on-behalf-of: the ticket text said it's really for someone
- * else. Swap the requester (VIP scoring, SLAs, and auto-responses follow the
- * beneficiary), keep the actual submitter on submitted_by, and move the
- * location tag. Skips tickets that already have an explicit submitter.
+ * On-behalf-of: the ticket is really for someone else. Swap the requester
+ * (VIP scoring, SLAs, and auto-responses follow the beneficiary), keep the
+ * actual submitter on submitted_by, and move the location tag. Called by AI
+ * triage (no actor — skips tickets that already have an explicit submitter)
+ * or by an agent's wrong-user flag (actor set — overrides that guard, since
+ * a human correction outranks the original designation).
  */
-export async function reassignRequester(ticketId: number, newRequesterId: number) {
+export async function reassignRequester(ticketId: number, newRequesterId: number, actor?: { id: number }) {
   const [t] = await db
     .select({
       requesterId: tickets.requesterId, submittedById: tickets.submittedById,
@@ -272,16 +274,20 @@ export async function reassignRequester(ticketId: number, newRequesterId: number
     .from(tickets)
     .innerJoin(users, eq(users.id, tickets.requesterId))
     .where(eq(tickets.id, ticketId));
-  if (!t || t.submittedById != null || t.requesterId === newRequesterId) return false;
+  if (!t || (!actor && t.submittedById != null) || t.requesterId === newRequesterId) return false;
   const [next] = await db.select({ name: users.name, location: users.location })
     .from(users).where(eq(users.id, newRequesterId));
   if (!next) return false;
 
+  // Original submitter stays on submitted_by — unless the correction points
+  // back at the submitter themself (self-submitted convention: null).
+  const submittedById = (t.submittedById ?? t.requesterId) === newRequesterId
+    ? null : (t.submittedById ?? t.requesterId);
   await db.update(tickets).set({
-    requesterId: newRequesterId, submittedById: t.requesterId, updatedAt: new Date(),
+    requesterId: newRequesterId, submittedById, updatedAt: new Date(),
   }).where(eq(tickets.id, ticketId));
   await db.insert(ticketEvents).values({
-    ticketId, actorId: null, actorType: 'ai', eventType: 'submitted_on_behalf',
+    ticketId, actorId: actor?.id ?? null, actorType: actor ? 'user' : 'ai', eventType: 'submitted_on_behalf',
     field: 'requester', oldValue: t.oldName, newValue: next.name,
   });
 

@@ -48,6 +48,29 @@ async function getTriageContext(): Promise<TriageContext> {
   return { ...ctxCache.ctx, corrections: await recentCorrections() };
 }
 
+/**
+ * On-behalf-of candidates: directory entries whose name plausibly appears in
+ * the ticket text. Inlining the whole directory into the prompt doesn't scale
+ * (prompt cost grows linearly with headcount) and hurts precision — the model
+ * only needs the handful of people the ticket could actually be about.
+ */
+function candidateBeneficiaries(
+  text: string,
+  requesterName: string,
+  directory: TriageContext['directory'],
+  cap = 10,
+) {
+  const hay = text.toLowerCase();
+  const words = new Set(hay.split(/[^a-z0-9'’-]+/));
+  return directory.filter((u) => {
+    if (u.name === requesterName) return false;
+    const name = u.name.toLowerCase();
+    if (hay.includes(name)) return true;
+    // A lone distinctive token still counts ("Hannah at the warehouse needs…").
+    return name.split(/\s+/).some((part) => part.length >= 3 && words.has(part));
+  }).slice(0, cap);
+}
+
 /** Latest agent corrections, formatted as few-shot patterns for the prompt. */
 async function recentCorrections(limit = 8) {
   const rows = await db
@@ -64,8 +87,8 @@ async function recentCorrections(limit = 8) {
   return rows.map((r) => {
     const original = (r.result as any) ?? {};
     const corrected = (r.feedback as any)?.corrected ?? {};
-    const fmt = (v: { category?: string; queueSlug?: string; priority?: number }) =>
-      [v.category, v.queueSlug && `queue ${v.queueSlug}`, v.priority && `P${v.priority}`]
+    const fmt = (v: { category?: string; queueSlug?: string; priority?: number; onBehalfOf?: string | null }) =>
+      [v.category, v.queueSlug && `queue ${v.queueSlug}`, v.priority && `P${v.priority}`, v.onBehalfOf && `on behalf of ${v.onBehalfOf}`]
         .filter(Boolean).join(', ');
     return {
       subject: r.subject.slice(0, 90),
@@ -127,6 +150,8 @@ export async function enrichTicket(ticketId: number, mode: EnrichMode = 'suggest
   if (!t) throw Object.assign(new Error('ticket not found'), { statusCode: 404 });
 
   const ctx = await getTriageContext();
+  ctx.directory = candidateBeneficiaries(
+    `${t.subject} ${t.description}`, t.requesterName, ctx.directory);
   const outcome = await getAIProvider().triage(
     {
       subject: t.subject, description: t.description,
@@ -299,7 +324,7 @@ export async function dismissEnrichment(enrichmentId: number) {
 export async function correctEnrichment(
   enrichmentId: number,
   actorId: number,
-  fix: { categoryId?: number; queueId?: number; priority?: number },
+  fix: { categoryId?: number; queueId?: number; priority?: number; onBehalfOf?: string },
 ) {
   const [e] = await db.select().from(aiEnrichments).where(eq(aiEnrichments.id, enrichmentId));
   if (!e) throw Object.assign(new Error('enrichment not found'), { statusCode: 404 });
@@ -323,8 +348,8 @@ export async function correctEnrichment(
   await db.update(aiEnrichments).set({
     status: 'corrected',
     feedback: {
-      original: { category: r?.category, queueSlug: r?.queueSlug, priority: r?.priority },
-      corrected: { category: cat?.name, queueSlug: q?.slug, priority: fix.priority },
+      original: { category: r?.category, queueSlug: r?.queueSlug, priority: r?.priority, onBehalfOf: r?.onBehalfOf },
+      corrected: { category: cat?.name, queueSlug: q?.slug, priority: fix.priority, onBehalfOf: fix.onBehalfOf },
       byUserId: actorId,
       at: new Date().toISOString(),
     },
@@ -332,8 +357,8 @@ export async function correctEnrichment(
 
   await db.insert(schema.ticketEvents).values({
     ticketId: e.ticketId, actorId, actorType: 'user', eventType: 'ai_corrected',
-    oldValue: [r?.category, r?.queueSlug, r?.priority && `P${r.priority}`].filter(Boolean).join(' / '),
-    newValue: [cat?.name, q?.slug, fix.priority && `P${fix.priority}`].filter(Boolean).join(' / '),
+    oldValue: [r?.category, r?.queueSlug, r?.priority && `P${r.priority}`, r?.onBehalfOf && `for ${r.onBehalfOf}`].filter(Boolean).join(' / '),
+    newValue: [cat?.name, q?.slug, fix.priority && `P${fix.priority}`, fix.onBehalfOf && `for ${fix.onBehalfOf}`].filter(Boolean).join(' / '),
   });
 
   return { ok: true };

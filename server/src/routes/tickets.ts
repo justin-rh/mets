@@ -380,15 +380,17 @@ export async function ticketRoutes(app: FastifyInstance) {
   });
 
   // Agent flags from the expanded ticket: wrong category (feeds the AI
-  // learning loop), needs manager approval (forces the gate), or misrouted
-  // (back to intake for re-triage). Always audited; note becomes an
-  // internal comment.
+  // learning loop), needs manager approval (forces the gate), misrouted
+  // (back to intake for re-triage), or wrong user (ticket is really for
+  // someone else — swaps the requester, also feeds the learning loop).
+  // Always audited; note becomes an internal comment.
   app.post('/api/tickets/:id/flag', async (req, reply) => {
     requireStaff(req);
     const id = z.coerce.number().parse((req.params as any).id);
     const body = z.object({
-      kind: z.enum(['wrong_category', 'needs_approval', 'misrouted']),
+      kind: z.enum(['wrong_category', 'needs_approval', 'misrouted', 'wrong_user']),
       categoryId: z.number().optional(),
+      userId: z.number().optional(),
       note: z.string().trim().max(500).optional(),
     }).parse(req.body);
 
@@ -418,6 +420,30 @@ export async function ticketRoutes(app: FastifyInstance) {
         }
       } else {
         message = 'Flagged for category review';
+      }
+    } else if (body.kind === 'wrong_user') {
+      if (body.userId) {
+        const [u] = await db.select({ name: users.name }).from(users)
+          .where(and(eq(users.id, body.userId), eq(users.isActive, true)));
+        if (!u) return reply.status(400).send({ error: 'no such user' });
+        const { reassignRequester } = await import('../services/ticketService.js');
+        const ok = await reassignRequester(id, body.userId, { id: req.userId });
+        if (!ok) return reply.status(409).send({ error: 'ticket already belongs to that requester' });
+        // When AI triage saw this ticket and missed the on-behalf-of, the
+        // correction becomes a pattern future triage follows.
+        const [enrichment] = await db.select({ id: schema.aiEnrichments.id })
+          .from(schema.aiEnrichments)
+          .where(and(eq(schema.aiEnrichments.ticketId, id), eq(schema.aiEnrichments.feature, 'triage')))
+          .orderBy(desc(schema.aiEnrichments.createdAt)).limit(1);
+        if (enrichment) {
+          const { correctEnrichment } = await import('../services/ai/enrichment.js');
+          await correctEnrichment(enrichment.id, req.userId, { onBehalfOf: u.name });
+          message = `Requester changed to ${u.name} — the AI learns from this correction`;
+        } else {
+          message = `Requester changed to ${u.name} — SLAs and scoring follow them`;
+        }
+      } else {
+        message = 'Flagged for requester review';
       }
     } else if (body.kind === 'needs_approval') {
       const { maybeRequestApproval } = await import('../services/approvalService.js');
