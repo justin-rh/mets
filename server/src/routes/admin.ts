@@ -5,7 +5,7 @@ import { db, schema } from '../db/index.js';
 import { invalidateScoreWeightsCache, recomputeScore } from '../services/scoring.js';
 import { deriveSkillsFromHistory } from '../services/skills.js';
 
-const { appConfig, statuses, slaPolicies, routingRules, users, tickets, skills, agentSkills } = schema;
+const { appConfig, statuses, slaPolicies, routingRules, users, tickets, skills, agentSkills, responseTemplates, categories } = schema;
 
 /** All admin mutations require the admin role — the RBAC requirement, live. */
 async function requireAdmin(userId: number) {
@@ -37,7 +37,55 @@ export async function adminRoutes(app: FastifyInstance) {
       skills: await db.select().from(skills).orderBy(asc(skills.name)),
       slaPolicies: await db.select().from(slaPolicies).orderBy(asc(slaPolicies.id)),
       routingRules: await db.select().from(routingRules).orderBy(asc(routingRules.position)),
+      templates: await db.select().from(responseTemplates).orderBy(asc(responseTemplates.name)),
+      categories: await db.select({
+        id: categories.id, name: categories.name, requiresApproval: categories.requiresApproval,
+      }).from(categories).orderBy(asc(categories.name)),
     };
+  });
+
+  const templateBody = z.object({
+    name: z.string().trim().min(1).max(120),
+    body: z.string().trim().min(1).max(10_000),
+    categoryId: z.number().nullable().default(null),
+    autoRespond: z.boolean().default(false),
+    isActive: z.boolean().default(true),
+  });
+
+  app.post('/api/admin/templates', async (req) => {
+    await requireAdmin(req.userId);
+    const body = templateBody.parse(req.body);
+    const [created] = await db.insert(responseTemplates).values(body).returning();
+    return created;
+  });
+
+  app.patch('/api/admin/templates/:id', async (req) => {
+    await requireAdmin(req.userId);
+    const id = z.coerce.number().parse((req.params as any).id);
+    const body = templateBody.partial().parse(req.body);
+    const [updated] = await db.update(responseTemplates)
+      .set({ ...body, updatedAt: new Date() })
+      .where(eq(responseTemplates.id, id)).returning();
+    return updated;
+  });
+
+  // Toggle the approval gate: request tickets in gated categories wait for
+  // the requester's manager before hitting a work queue.
+  app.patch('/api/admin/categories/:id', async (req) => {
+    await requireAdmin(req.userId);
+    const id = z.coerce.number().parse((req.params as any).id);
+    const body = z.object({ requiresApproval: z.boolean() }).parse(req.body);
+    const [updated] = await db.update(categories)
+      .set({ requiresApproval: body.requiresApproval })
+      .where(eq(categories.id, id)).returning();
+    return updated;
+  });
+
+  app.delete('/api/admin/templates/:id', async (req) => {
+    await requireAdmin(req.userId);
+    const id = z.coerce.number().parse((req.params as any).id);
+    await db.delete(responseTemplates).where(eq(responseTemplates.id, id));
+    return { ok: true };
   });
 
   app.put('/api/admin/score-weights', async (req) => {

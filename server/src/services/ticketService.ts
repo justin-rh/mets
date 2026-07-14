@@ -29,7 +29,7 @@ type Actor = { id: number | null; type?: 'user' | 'system' | 'rule' | 'ai' };
  * (design rule: events come from the service layer, never triggers).
  */
 export async function applyTicketChanges(ticketId: number, actor: Actor, changes: TicketChanges) {
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     const [current] = await tx.select().from(tickets).where(eq(tickets.id, ticketId));
     if (!current) throw Object.assign(new Error('ticket not found'), { statusCode: 404 });
 
@@ -151,6 +151,18 @@ export async function applyTicketChanges(ticketId: number, actor: Actor, changes
     await recomputeScore(tx as unknown as typeof db, ticketId);
     return { ticketId, changed: true };
   });
+
+  // Landing in a category fires its auto-respond template (once per ticket),
+  // whoever set it — AI triage, a correction, or an agent — and, for
+  // request-type tickets in approval-gated categories, parks the ticket
+  // pending manager sign-off.
+  if (result.changed && changes.categoryId !== undefined) {
+    const { runAutoResponses } = await import('./templates.js');
+    await runAutoResponses(ticketId, 'categorized').catch(() => {});
+    const { maybeRequestApproval } = await import('./approvalService.js');
+    await maybeRequestApproval(ticketId).catch(() => {});
+  }
+  return result;
 }
 
 /**
@@ -200,6 +212,10 @@ export async function createTicketCore(input: {
   await applyRoutingRules(created!.id).catch(() => {});
   const [routed] = await db.select({ priority: tickets.priority }).from(tickets).where(eq(tickets.id, created!.id));
   await attachSlas(db, created!.id, routed?.priority ?? created!.priority);
+
+  // Global acknowledgment auto-response (if one is configured and active).
+  const { runAutoResponses } = await import('./templates.js');
+  await runAutoResponses(created!.id, 'created').catch(() => {});
 
   return created!;
 }

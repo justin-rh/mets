@@ -3,14 +3,14 @@
 //
 // SLA target times here are wall-clock approximations; the real business-hours
 // math arrives with the SLA engine and recomputes on live tickets.
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { db, pool } from './index.js';
 import {
   agentSkills, aiUsage, appConfig, approvals, attachments, categories,
   kbArticles, kbChunks, routingRules, skills, slaInstances, slaPolicies,
   statuses, tags, teamMemberships, teams, ticketComments, ticketEvents,
   ticketLinks, ticketStatusDurations, ticketTags, tickets, users,
-  aiEnrichments,
+  aiEnrichments, responseTemplates,
 } from './schema.js';
 import {
   AGENT_COMMENTS, APPS, CATEGORIES, CATEGORY_TAGS, DEPARTMENTS, DEVICES,
@@ -124,7 +124,8 @@ async function main() {
       sla_policies, routing_rules, approvals, attachments,
       ticket_status_durations, ticket_events, ticket_comments, ticket_links,
       ticket_tags, tickets, agent_skills, skills, custom_field_definitions,
-      tags, categories, statuses, team_memberships, teams, users, app_config
+      response_templates, tags, categories, statuses, team_memberships, teams,
+      users, app_config
     RESTART IDENTITY CASCADE
   `);
   await db.execute(sql`ALTER SEQUENCE ticket_number_seq RESTART WITH 1000000`);
@@ -135,10 +136,11 @@ async function main() {
     { name: 'New', category: 'new', position: 1, isDefault: true },
     { name: 'Open', category: 'open', position: 2 },
     { name: 'In Progress', category: 'open', position: 3 },
-    { name: 'Waiting on Requester', category: 'pending', position: 4 },
-    { name: 'Waiting on Vendor', category: 'pending', position: 5 },
-    { name: 'Resolved', category: 'resolved', position: 6 },
-    { name: 'Closed', category: 'closed', position: 7 },
+    { name: 'Awaiting Approval', category: 'pending', position: 4 },
+    { name: 'Waiting on Requester', category: 'pending', position: 5 },
+    { name: 'Waiting on Vendor', category: 'pending', position: 6 },
+    { name: 'Resolved', category: 'resolved', position: 7 },
+    { name: 'Closed', category: 'closed', position: 8 },
   ]).returning();
   const statusByName = Object.fromEntries(statusRows.map((s) => [s.name, s]));
 
@@ -147,10 +149,45 @@ async function main() {
   ).returning();
   const teamBySlug = Object.fromEntries(teamRows.map((t) => [t.slug, t]));
 
+  // Equipment and license requests wait for manager approval before routing.
+  const APPROVAL_GATED = new Set(['Hardware', 'Software']);
   const categoryRows = await db.insert(categories).values(
-    CATEGORIES.map((c) => ({ name: c.name, description: c.description })),
+    CATEGORIES.map((c) => ({
+      name: c.name, description: c.description,
+      requiresApproval: APPROVAL_GATED.has(c.name),
+    })),
   ).returning();
   const categoryByName = Object.fromEntries(categoryRows.map((c) => [c.name, c]));
+
+  await db.insert(responseTemplates).values([
+    {
+      name: 'Acknowledgment — new ticket', autoRespond: true, categoryId: null,
+      body: 'Hi {{requester.firstName}},\n\nThanks for reaching out — we\'ve logged your request as {{ticket.number}} ("{{ticket.subject}}") and it\'s with the {{queue.name}} team. An agent will follow up shortly; replies to this email land right on your ticket.\n\n— SOTO Bot (Sorts Out Tickets, Obviously)',
+    },
+    {
+      name: 'Password reset — self service', autoRespond: true,
+      categoryId: categoryByName['Access & Accounts']!.id,
+      body: 'Hi {{requester.firstName}},\n\nWhile an agent picks up {{ticket.number}}, most password and lockout issues can be fixed right away:\n\n1. Reset your Microsoft 365 password at https://aka.ms/sspr (works even when locked out).\n2. Application passwords live in Keeper — check your vault before requesting a reset.\n3. Still stuck after 2 failed resets? Reply here and an agent will unlock you manually.\n\n— SOTO Bot',
+    },
+    {
+      name: 'VPN quick checks', autoRespond: false,
+      categoryId: categoryByName['Network & VPN']!.id,
+      body: 'Hi {{requester.firstName}},\n\nA few quick checks for VPN trouble before we dig deeper on {{ticket.number}}:\n\n1. Confirm you\'re on an external network (the VPN won\'t connect from inside the office).\n2. Reboot, then let NinjaOne finish its startup checks before connecting.\n3. If it fails with a certificate error, note the exact message and reply here.\n\nLet me know how far you get.\n\n{{agent.name}}',
+    },
+    {
+      name: 'Printer troubleshooting', autoRespond: false,
+      categoryId: categoryByName['Printing & Labels']!.id,
+      body: 'Hi {{requester.firstName}},\n\nFor the printer issue in {{ticket.number}}, please try:\n\n1. Power-cycle the printer and wait for it to fully reinitialize.\n2. Remove and re-add it from Settings → Printers & Scanners.\n3. For Zebra label printers: check the media guide is snug against the label roll.\n\nIf it\'s still misbehaving, reply with the printer model and what it does (or doesn\'t do).\n\n{{agent.name}}',
+    },
+    {
+      name: 'Need more information', autoRespond: false, categoryId: null,
+      body: 'Hi {{requester.firstName}},\n\nTo keep {{ticket.number}} moving I need a bit more detail:\n\n- What were you doing when the problem occurred?\n- What did you expect to happen, and what happened instead?\n- A screenshot of any error message helps a lot.\n\nThanks!\n\n{{agent.name}}',
+    },
+    {
+      name: 'Resolved — closing note', autoRespond: false, categoryId: null,
+      body: 'Hi {{requester.firstName}},\n\nGood news — {{ticket.number}} should be resolved. Please give it a try and reply here if anything still looks off; replying reopens the ticket automatically. Otherwise it will close on its own in a few days.\n\n{{agent.name}}',
+    },
+  ]);
 
   const allTagNames = [...TAGS, ...USER_LOCATIONS.map((l) => locationSlug(l.name))];
   const tagRows = await db.insert(tags).values(allTagNames.map((name) => ({ name }))).returning();
@@ -230,6 +267,9 @@ async function main() {
 
   const userRows: (typeof users.$inferInsert)[] = [
     { name: 'Justin Rhoda', email: 'justin.rhoda@masterelectronics.com', department: 'IT', role: 'admin', location: 'Phoenix, AZ' },
+    // SOTO Bot (Sorts Out Tickets, Obviously) authors auto-responses;
+    // readonly keeps it out of the agent rail and every assignment pool.
+    { name: 'SOTO Bot', email: 'soto-bot@masterelectronics.com', department: 'IT', role: 'readonly', location: 'Remote' },
   ];
   for (let i = 0; i < AGENT_COUNT; i++) {
     // a couple of agents are out of office so the OOO handling is visible
@@ -249,6 +289,16 @@ async function main() {
   const agents = allUsers.filter((u) => u.role === 'agent');
   const requesters = allUsers.filter((u) => u.role === 'requester');
   const vips = requesters.filter((u) => u.isVip);
+
+  // Management chain (feeds the approval workflow): requesters report to a
+  // VIP exec, execs and agents report to the admin.
+  const adminUser = allUsers.find((u) => u.role === 'admin')!;
+  for (const r of requesters.filter((u) => !u.isVip)) {
+    await db.update(users).set({ managerId: pick(vips).id }).where(eq(users.id, r.id));
+  }
+  for (const u of [...vips, ...agents]) {
+    await db.update(users).set({ managerId: adminUser.id }).where(eq(users.id, u.id));
+  }
 
   // Rotate agents across queues so everyone is on at least one team; the
   // wrap-around gives a couple of agents dual membership. One lead per queue.
@@ -543,6 +593,42 @@ async function main() {
   await insertChunked(ticketEvents, eventRows);
   await insertChunked(ticketTags, tagLinkRows);
   await insertChunked(slaInstances, slaRows);
+
+  // Two request tickets parked pending manager approval, so the approval flow
+  // is visible in demo data (equipment/license requests in gated categories).
+  const botUser = allUsers.find((u) => u.name === 'SOTO Bot')!;
+  const awaitingApproval = statusByName['Awaiting Approval']!;
+  const intakeQueue = teamRows[0]!;
+  const gatedDemo = (await db.execute(sql`
+    select t.id, t.number, t.queue_id, t.requester_id, u.name as requester_name, u.manager_id, c.name as category
+    from tickets t
+    join statuses s on s.id = t.status_id
+    join categories c on c.id = t.category_id
+    join users u on u.id = t.requester_id
+    where t.type = 'request' and c.requires_approval and s.category in ('new','open')
+      and u.manager_id is not null and t.snoozed_until is null
+    order by (t.assignee_id is null) desc, (s.category = 'new') desc, t.id desc limit 2
+  `)).rows as any[];
+  for (const g of gatedDemo) {
+    const approverId = Number(g.manager_id);
+    const [approver] = await db.select({ name: users.name }).from(users).where(eq(users.id, approverId));
+    await db.insert(approvals).values({
+      ticketId: Number(g.id), approverId,
+      targetQueueId: Number(g.queue_id) === intakeQueue.id ? null : Number(g.queue_id),
+    });
+    await db.update(tickets)
+      .set({ statusId: awaitingApproval.id, queueId: intakeQueue.id })
+      .where(eq(tickets.id, Number(g.id)));
+    await db.insert(ticketEvents).values({
+      ticketId: Number(g.id), actorId: approverId, actorType: 'system',
+      eventType: 'approval_requested', field: 'approver',
+      oldValue: g.category, newValue: approver!.name,
+    });
+    await db.insert(ticketComments).values({
+      ticketId: Number(g.id), authorId: botUser.id, visibility: 'public', source: 'api',
+      bodyText: `Hi ${String(g.requester_name).split(' ')[0]},\n\n${g.category} requests need a sign-off before they're worked. ${g.number} has been sent to ${approver!.name} for approval — you'll get an update here as soon as they decide.\n\n— SOTO Bot`,
+    });
+  }
 
   // Derive agent expertise from the freshly seeded resolution history.
   const { deriveSkillsFromHistory } = await import('../services/skills.js');

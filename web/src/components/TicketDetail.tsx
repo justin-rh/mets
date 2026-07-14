@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  actingUserId, draftReply, fetchBestFits, fetchMeta, fetchSuggestions,
-  fetchTicket, patchTicket, postComment,
+  actingUserId, decideApproval, draftReply, fetchBestFits, fetchMe, fetchMeta,
+  fetchSuggestions, fetchTicket, fetchTicketTemplates, patchTicket, postComment,
 } from '../api';
 import { copyToClipboard, fmtDateTime, initials } from '../format';
 import { SnoozeDialog } from './SnoozeDialog';
@@ -57,6 +57,21 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
     mutationFn: () => draftReply(ticketId),
     onSuccess: (d) => { setVisibility('public'); setReply(d.draft); },
   });
+  const { data: templates } = useQuery({
+    queryKey: ['templates', ticketId],
+    queryFn: () => fetchTicketTemplates(ticketId),
+    staleTime: 300_000,
+  });
+  const { data: me } = useQuery({ queryKey: ['me', actingUserId()], queryFn: fetchMe });
+  const decide = useMutation({
+    mutationFn: ({ id, approve, note }: { id: number; approve: boolean; note?: string }) =>
+      decideApproval(id, approve, note),
+    onSuccess: (_r, v) => {
+      toast(v.approve ? `${t?.number} approved — routed to its queue` : `${t?.number} rejected`, v.approve ? 'success' : 'info');
+      invalidate();
+    },
+    onError: (e: any) => toast(e?.message ?? 'Could not record decision', 'info'),
+  });
 
   if (!t) return <div className="ticket-detail">Loading…</div>;
   const ai = (t as any).ai;
@@ -64,6 +79,46 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
   return (
     <div className="ticket-detail" onClick={(e) => e.stopPropagation()}>
       <div className="detail-main">
+        {t.approvals?.map((a) => (
+          <div key={a.id} className={`approval-banner approval-${a.state}`}>
+            {a.state === 'pending' ? (
+              <>
+                <span className="approval-text">
+                  ⏳ <strong>Awaiting approval</strong> from {a.approverName}
+                  {a.targetQueue ? <> — approving routes it to <strong>{a.targetQueue}</strong></> : null}
+                </span>
+                {(me?.role === 'admin' || me?.id === a.approverId) && (
+                  <span className="approval-actions">
+                    <button
+                      className="btn accent"
+                      disabled={decide.isPending}
+                      onClick={() => decide.mutate({ id: a.id, approve: true })}
+                    >
+                      Approve
+                    </button>
+                    <button
+                      className="btn"
+                      disabled={decide.isPending}
+                      onClick={() => {
+                        const note = window.prompt('Reason for rejecting (sent to the requester):') ?? undefined;
+                        decide.mutate({ id: a.id, approve: false, note });
+                      }}
+                    >
+                      Reject
+                    </button>
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="approval-text">
+                {a.state === 'approved' ? '✓ Approved' : '✕ Rejected'} by {a.decidedByName ?? a.approverName}
+                {a.decidedByName && a.decidedByName !== a.approverName ? ` (for ${a.approverName})` : ''}
+                {a.decidedAt ? ` · ${fmtDateTime(a.decidedAt)}` : ''}
+                {a.note ? ` — “${a.note}”` : ''}
+              </span>
+            )}
+          </div>
+        ))}
         {ai && (
           <div className="ai-panel">
             <span className="ai-badge">✨ AI</span>
@@ -81,6 +136,9 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
             <div key={c.id} className={`comment ${c.visibility}`}>
               <div className="comment-head">
                 <strong>{c.author.name}</strong>
+                {c.author.name === 'SOTO Bot' && (
+                  <span className="auto-badge" title="SOTO: Sorts Out Tickets, Obviously">⚡ auto</span>
+                )}
                 {c.visibility === 'internal' && <span className="internal-badge">internal note</span>}
                 <span className="comment-time">{fmtDateTime(c.createdAt)}</span>
               </div>
@@ -104,6 +162,24 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
               />
               Internal note
             </label>
+            {templates && templates.length > 0 && (
+              <select
+                className="template-picker"
+                value=""
+                title="Insert a canned response — {{variables}} are filled in for this ticket"
+                onChange={(e) => {
+                  const tpl = templates.find((x) => x.id === Number(e.target.value));
+                  if (!tpl) return;
+                  setVisibility('public');
+                  setReply((cur) => (cur.trim() ? `${cur}\n\n${tpl.body}` : tpl.body));
+                }}
+              >
+                <option value="" disabled>📋 Template…</option>
+                {templates.map((tpl) => (
+                  <option key={tpl.id} value={tpl.id}>{tpl.name}</option>
+                ))}
+              </select>
+            )}
             <button className="btn" disabled={draft.isPending} onClick={() => draft.mutate()}>
               {draft.isPending ? 'Drafting…' : '✨ Draft reply'}
             </button>

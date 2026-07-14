@@ -36,6 +36,13 @@ export type TicketDetail = TicketListItem & {
   firstRespondedAt: string | null; resolvedAt: string | null;
   requester: { id: number; name: string; isVip: boolean; department: string | null; email: string };
   comments: Comment[]; events: TicketEvent[]; sla: any[];
+  approvals: TicketApproval[];
+};
+
+export type TicketApproval = {
+  id: number; state: 'pending' | 'approved' | 'rejected'; note: string | null;
+  approverId: number; approverName: string; targetQueue: string | null;
+  decidedAt: string | null; decidedByName: string | null;
 };
 
 export type TicketChanges = {
@@ -188,6 +195,17 @@ export const fetchBestFits = (ticketId: number) => api<AgentFit[]>(`/api/tickets
 export const draftReply = (ticketId: number) =>
   api<{ draft: string; groundedIn: string[] }>(`/api/tickets/${ticketId}/draft-reply`, { method: 'POST', body: '{}' });
 
+export const decideApproval = (id: number, approve: boolean, note?: string) =>
+  api<TicketApproval>(`/api/approvals/${id}/decision`, {
+    method: 'POST', body: JSON.stringify({ approve, note }),
+  });
+
+export type RenderedTemplate = {
+  id: number; name: string; body: string; categoryId: number | null; autoRespond: boolean;
+};
+export const fetchTicketTemplates = (ticketId: number) =>
+  api<RenderedTemplate[]>(`/api/tickets/${ticketId}/templates`);
+
 // --- Admin ---
 
 export type AdminConfig = {
@@ -202,6 +220,13 @@ export type AdminConfig = {
   skills: { id: number; name: string }[];
   slaPolicies: { id: number; name: string; enabled: boolean; firstResponseMinutes: number | null; resolutionMinutes: number | null }[];
   routingRules: { id: number; name: string; position: number; enabled: boolean; conditions: unknown; actions: unknown }[];
+  templates: ResponseTemplate[];
+  categories: { id: number; name: string; requiresApproval: boolean }[];
+};
+
+export type ResponseTemplate = {
+  id: number; name: string; body: string; categoryId: number | null;
+  autoRespond: boolean; isActive: boolean;
 };
 
 export const fetchAdminConfig = () => api<AdminConfig>('/api/admin/config');
@@ -221,6 +246,16 @@ export const toggleRoutingRule = (id: number, enabled: boolean) =>
   api(`/api/admin/routing-rules/${id}`, { method: 'PATCH', body: JSON.stringify({ enabled }) });
 export const deleteRoutingRule = (id: number) =>
   api(`/api/admin/routing-rules/${id}`, { method: 'DELETE' });
+
+export const setCategoryApproval = (id: number, requiresApproval: boolean) =>
+  api(`/api/admin/categories/${id}`, { method: 'PATCH', body: JSON.stringify({ requiresApproval }) });
+
+export const addTemplate = (t: { name: string; body: string; categoryId: number | null; autoRespond: boolean }) =>
+  api('/api/admin/templates', { method: 'POST', body: JSON.stringify(t) });
+export const updateTemplate = (id: number, t: Partial<Omit<ResponseTemplate, 'id'>>) =>
+  api(`/api/admin/templates/${id}`, { method: 'PATCH', body: JSON.stringify(t) });
+export const deleteTemplate = (id: number) =>
+  api(`/api/admin/templates/${id}`, { method: 'DELETE' });
 
 export const addAgentSkill = (userId: number, name: string, level: number) =>
   api(`/api/admin/agents/${userId}/skills`, { method: 'POST', body: JSON.stringify({ name, level }) });

@@ -126,6 +126,9 @@ export const categories = pgTable('categories', {
   parentId: bigint('parent_id', { mode: 'number' }),
   // Descriptions + examples feed the AI classification prompt.
   description: text('description'),
+  // Request-type tickets landing here park at intake until the requester's
+  // manager approves (equipment, licenses, …). Admin-togglable.
+  requiresApproval: boolean('requires_approval').notNull().default(false),
 });
 
 export const tags = pgTable('tags', {
@@ -270,7 +273,12 @@ export const approvals = pgTable('approvals', {
   approverId: bigint('approver_id', { mode: 'number' }).notNull().references(() => users.id),
   state: approvalState('state').notNull().default('pending'),
   note: text('note'),
+  // Where the ticket goes when approved (the queue triage picked before the
+  // ticket was parked at intake).
+  targetQueueId: bigint('target_queue_id', { mode: 'number' }).references(() => teams.id),
   decidedAt: timestamp('decided_at', { withTimezone: true }),
+  // Who actually decided — an admin may act on the approver's behalf.
+  decidedById: bigint('decided_by_id', { mode: 'number' }).references(() => users.id),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -289,6 +297,21 @@ export const routingRules = pgTable('routing_rules', {
   // ticket_events.
   conditions: jsonb('conditions').notNull(),
   actions: jsonb('actions').notNull(),
+});
+
+// Canned responses with {{variable}} substitution. autoRespond templates fire
+// as public SOTO Bot comments: categoryId null = acknowledgment on every new
+// ticket; categoryId set = auto-reply when a ticket lands in that category
+// (and it completes the first-response SLA — an ack does not).
+export const responseTemplates = pgTable('response_templates', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  name: text('name').notNull(),
+  body: text('body').notNull(),
+  categoryId: bigint('category_id', { mode: 'number' }).references(() => categories.id),
+  autoRespond: boolean('auto_respond').notNull().default(false),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const slaPolicies = pgTable('sla_policies', {

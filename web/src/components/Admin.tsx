@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  addAgentSkill, addRoutingRule, addStatus, deleteRoutingRule,
-  fetchAdminConfig, fetchMeta, removeAgentSkill, renameStatus,
-  saveAiThresholds, saveScoreWeights, saveSlaPolicy, syncSkills,
-  toggleRoutingRule, type AdminConfig,
+  addAgentSkill, addRoutingRule, addStatus, addTemplate, deleteRoutingRule,
+  deleteTemplate, fetchAdminConfig, fetchMeta, removeAgentSkill, renameStatus,
+  saveAiThresholds, saveScoreWeights, saveSlaPolicy, setCategoryApproval,
+  syncSkills, toggleRoutingRule, updateTemplate, type AdminConfig,
 } from '../api';
 
 function useInvalidate() {
@@ -324,6 +324,111 @@ function ExpertiseCard({ config }: { config: AdminConfig }) {
   );
 }
 
+function ApprovalGatesCard({ config }: { config: AdminConfig }) {
+  const invalidate = useInvalidate();
+  const toggle = useMutation({
+    mutationFn: ({ id, requiresApproval }: { id: number; requiresApproval: boolean }) =>
+      setCategoryApproval(id, requiresApproval),
+    onSuccess: invalidate,
+  });
+  return (
+    <div className="admin-card">
+      <h3>Approval gates</h3>
+      <p className="admin-hint">
+        Request-type tickets landing in a checked category park at intake in
+        “Awaiting Approval” (SLA paused) and go to the requester's manager —
+        approving routes them on to the queue triage picked; rejecting resolves
+        them with the reason.
+      </p>
+      <div className="approval-gate-list">
+        {config.categories.map((c) => (
+          <label key={c.id} className={`approval-gate ${c.requiresApproval ? 'gated' : ''}`}>
+            <input
+              type="checkbox"
+              checked={c.requiresApproval}
+              onChange={(e) => toggle.mutate({ id: c.id, requiresApproval: e.target.checked })}
+            />
+            {c.name}
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TemplatesCard({ config }: { config: AdminConfig }) {
+  const invalidate = useInvalidate();
+  const [name, setName] = useState('');
+  const [body, setBody] = useState('');
+  const [categoryId, setCategoryId] = useState('');
+  const [autoRespond, setAutoRespond] = useState(false);
+
+  const add = useMutation({
+    mutationFn: () => addTemplate({
+      name: name.trim(), body: body.trim(),
+      categoryId: categoryId ? Number(categoryId) : null,
+      autoRespond,
+    }),
+    onSuccess: () => { setName(''); setBody(''); setCategoryId(''); setAutoRespond(false); invalidate(); },
+  });
+  const toggle = useMutation({
+    mutationFn: ({ id, isActive }: { id: number; isActive: boolean }) => updateTemplate(id, { isActive }),
+    onSuccess: invalidate,
+  });
+  const remove = useMutation({ mutationFn: (id: number) => deleteTemplate(id), onSuccess: invalidate });
+
+  const catName = (id: number | null) => config.categories.find((c) => c.id === id)?.name;
+
+  return (
+    <div className="admin-card admin-card-wide">
+      <h3>Response templates & auto-respond</h3>
+      <p className="admin-hint">
+        Canned replies with variables: {'{{requester.firstName}}, {{ticket.number}}, {{ticket.subject}}, {{queue.name}}, {{category.name}}, {{agent.name}}'}.
+        Templates marked <strong>auto</strong> post as <strong title="Sorts Out Tickets, Obviously">SOTO Bot</strong>{' '}
+        (<em>Sorts Out Tickets, Obviously</em>): no category = acknowledgment on
+        every new ticket; with a category = auto-reply when a ticket lands there (counts as first response).
+      </p>
+      <div className="admin-rule-list">
+        {config.templates.map((t) => (
+          <div key={t.id} className={`admin-rule ${t.isActive ? '' : 'disabled'}`}>
+            <label className="admin-rule-toggle" title={t.isActive ? 'Active' : 'Inactive'}>
+              <input type="checkbox" checked={t.isActive}
+                onChange={(e) => toggle.mutate({ id: t.id, isActive: e.target.checked })} />
+            </label>
+            <span className="admin-rule-name">{t.name}</span>
+            <span className="admin-rule-summary" title={t.body}>
+              {t.autoRespond ? `⚡ auto · ${catName(t.categoryId) ?? 'every new ticket'}` : catName(t.categoryId) ?? 'general'}
+              {' — '}{t.body.length > 80 ? `${t.body.slice(0, 80)}…` : t.body}
+            </span>
+            <button className="btn ghost" onClick={() => remove.mutate(t.id)}>✕</button>
+          </div>
+        ))}
+      </div>
+      <div className="admin-inline-form" style={{ alignItems: 'flex-start', flexWrap: 'wrap' }}>
+        <input placeholder="Template name" value={name} onChange={(e) => setName(e.target.value)} style={{ width: 190 }} />
+        <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+          <option value="">Category (optional)</option>
+          {config.categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+        <label className="admin-rule-toggle" style={{ alignSelf: 'center' }}>
+          <input type="checkbox" checked={autoRespond} onChange={(e) => setAutoRespond(e.target.checked)} />
+          ⚡ auto-respond
+        </label>
+        <textarea
+          placeholder="Body… use {{requester.firstName}}, {{ticket.number}}, etc."
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          rows={3}
+          style={{ flexBasis: '100%' }}
+        />
+        <button className="btn" disabled={name.trim().length < 3 || body.trim().length < 10 || add.isPending} onClick={() => add.mutate()}>
+          Add template
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function Admin() {
   const { data: config, error } = useQuery({ queryKey: ['admin'], queryFn: fetchAdminConfig, retry: false });
   if (error) {
@@ -338,7 +443,9 @@ export function Admin() {
         <AiCard config={config} />
         <StatusesCard config={config} />
         <ExpertiseCard config={config} />
+        <ApprovalGatesCard config={config} />
         <RulesCard config={config} />
+        <TemplatesCard config={config} />
       </div>
     </div>
   );

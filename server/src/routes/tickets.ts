@@ -6,6 +6,7 @@ import { db, schema } from '../db/index.js';
 import { applyTicketChanges, autoAssign, autoAssignByExpertise, bestFitAgents, createTicketCore, type TicketChanges } from '../services/ticketService.js';
 import { enrichTicket } from '../services/ai/enrichment.js';
 import { completeFirstResponse } from '../services/sla/slaService.js';
+import { templatesForTicket } from '../services/templates.js';
 
 const { tickets, statuses, teams, users, ticketTags, tags, slaInstances, ticketComments, ticketEvents, categories } = schema;
 
@@ -182,7 +183,19 @@ export async function ticketRoutes(app: FastifyInstance) {
       .orderBy(desc(schema.aiEnrichments.createdAt))
       .limit(1);
 
-    return { ...t, comments, events, sla, tags: tagRows.map((r) => r.name), ai: ai ?? null };
+    const approvalRows = await db
+      .select({
+        id: schema.approvals.id, state: schema.approvals.state, note: schema.approvals.note,
+        approverId: schema.approvals.approverId, decidedAt: schema.approvals.decidedAt,
+        approverName: sql<string>`(select name from users au where au.id = ${schema.approvals.approverId})`,
+        decidedByName: sql<string | null>`(select name from users du where du.id = ${schema.approvals.decidedById})`,
+        targetQueue: sql<string | null>`(select name from teams tq where tq.id = ${schema.approvals.targetQueueId})`,
+      })
+      .from(schema.approvals)
+      .where(eq(schema.approvals.ticketId, id))
+      .orderBy(desc(schema.approvals.createdAt));
+
+    return { ...t, comments, events, sla, tags: tagRows.map((r) => r.name), ai: ai ?? null, approvals: approvalRows };
   });
 
   app.post('/api/tickets', async (req) => {
@@ -210,6 +223,13 @@ export async function ticketRoutes(app: FastifyInstance) {
   app.get('/api/tickets/:id/fit', async (req) => {
     const id = z.coerce.number().parse((req.params as any).id);
     return bestFitAgents(id);
+  });
+
+  // Response templates rendered for this ticket ({{variables}} resolved),
+  // matching-category templates first.
+  app.get('/api/tickets/:id/templates', async (req) => {
+    const id = z.coerce.number().parse((req.params as any).id);
+    return templatesForTicket(id, req.userId);
   });
 
   app.patch('/api/tickets/:id', async (req) => {
