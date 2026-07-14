@@ -29,6 +29,7 @@ import { ActionRail, AgentRail } from './components/Rail';
 import { SnoozeDialog } from './components/SnoozeDialog';
 import { TicketRow } from './components/TicketRow';
 import { toast, Toasts } from './components/Toasts';
+import { ChatDrawer } from './components/ChatDrawer';
 import { TriagePanel } from './components/TriagePanel';
 import './App.css';
 
@@ -454,6 +455,7 @@ export default function App() {
       </DragOverlay>
 
       <Toasts />
+      <ChatDrawer key={`chat-${userId}`} />
 
       {newTicketOpen && <NewTicketDialog onClose={() => setNewTicketOpen(false)} />}
 

@@ -421,6 +421,24 @@ export const aiUsage = pgTable('ai_usage', {
 // live here so changing them is a form edit, not a deployment.
 // ---------------------------------------------------------------------------
 
+// Agent-to-agent DMs. Polling-based (no socket infra) — the web client
+// refetches on a short interval, which is plenty for an internal tool.
+export const chatMessages = pgTable(
+  'chat_messages',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    fromId: bigint('from_id', { mode: 'number' }).notNull().references(() => users.id),
+    toId: bigint('to_id', { mode: 'number' }).notNull().references(() => users.id),
+    body: text('body').notNull(),
+    readAt: timestamp('read_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('chat_from_to_idx').on(t.fromId, t.toId, t.id),
+    index('chat_to_unread_idx').on(t.toId, t.readAt),
+  ],
+);
+
 export const appConfig = pgTable('app_config', {
   key: text('key').primaryKey(),
   value: jsonb('value').notNull(),

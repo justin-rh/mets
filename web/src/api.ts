@@ -166,6 +166,27 @@ export const createTicket = (data: {
 export type DirectoryUser = { id: number; name: string; department: string | null; location: string | null };
 export const fetchUsers = () => api<DirectoryUser[]>('/api/users');
 
+// --- Chat ---
+
+export type ChatConversation = {
+  partnerId: number; partnerName: string; isAvailable: boolean;
+  unread: number; lastBody: string; lastFromMe: boolean; lastId: number; lastAt: string;
+};
+export type ChatMessage = {
+  id: number; fromId: number; toId: number; body: string;
+  readAt: string | null; createdAt: string;
+};
+export const fetchConversations = () => api<ChatConversation[]>('/api/chat/conversations');
+export const fetchChatThread = (partnerId: number, markRead: boolean) =>
+  api<ChatMessage[]>(`/api/chat/with/${partnerId}${markRead ? '?markRead=1' : ''}`);
+export const sendChatMessage = (partnerId: number, body: string) =>
+  api<ChatMessage>(`/api/chat/with/${partnerId}`, { method: 'POST', body: JSON.stringify({ body }) });
+
+/** Open the chat drawer from anywhere (agent menu, ticket detail). */
+export function openChat(detail: { partnerId?: number; prefill?: string }) {
+  window.dispatchEvent(new CustomEvent('mets-chat', { detail }));
+}
+
 // --- Dashboard & KB ---
 
 export type DashboardData = {

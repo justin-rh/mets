@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   actingUserId, decideApproval, draftReply, fetchBestFits, fetchMe, fetchMeta,
-  fetchSuggestions, fetchTicket, fetchTicketTemplates, patchTicket, postComment,
+  fetchSuggestions, fetchTicket, fetchTicketTemplates, openChat, patchTicket,
+  postComment,
 } from '../api';
 import { copyToClipboard, fmtDateTime, initials } from '../format';
 import { SnoozeDialog } from './SnoozeDialog';
@@ -279,6 +280,13 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
             onClick={() => copyLink(t.number)}
           >
             {copied ? '✓ Copied' : '🔗 Link'}
+          </button>
+          <button
+            className="btn"
+            title="Discuss this ticket in agent chat"
+            onClick={() => openChat({ prefill: `Can you take a look at ${t.number}? ` })}
+          >
+            💬 Chat
           </button>
         </div>
         <dl className="detail-meta">

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchMe, setAvailability, type AgentInfo, type Meta } from '../api';
+import { fetchMe, openChat, setAvailability, type AgentInfo, type Meta } from '../api';
 import { actingUserId, type Mode } from '../board';
 import { initials } from '../format';
 import { toast } from './Toasts';
@@ -71,6 +71,11 @@ function AgentCard({ a, isMe, active, menuOpen, leadQueues, canToggleOoo, onTogg
           <button className="btn" onClick={() => window.open(`/?requester=${a.id}`, '_blank')}>
             Submitted tickets ↗
           </button>
+          {!isMe && (
+            <button className="btn" onClick={() => { openChat({ partnerId: a.id }); onToggleMenu(); }}>
+              💬 Message
+            </button>
+          )}
           {canToggleOoo && (
             <button className="btn" disabled={availability.isPending} onClick={() => availability.mutate(!a.isAvailable)}>
               {a.isAvailable

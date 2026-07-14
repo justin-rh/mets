@@ -11,6 +11,7 @@ import { mailRoutes } from './routes/mail.js';
 import { metaRoutes } from './routes/meta.js';
 import { notificationRoutes } from './routes/notifications.js';
 import { approvalRoutes } from './routes/approvals.js';
+import { chatRoutes } from './routes/chat.js';
 import { ticketRoutes } from './routes/tickets.js';
 import { ensureKbEmbeddings } from './services/kb/kbService.js';
 import { startSkillsSync } from './services/skills.js';
@@ -58,6 +59,7 @@ await app.register(mailRoutes);
 await app.register(adminRoutes);
 await app.register(notificationRoutes);
 await app.register(approvalRoutes);
+await app.register(chatRoutes);
 
 try {
   await app.listen({ port: env.port, host: '0.0.0.0' });

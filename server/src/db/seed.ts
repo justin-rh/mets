@@ -10,7 +10,7 @@ import {
   kbArticles, kbChunks, routingRules, skills, slaInstances, slaPolicies,
   statuses, tags, teamMemberships, teams, ticketComments, ticketEvents,
   ticketLinks, ticketStatusDurations, ticketTags, tickets, users,
-  aiEnrichments, responseTemplates,
+  aiEnrichments, responseTemplates, chatMessages,
 } from './schema.js';
 import {
   AGENT_COMMENTS, APPS, CATEGORIES, CATEGORY_TAGS, DEPARTMENTS, DEVICES,
@@ -124,8 +124,8 @@ async function main() {
       sla_policies, routing_rules, approvals, attachments,
       ticket_status_durations, ticket_events, ticket_comments, ticket_links,
       ticket_tags, tickets, agent_skills, skills, custom_field_definitions,
-      response_templates, tags, categories, statuses, team_memberships, teams,
-      users, app_config
+      response_templates, chat_messages, tags, categories, statuses,
+      team_memberships, teams, users, app_config
     RESTART IDENTITY CASCADE
   `);
   await db.execute(sql`ALTER SEQUENCE ticket_number_seq RESTART WITH 1000000`);
@@ -633,6 +633,33 @@ async function main() {
       bodyText: `Hi ${String(g.requester_name).split(' ')[0]},\n\n${g.category} requests need a sign-off before they're worked. ${g.number} has been sent to ${approver!.name} for approval — you'll get an update here as soon as they decide.\n\n— SOTO Bot`,
     });
   }
+
+  // Agent chat history — a few threads referencing real tickets so the demo
+  // isn't empty, plus unread messages waiting for the admin (badge demo).
+  const chatTickets = (await db.execute(sql`
+    select t.number, t.subject from tickets t
+    join statuses s on s.id = t.status_id
+    where s.category in ('new','open') order by t.score desc limit 3
+  `)).rows as { number: string; subject: string }[];
+  const [ct1, ct2, ct3] = [chatTickets[0]!, chatTickets[1]!, chatTickets[2]!];
+  const [agA, agB, agC, agD] = [agents[0]!, agents[1]!, agents[2]!, agents[3]!];
+  const chatAt = (hoursAgo: number) => new Date(NOW.getTime() - hoursAgo * HOUR);
+  const read = (d: Date) => new Date(d.getTime() + 20 * 60_000);
+  const chatRows: (typeof chatMessages.$inferInsert)[] = [
+    // colleagues working a hot ticket (fully read)
+    { fromId: agA.id, toId: agB.id, body: `Hey, are you picking up ${ct2.number}? It's climbing the queue fast`, createdAt: chatAt(30), readAt: read(chatAt(30)) },
+    { fromId: agB.id, toId: agA.id, body: `Just saw it. Looks like the same root cause as last week's outage — I'll grab it`, createdAt: chatAt(29.7), readAt: read(chatAt(29.7)) },
+    { fromId: agA.id, toId: agB.id, body: 'Perfect. Ping me if you need the vendor contact, I still have the thread', createdAt: chatAt(29.5), readAt: read(chatAt(29.5)) },
+    { fromId: agB.id, toId: agA.id, body: 'Will do 🙏', createdAt: chatAt(29.4), readAt: read(chatAt(29.4)) },
+    // shift-handoff thread (fully read)
+    { fromId: agC.id, toId: agD.id, body: `Heads up before I log off — ${ct3.number} is waiting on the requester, I snoozed it to Thursday`, createdAt: chatAt(20), readAt: read(chatAt(20)) },
+    { fromId: agD.id, toId: agC.id, body: 'Got it. Anything else in your queue that can\'t wait?', createdAt: chatAt(19.8), readAt: read(chatAt(19.8)) },
+    { fromId: agC.id, toId: agD.id, body: 'Nope, rest is routine. Thanks!', createdAt: chatAt(19.6), readAt: read(chatAt(19.6)) },
+    // unread messages waiting for the admin — the badge demo
+    { fromId: agA.id, toId: adminUser.id, body: `Morning! Can you take a look at ${ct1.number} when you get a sec? Requester is a VIP and it's about to breach`, createdAt: chatAt(2), readAt: null },
+    { fromId: agA.id, toId: adminUser.id, body: 'Also — approvals are piling up in the Hardware queue, might be worth a sweep', createdAt: chatAt(1.5), readAt: null },
+  ];
+  await db.insert(chatMessages).values(chatRows);
 
   // Derive agent expertise from the freshly seeded resolution history.
   const { deriveSkillsFromHistory } = await import('../services/skills.js');
