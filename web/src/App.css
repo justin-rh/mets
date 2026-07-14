@@ -1667,6 +1667,7 @@ select, textarea, input[type='text'], .modal input {
 
 @media (max-width: 1620px) {
   .rail { width: 208px; }
+  .mode-hint { display: none; }
   .ticket-row, .list-header {
     grid-template-columns: 18px 18px 36px 80px minmax(90px, 1fr) minmax(0, 56px) 100px 102px 30px 32px 36px 90px 76px 28px;
     gap: 6px;
@@ -1703,7 +1704,9 @@ select, textarea, input[type='text'], .modal input {
   .list-header span:first-child, .queue-cell, .col-queue { display: none; }
   .menubar { height: auto; min-height: 52px; padding: 8px 14px; gap: 12px; }
   .board { padding: 10px; gap: 0; }
-  .modebar { overflow-x: auto; }
+  .modebar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; padding: 0 10px; }
+  .modebar > * { flex-shrink: 0; }
+  .modebar > button { white-space: nowrap; }
   .menubar { flex-wrap: wrap; row-gap: 8px; }
   .menubar .search { max-width: 150px; }
   .ticket-row, .list-header {
