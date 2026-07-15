@@ -199,6 +199,24 @@ export async function enrichTicket(ticketId: number, mode: EnrichMode = 'suggest
 
   let status = 'pending';
   if (mode === 'auto') {
+    // A blank or useless subject gets the AI-written one — before scoring
+    // and incident detection, which both read the subject text. A subject
+    // that's just the description's opening words is the create route's
+    // blank-subject snippet: vague by construction, whatever the model says.
+    const norm = (s: string) => s.replace(/\s+/g, ' ').trim().toLowerCase();
+    const snippetSubject = norm(t.description).startsWith(norm(t.subject.replace(/…$/, '')));
+    if ((r.subjectIsVague || snippetSubject) && r.suggestedSubject?.trim()) {
+      const newSubject = r.suggestedSubject.trim().slice(0, 120);
+      if (newSubject !== t.subject) {
+        await db.update(tickets).set({ subject: newSubject, updatedAt: new Date() })
+          .where(eq(tickets.id, ticketId));
+        await db.insert(schema.ticketEvents).values({
+          ticketId, actorId: null, actorType: 'ai', eventType: 'subject_generated',
+          field: 'subject', oldValue: t.subject.slice(0, 200), newValue: newSubject,
+        });
+      }
+    }
+
     // On-behalf detection: the text said this ticket is really for someone
     // else. Swap before category/queue changes so downstream hooks (approval
     // chain, auto-responses) address the right person.

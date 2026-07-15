@@ -3,7 +3,7 @@ import { and, asc, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-o
 import { alias } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import { db, schema } from '../db/index.js';
-import { applyTicketChanges, autoAssign, autoAssignByExpertise, bestFitAgents, createTicketCore, type TicketChanges } from '../services/ticketService.js';
+import { applyTicketChanges, autoAssign, autoAssignByExpertise, autoAssignByMention, bestFitAgents, detectMentionedAgent, createTicketCore, type TicketChanges } from '../services/ticketService.js';
 import { enrichTicket } from '../services/ai/enrichment.js';
 import { completeFirstResponse } from '../services/sla/slaService.js';
 import { templatesForTicket } from '../services/templates.js';
@@ -286,7 +286,9 @@ export async function ticketRoutes(app: FastifyInstance) {
 
   app.post('/api/tickets', async (req) => {
     const body = z.object({
-      subject: z.string().trim().min(3).max(300),
+      // Optional — a blank subject gets an interim snippet here and a real
+      // AI-written one when triage lands (same for hopelessly vague ones).
+      subject: z.string().trim().max(300).default(''),
       description: z.string().trim().min(1).max(20_000),
       type: z.enum(['incident', 'request', 'change']).default('incident'),
       priority: z.number().min(1).max(4).default(3),
@@ -297,6 +299,10 @@ export async function ticketRoutes(app: FastifyInstance) {
     }).parse(req.body);
 
     const { onBehalfOfId, holdTriage, ...ticketBody } = body;
+    if (!ticketBody.subject) {
+      const words = ticketBody.description.split(/\s+/);
+      ticketBody.subject = words.slice(0, 10).join(' ').slice(0, 80) + (words.length > 10 ? '…' : '');
+    }
     const created = await createTicketCore({
       ...ticketBody,
       requesterId: onBehalfOfId ?? req.userId,
@@ -336,11 +342,19 @@ export async function ticketRoutes(app: FastifyInstance) {
     return { ok: true };
   });
 
-  // Top agents for this ticket by expertise/queue/load fit.
+  // Top agents for this ticket by expertise/queue/load fit. An agent named
+  // in the ticket text leads the list regardless of fit (gold ring in the UI).
   app.get('/api/tickets/:id/fit', async (req) => {
     requireStaff(req);
     const id = z.coerce.number().parse((req.params as any).id);
-    return bestFitAgents(id);
+    const [all, mention] = await Promise.all([bestFitAgents(id, 200), detectMentionedAgent(id)]);
+    const top = all.slice(0, 3);
+    const m = mention && all.find((a) => a.id === mention.id);
+    if (!m) return top;
+    return [
+      { ...m, mentioned: true, snippet: mention!.snippet },
+      ...top.filter((a) => a.id !== m.id).slice(0, 2),
+    ];
   });
 
   // Response templates rendered for this ticket ({{variables}} resolved),
@@ -622,7 +636,7 @@ export async function ticketRoutes(app: FastifyInstance) {
     requireStaff(req);
     const body = z.object({
       ticketIds: z.array(z.number()).min(1).max(100),
-      action: z.enum(['update', 'auto_assign', 'expertise_assign']).default('update'),
+      action: z.enum(['update', 'auto_assign', 'expertise_assign', 'mentioned_assign']).default('update'),
       changes: changesBody.optional(),
     }).parse(req.body);
 
@@ -631,6 +645,9 @@ export async function ticketRoutes(app: FastifyInstance) {
     }
     if (body.action === 'expertise_assign') {
       return autoAssignByExpertise(body.ticketIds, { id: req.userId });
+    }
+    if (body.action === 'mentioned_assign') {
+      return autoAssignByMention(body.ticketIds, { id: req.userId });
     }
     if (!body.changes) throw Object.assign(new Error('changes required'), { statusCode: 400 });
     const results = [];

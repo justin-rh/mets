@@ -3,7 +3,7 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { z } from 'zod';
 import { env } from '../../config.js';
 
-export const PROMPT_VERSION = 'triage-v6'; // v3: screenshots; v4: org glossary; v5: reasoning; v6: Proofpoint
+export const PROMPT_VERSION = 'triage-v7'; // v5: reasoning; v6: Proofpoint; v7: subject generation
 
 // Company-specific terms the model won't know from ticket text alone. Shared
 // across the triage, search, and incident prompts so they route consistently.
@@ -25,6 +25,8 @@ export const TriageSchema = z.object({
   sentiment: z.enum(['neutral', 'frustrated', 'urgent']),
   summary: z.string().describe('One or two sentences summarizing the issue for an agent'),
   reasoning: z.string().describe('One short sentence for the reviewing agent: WHY this category/queue/priority — cite the decisive signal (a phrase in the ticket, an error code in a screenshot, company terminology, a correction pattern, the stated business impact)'),
+  subjectIsVague: z.boolean().describe("true when the requester's subject is missing, generic ('help', 'problem', 'this error again'), or an agent scanning the queue couldn't tell what the ticket is about from it alone"),
+  suggestedSubject: z.string().describe('A concise, specific subject line, max ~70 chars: the system plus the symptom (e.g. "Zebra ZT411 printing labels half an inch offset"). Always provided; only applied when the original is vague'),
   onBehalfOf: z.string().nullable().describe('EXACT directory name of the person this ticket is actually for, when the text clearly says the submitter is filing for someone else; null otherwise'),
   confidence: z.object({
     category: z.number().describe('0-1'),
@@ -258,7 +260,14 @@ The reasoning is for the agent REVIEWING your routing: one short sentence
 naming the decisive signal — quote the phrase, error code, or terminology
 that settled it ('OMS is the web front-end for MERP', 'Error 5003 is a
 Zoom connectivity code', 'matches the recent correction pattern for
-docking stations'). Not a restatement of the answer; say what tipped it.`;
+docking stations'). Not a restatement of the answer; say what tipped it.
+
+Subject line: requesters often leave the subject blank or write something
+useless ('help', 'question', 'this again'). Mark subjectIsVague true only
+when an agent scanning the queue couldn't tell what the ticket is about
+from the subject alone — a decent subject stays untouched. Always provide
+suggestedSubject: concise and specific, the system plus the symptom, drawn
+from the description (and screenshots), max ~70 characters.`;
 }
 
 class ClaudeProvider implements AIProvider {
@@ -609,6 +618,9 @@ class MockProvider implements AIProvider {
         reasoning: hit
           ? `Matched the ${category.name} keyword pattern ${hit[0]} (mock provider).`
           : 'No keyword pattern matched — defaulted to the first category at low confidence (mock provider).',
+        subjectIsVague: input.subject.trim().length < 8
+          || /^(help|hi|hello|hey|issue|problem|question|urgent|error|broken|not working|it'?s broken)[!.?\s]*$/i.test(input.subject.trim()),
+        suggestedSubject: (input.description.split(/[.!?\n]/)[0] ?? input.subject).trim().slice(0, 70),
         onBehalfOf: onBehalf?.name ?? null,
         confidence: {
           category: hit ? 0.85 : 0.35, queue: hit ? 0.85 : 0.35, priority: 0.5,

@@ -71,6 +71,12 @@ export function NewTicketDialog({ onClose }: { onClose: () => void }) {
             ) : (
               <div className="triage-result">
                 <dl className="triage-routing">
+                  {routed!.subject !== subject.trim() && (
+                    <>
+                      <dt>Subject</dt>
+                      <dd><strong>{routed!.subject}</strong> <span className="triage-onbehalf-note">— AI-written</span></dd>
+                    </>
+                  )}
                   <dt>Queue</dt>
                   <dd><strong>{routed!.queue.name}</strong></dd>
                   <dt>Category</dt>
@@ -135,7 +141,7 @@ export function NewTicketDialog({ onClose }: { onClose: () => void }) {
               </select>
             </label>
             <label>
-              Subject
+              Subject <span className="modal-optional">(optional — AI writes one from your description if left blank)</span>
               <input autoFocus value={subject} onChange={(e) => setSubject(e.target.value)}
                 placeholder="Short description of the issue" />
             </label>
@@ -182,7 +188,7 @@ export function NewTicketDialog({ onClose }: { onClose: () => void }) {
               <button className="btn" onClick={onClose}>Cancel</button>
               <button
                 className="btn primary"
-                disabled={subject.trim().length < 3 || !description.trim() || create.isPending}
+                disabled={!description.trim() || create.isPending}
                 onClick={() => create.mutate()}
               >
                 {create.isPending ? 'Creating…' : 'Create ticket'}
