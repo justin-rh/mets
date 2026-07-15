@@ -82,14 +82,17 @@ export async function metaRoutes(app: FastifyInstance) {
     return me ?? null;
   });
 
-  // Out-of-office toggle: yourself, or anyone if you're an admin. OOO agents
-  // are excluded from every assignment engine (auto, expertise, best-fit).
+  // Out-of-office toggle: yourself, an admin, or a LEAD of one of the
+  // target's teams (marking a teammate out when they call in sick). OOO
+  // agents are excluded from every assignment engine.
   app.patch('/api/users/:id/availability', async (req, reply) => {
     const id = z.coerce.number().parse((req.params as any).id);
     const body = z.object({ isAvailable: z.boolean() }).parse(req.body);
-    if (id !== req.userId) {
-      const [me] = await db.select({ role: users.role }).from(users).where(eq(users.id, req.userId));
-      if (me?.role !== 'admin') return reply.status(403).send({ error: 'admins only' });
+    if (id !== req.userId && req.userRole !== 'admin') {
+      const { leadsTeamOf } = await import('./guards.js');
+      if (req.userRole !== 'agent' || !(await leadsTeamOf(req.userId, id))) {
+        return reply.status(403).send({ error: 'admins or your team lead only' });
+      }
     }
     const [updated] = await db.update(users)
       .set({ isAvailable: body.isAvailable })

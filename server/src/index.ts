@@ -73,9 +73,12 @@ app.addHook('onRequest', async (req, reply) => {
 });
 
 app.setErrorHandler((err: any, _req, reply) => {
-  const status = err.statusCode ?? 500;
+  // Zod validation failures are the caller's fault, not a server fault.
+  const status = err.statusCode ?? (err.name === 'ZodError' ? 400 : 500);
   if (status >= 500) app.log.error(err);
-  reply.status(status).send({ error: err.message });
+  reply.status(status).send({
+    error: err.name === 'ZodError' ? `invalid request: ${err.issues?.[0]?.path?.join('.')} — ${err.issues?.[0]?.message}` : err.message,
+  });
 });
 
 app.get('/api/health', async () => {

@@ -4,12 +4,13 @@ import {
   addAgentSkill, addRecurring, addRoutingRule, addStatus, addTemplate,
   deleteRecurring, deleteRoutingRule, deleteTemplate, fetchAdminConfig,
   fetchAdminUsers, fetchMeta, removeAgentSkill, renameStatus, runEscalationSweep,
-  updateUserQueues,
+  updateUserLead, updateUserQueues, updateUserRole,
   saveAiThresholds, saveAutoClose, saveEscalation, saveQueueNotify,
   saveScoreKeywords, saveScoreWeights, saveSlaPolicy, setCategoryApproval,
   syncSkills, toggleRecurring, toggleRoutingRule, updateTemplate,
   type AdminConfig,
 } from '../api';
+import { actingUserId } from '../board';
 
 function useInvalidate() {
   const qc = useQueryClient();
@@ -735,17 +736,28 @@ function UserQueuesCard(_: { config: AdminConfig }) {
       updateUserQueues(id, body),
     onSuccess: invalidate,
   });
+  const setRole = useMutation({
+    mutationFn: ({ id, role }: { id: number; role: 'admin' | 'agent' | 'readonly' }) => updateUserRole(id, role),
+    onSuccess: invalidate,
+  });
+  const setLead = useMutation({
+    mutationFn: ({ id, teamId, lead }: { id: number; teamId: number; lead: boolean }) => updateUserLead(id, teamId, lead),
+    onSuccess: invalidate,
+  });
 
   if (!staff || !meta) return <div className="admin-card"><div className="empty">Loading…</div></div>;
   const queueName = new Map(meta.queues.map((q) => [q.id, q.name]));
+  const me = actingUserId();
 
   return (
     <div className="admin-card admin-card-wide">
       <h3>Users & Queues</h3>
       <p className="admin-hint">
-        Membership drives assignment, the My-queues scope, and the agent rail.
-        Visibility set to <em>only their queues</em> hides everything else
-        from that user's board — enforced server-side.
+        Role sets what a user can do (readonly = view only). Membership
+        drives assignment, the My-queues scope, and the agent rail; the ★
+        makes someone lead of that queue — leads can mark teammates out of
+        office and get escalation pings. Visibility set to <em>only their
+        queues</em> hides everything else, enforced server-side.
       </p>
       <div className="uq-list">
         {staff.map((u) => {
@@ -757,18 +769,36 @@ function UserQueuesCard(_: { config: AdminConfig }) {
             <div key={u.id} className="uq-row">
               <span className="uq-user">
                 <strong>{u.name}</strong>
-                <em>{u.role}</em>
+                <select
+                  className="uq-role"
+                  value={u.role}
+                  disabled={u.id === me}
+                  title={u.id === me ? "You can't change your own role" : 'Role'}
+                  onChange={(e) => setRole.mutate({ id: u.id, role: e.target.value as any })}
+                >
+                  <option value="admin">admin</option>
+                  <option value="agent">agent</option>
+                  <option value="readonly">readonly</option>
+                </select>
               </span>
               <span className="uq-queues">
-                {memberQueues.map((q) => (
-                  <span key={q.id} className="uq-chip">
+                {memberQueues.map((q) => {
+                  const isLead = u.leadTeamIds.includes(q.id);
+                  return (
+                  <span key={q.id} className={`uq-chip ${isLead ? 'uq-chip-lead' : ''}`}>
+                    <button
+                      className={`uq-lead ${isLead ? 'on' : ''}`}
+                      title={isLead ? `Remove ${u.name.split(' ')[0]} as lead of ${q.name}` : `Make ${u.name.split(' ')[0]} lead of ${q.name}`}
+                      onClick={() => setLead.mutate({ id: u.id, teamId: q.id, lead: !isLead })}
+                    >{isLead ? '★' : '☆'}</button>
                     {q.name}
                     <button
                       title={`Remove ${u.name.split(' ')[0]} from ${q.name}`}
                       onClick={() => save.mutate({ id: u.id, body: { teamIds: u.teamIds.filter((t) => t !== q.id) } })}
                     >✕</button>
                   </span>
-                ))}
+                  );
+                })}
                 {memberQueues.length === 0 && <span className="uq-none">no queues</span>}
                 <select
                   className="uq-add"

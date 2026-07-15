@@ -5,7 +5,7 @@ import {
   acceptEnrichment, batchTriage, correctEnrichment, dismissEnrichment,
   listDecisions, listTriageSuggestions,
 } from '../services/ai/enrichment.js';
-import { requireStaff } from './guards.js';
+import { requireStaff, requireStaffRead } from './guards.js';
 
 export async function aiRoutes(app: FastifyInstance) {
   // Natural-language queue search: plain English in, structured list
@@ -70,7 +70,7 @@ export async function aiRoutes(app: FastifyInstance) {
     return batchTriage(body.limit, body.ticketIds);
   });
 
-  app.get('/api/ai/triage', async (req) => { requireStaff(req); return listTriageSuggestions(); });
+  app.get('/api/ai/triage', async (req) => { requireStaffRead(req); return listTriageSuggestions(); });
 
   app.post('/api/ai/enrichments/:id/accept', async (req) => {
     requireStaff(req);
@@ -90,7 +90,7 @@ export async function aiRoutes(app: FastifyInstance) {
   });
 
   // The AI decision log: how tickets were routed and what agents did about it.
-  app.get('/api/ai/decisions', async (req) => { requireStaff(req); return listDecisions(); });
+  app.get('/api/ai/decisions', async (req) => { requireStaffRead(req); return listDecisions(); });
 
   // Flag & correct: the labeled feedback that future triage prompts learn from.
   app.post('/api/ai/enrichments/:id/correct', async (req) => {

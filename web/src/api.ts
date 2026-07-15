@@ -316,11 +316,15 @@ export const fetchSuggestions = (ticketId: number) => api<Suggestions>(`/api/tic
 
 export type AdminUser = {
   id: number; name: string; role: string; isAvailable: boolean;
-  queueVisibility: 'all' | 'own'; teamIds: number[];
+  queueVisibility: 'all' | 'own'; teamIds: number[]; leadTeamIds: number[];
 };
 export const fetchAdminUsers = () => api<AdminUser[]>('/api/admin/users');
 export const updateUserQueues = (id: number, body: { teamIds?: number[]; queueVisibility?: 'all' | 'own' }) =>
   api(`/api/admin/users/${id}/queues`, { method: 'PATCH', body: JSON.stringify(body) });
+export const updateUserRole = (id: number, role: 'admin' | 'agent' | 'readonly') =>
+  api(`/api/admin/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) });
+export const updateUserLead = (id: number, teamId: number, lead: boolean) =>
+  api(`/api/admin/users/${id}/lead`, { method: 'PATCH', body: JSON.stringify({ teamId, lead }) });
 
 export type AgentFit = {
   id: number; name: string; fit: number; level: number | null; inQueue: boolean;

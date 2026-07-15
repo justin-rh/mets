@@ -110,6 +110,8 @@ export function AgentRail({ meta, queueId, assigneeFilter, onSelectAssignee, onC
   const isAdmin = meUser?.role === 'admin';
   const myAgent = meta.agents.find((a) => a.id === me);
   const myTeamIds = new Set(myAgent?.teamIds ?? []);
+  // Leads can mark their own team's members out of office.
+  const iLead = new Set(myAgent?.leadOf ?? []);
 
   let others = meta.agents.filter((a) => a.id !== me);
   if (queueId) others = others.filter((a) => a.teamIds.includes(queueId));
@@ -133,7 +135,7 @@ export function AgentRail({ meta, queueId, assigneeFilter, onSelectAssignee, onC
       active={assigneeFilter === a.id}
       menuOpen={menuAgentId === a.id}
       leadQueues={a.leadOf.map((id) => queueName.get(id) ?? '').filter(Boolean)}
-      canToggleOoo={isMe || isAdmin}
+      canToggleOoo={isMe || isAdmin || a.teamIds.some((t) => iLead.has(t))}
       onToggleMenu={() => setMenuAgentId(menuAgentId === a.id ? null : a.id)}
       onViewAssigned={() => {
         onSelectAssignee(assigneeFilter === a.id ? undefined : a.id);

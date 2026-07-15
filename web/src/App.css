@@ -1225,8 +1225,15 @@ select, textarea, input[type='text'], .modal input {
 }
 .uq-chip button:hover { color: #c0392b; }
 .uq-none { color: var(--text-muted); font-size: 12px; font-style: italic; }
-.uq-add, .uq-vis { font: inherit; font-size: 12px; padding: 3px 6px; }
+.uq-add, .uq-vis, .uq-role { font: inherit; font-size: 12px; padding: 3px 6px; }
 .uq-vis { flex: 0 0 auto; }
+.uq-role { margin-top: 2px; width: fit-content; }
+.uq-lead {
+  border: none; background: none; cursor: pointer;
+  font-size: 13px; padding: 0; color: var(--text-muted);
+}
+.uq-lead.on, .uq-lead:hover { color: #e0a51c; }
+.uq-chip-lead { border-color: #e0a51c; }
 
 .toast-text { flex: 1; cursor: pointer; }
 .toast-text.toast-openable:hover { text-decoration: underline; text-underline-offset: 3px; }

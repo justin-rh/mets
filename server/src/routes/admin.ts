@@ -2,18 +2,13 @@ import type { FastifyInstance } from 'fastify';
 import { asc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db, schema } from '../db/index.js';
+import { requireAdmin } from './guards.js';
 import { invalidateScoreWeightsCache, recomputeScore } from '../services/scoring.js';
 import { deriveSkillsFromHistory } from '../services/skills.js';
 
 const { appConfig, statuses, slaPolicies, routingRules, users, tickets, skills, agentSkills, responseTemplates, categories, teams, recurringTickets } = schema;
 
-/** All admin mutations require the admin role — the RBAC requirement, live. */
-async function requireAdmin(userId: number) {
-  const [me] = await db.select({ role: users.role }).from(users).where(eq(users.id, userId));
-  if (me?.role !== 'admin') {
-    throw Object.assign(new Error('admin role required'), { statusCode: 403 });
-  }
-}
+
 
 async function rescoreOpenTickets(): Promise<number> {
   const rows = await db.execute(sql`
@@ -26,7 +21,7 @@ async function rescoreOpenTickets(): Promise<number> {
 
 export async function adminRoutes(app: FastifyInstance) {
   app.get('/api/admin/config', async (req) => {
-    await requireAdmin(req.userId);
+    requireAdmin(req);
     const configRows = await db.select().from(appConfig);
     const byKey = Object.fromEntries(configRows.map((r) => [r.key, r.value]));
     return {
@@ -71,14 +66,14 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   app.post('/api/admin/templates', async (req) => {
-    await requireAdmin(req.userId);
+    requireAdmin(req);
     const body = templateBody.parse(req.body);
     const [created] = await db.insert(responseTemplates).values(body).returning();
     return created;
   });
 
   app.patch('/api/admin/templates/:id', async (req) => {
-    await requireAdmin(req.userId);
+    requireAdmin(req);
     const id = z.coerce.number().parse((req.params as any).id);
     const body = templateBody.partial().parse(req.body);
     const [updated] = await db.update(responseTemplates)
@@ -90,7 +85,7 @@ export async function adminRoutes(app: FastifyInstance) {
   // Recurring ticket schedules — filed through the normal intake pipeline
   // (routing, SLA, AI triage) when due.
   app.post('/api/admin/recurring', async (req) => {
-    await requireAdmin(req.userId);
+    requireAdmin(req);
     const body = z.object({
       name: z.string().trim().min(3).max(120),
       subject: z.string().trim().min(3).max(300),
@@ -109,7 +104,7 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   app.patch('/api/admin/recurring/:id', async (req) => {
-    await requireAdmin(req.userId);
+    requireAdmin(req);
     const id = z.coerce.number().parse((req.params as any).id);
     const body = z.object({ enabled: z.boolean() }).parse(req.body);
     const [updated] = await db.update(recurringTickets)
@@ -119,7 +114,7 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   app.delete('/api/admin/recurring/:id', async (req) => {
-    await requireAdmin(req.userId);
+    requireAdmin(req);
     const id = z.coerce.number().parse((req.params as any).id);
     await db.delete(recurringTickets).where(eq(recurringTickets.id, id));
     return { ok: true };
@@ -128,28 +123,39 @@ export async function adminRoutes(app: FastifyInstance) {
   // Staff users with their queue memberships + visibility, for the admin
   // "Users & Queues" panel.
   app.get('/api/admin/users', async (req) => {
-    await requireAdmin(req.userId);
+    requireAdmin(req);
     const staff = await db
       .select({
         id: users.id, name: users.name, role: users.role,
         queueVisibility: users.queueVisibility, isAvailable: users.isAvailable,
       })
       .from(users)
-      .where(sql`${users.role} in ('agent','admin') and ${users.isActive}`)
+      .where(sql`${users.role} in ('agent','admin','readonly') and ${users.isActive}`)
       .orderBy(asc(users.name));
     const memberships = await db
-      .select({ userId: schema.teamMemberships.userId, teamId: schema.teamMemberships.teamId })
+      .select({
+        userId: schema.teamMemberships.userId,
+        teamId: schema.teamMemberships.teamId,
+        role: schema.teamMemberships.role,
+      })
       .from(schema.teamMemberships);
     const byUser = new Map<number, number[]>();
+    const leadsByUser = new Map<number, number[]>();
     for (const m of memberships) {
       (byUser.get(m.userId) ?? byUser.set(m.userId, []).get(m.userId)!).push(m.teamId);
+      if (m.role === 'lead') {
+        (leadsByUser.get(m.userId) ?? leadsByUser.set(m.userId, []).get(m.userId)!).push(m.teamId);
+      }
     }
-    return staff.map((u) => ({ ...u, teamIds: byUser.get(u.id) ?? [] }));
+    return staff.map((u) => ({
+      ...u, teamIds: byUser.get(u.id) ?? [], leadTeamIds: leadsByUser.get(u.id) ?? [],
+    }));
   });
 
   // Replace a user's queue memberships and/or set their queue visibility.
+  // Lead status on kept memberships survives the replace.
   app.patch('/api/admin/users/:id/queues', async (req) => {
-    await requireAdmin(req.userId);
+    requireAdmin(req);
     const id = z.coerce.number().parse((req.params as any).id);
     const body = z.object({
       teamIds: z.array(z.number()).max(50).optional(),
@@ -157,10 +163,15 @@ export async function adminRoutes(app: FastifyInstance) {
     }).parse(req.body);
 
     if (body.teamIds) {
+      const existing = await db
+        .select({ teamId: schema.teamMemberships.teamId, role: schema.teamMemberships.role })
+        .from(schema.teamMemberships)
+        .where(eq(schema.teamMemberships.userId, id));
+      const roleOf = new Map(existing.map((m) => [m.teamId, m.role]));
       await db.delete(schema.teamMemberships).where(eq(schema.teamMemberships.userId, id));
       if (body.teamIds.length) {
         await db.insert(schema.teamMemberships)
-          .values(body.teamIds.map((teamId) => ({ userId: id, teamId })))
+          .values(body.teamIds.map((teamId) => ({ userId: id, teamId, role: roleOf.get(teamId) ?? 'member' })))
           .onConflictDoNothing();
       }
     }
@@ -171,9 +182,35 @@ export async function adminRoutes(app: FastifyInstance) {
     return { ok: true };
   });
 
+  // Change a user's role. Admins can't demote themselves — someone must
+  // always hold the keys.
+  app.patch('/api/admin/users/:id/role', async (req, reply) => {
+    requireAdmin(req);
+    const id = z.coerce.number().parse((req.params as any).id);
+    const body = z.object({ role: z.enum(['admin', 'agent', 'readonly']) }).parse(req.body);
+    if (id === req.userId) {
+      return reply.status(400).send({ error: "you can't change your own role" });
+    }
+    await db.update(users).set({ role: body.role }).where(eq(users.id, id));
+    return { ok: true };
+  });
+
+  // Promote/demote a user as lead of one of their teams.
+  app.patch('/api/admin/users/:id/lead', async (req, reply) => {
+    requireAdmin(req);
+    const id = z.coerce.number().parse((req.params as any).id);
+    const body = z.object({ teamId: z.number(), lead: z.boolean() }).parse(req.body);
+    const [updated] = await db.update(schema.teamMemberships)
+      .set({ role: body.lead ? 'lead' : 'member' })
+      .where(sql`${schema.teamMemberships.userId} = ${id} and ${schema.teamMemberships.teamId} = ${body.teamId}`)
+      .returning();
+    if (!updated) return reply.status(400).send({ error: 'not a member of that queue' });
+    return { ok: true };
+  });
+
   // Addresses emailed whenever a ticket enters the queue (comma-separated).
   app.patch('/api/admin/queues/:id/notify', async (req) => {
-    await requireAdmin(req.userId);
+    requireAdmin(req);
     const id = z.coerce.number().parse((req.params as any).id);
     const body = z.object({
       notifyEmails: z.string().trim().max(500).nullable(),
@@ -196,7 +233,7 @@ export async function adminRoutes(app: FastifyInstance) {
   // Toggle the approval gate: request tickets in gated categories wait for
   // the requester's manager before hitting a work queue.
   app.patch('/api/admin/categories/:id', async (req) => {
-    await requireAdmin(req.userId);
+    requireAdmin(req);
     const id = z.coerce.number().parse((req.params as any).id);
     const body = z.object({ requiresApproval: z.boolean() }).parse(req.body);
     const [updated] = await db.update(categories)
@@ -206,14 +243,14 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   app.delete('/api/admin/templates/:id', async (req) => {
-    await requireAdmin(req.userId);
+    requireAdmin(req);
     const id = z.coerce.number().parse((req.params as any).id);
     await db.delete(responseTemplates).where(eq(responseTemplates.id, id));
     return { ok: true };
   });
 
   app.put('/api/admin/score-weights', async (req) => {
-    await requireAdmin(req.userId);
+    requireAdmin(req);
     const weights = z.object({
       priority: z.record(z.string(), z.number().min(0).max(200)),
       agePerBusinessDay: z.number().min(0).max(50),
@@ -237,7 +274,7 @@ export async function adminRoutes(app: FastifyInstance) {
   // Flag keywords: matches in subject/description boost the score and mark
   // the row. Saving rescores every open ticket immediately.
   app.put('/api/admin/score-keywords', async (req) => {
-    await requireAdmin(req.userId);
+    requireAdmin(req);
     const keywords = z.array(z.object({
       term: z.string().trim().min(2).max(40),
       boost: z.number().min(-50).max(100),
@@ -251,7 +288,7 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   app.put('/api/admin/ai-thresholds', async (req) => {
-    await requireAdmin(req.userId);
+    requireAdmin(req);
     const value = z.object({
       autoApply: z.number().min(0).max(1),
       suggest: z.number().min(0).max(1),
@@ -263,7 +300,7 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   app.post('/api/admin/statuses', async (req) => {
-    await requireAdmin(req.userId);
+    requireAdmin(req);
     const body = z.object({
       name: z.string().trim().min(2).max(60),
       category: z.enum(['new', 'open', 'pending', 'resolved', 'closed']),
@@ -276,7 +313,7 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   app.patch('/api/admin/statuses/:id', async (req) => {
-    await requireAdmin(req.userId);
+    requireAdmin(req);
     const id = z.coerce.number().parse((req.params as any).id);
     const body = z.object({ name: z.string().trim().min(2).max(60) }).parse(req.body);
     const [updated] = await db.update(statuses).set({ name: body.name }).where(eq(statuses.id, id)).returning();
@@ -285,7 +322,7 @@ export async function adminRoutes(app: FastifyInstance) {
 
   // Days a Resolved ticket waits before the sweep closes it; 0 disables.
   app.put('/api/admin/auto-close', async (req) => {
-    await requireAdmin(req.userId);
+    requireAdmin(req);
     const value = z.object({ days: z.number().int().min(0).max(90) }).parse(req.body);
     await db.insert(appConfig)
       .values({ key: 'auto_close', value, updatedAt: new Date() })
@@ -296,7 +333,7 @@ export async function adminRoutes(app: FastifyInstance) {
   // Stale-unassigned escalation: thresholds per priority; high-score tickets
   // assign by expertise, the rest round-robin.
   app.put('/api/admin/escalation', async (req) => {
-    await requireAdmin(req.userId);
+    requireAdmin(req);
     const value = z.object({
       enabled: z.boolean(),
       minutesByPriority: z.record(z.string(), z.number().int().min(1).max(20160)),
@@ -309,13 +346,13 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   app.post('/api/admin/escalation/run', async (req) => {
-    await requireAdmin(req.userId);
+    requireAdmin(req);
     const { escalationSweep } = await import('../services/escalation.js');
     return escalationSweep(() => {});
   });
 
   app.patch('/api/admin/sla-policies/:id', async (req) => {
-    await requireAdmin(req.userId);
+    requireAdmin(req);
     const id = z.coerce.number().parse((req.params as any).id);
     const body = z.object({
       firstResponseMinutes: z.number().min(5).max(50_000).nullable(),
@@ -327,7 +364,7 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   app.post('/api/admin/routing-rules', async (req) => {
-    await requireAdmin(req.userId);
+    requireAdmin(req);
     const body = z.object({
       name: z.string().trim().min(3).max(120),
       condition: z.object({
@@ -353,7 +390,7 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   app.patch('/api/admin/routing-rules/:id', async (req) => {
-    await requireAdmin(req.userId);
+    requireAdmin(req);
     const id = z.coerce.number().parse((req.params as any).id);
     const body = z.object({ enabled: z.boolean() }).parse(req.body);
     const [updated] = await db.update(routingRules).set(body).where(eq(routingRules.id, id)).returning();
@@ -361,7 +398,7 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   app.delete('/api/admin/routing-rules/:id', async (req) => {
-    await requireAdmin(req.userId);
+    requireAdmin(req);
     const id = z.coerce.number().parse((req.params as any).id);
     await db.delete(routingRules).where(eq(routingRules.id, id));
     return { ok: true };
@@ -370,7 +407,7 @@ export async function adminRoutes(app: FastifyInstance) {
   // --- agent expertise: manual grants + on-demand history sync ---
 
   app.post('/api/admin/agents/:id/skills', async (req) => {
-    await requireAdmin(req.userId);
+    requireAdmin(req);
     const userId = z.coerce.number().parse((req.params as any).id);
     const body = z.object({
       name: z.string().trim().min(2).max(60),
@@ -388,7 +425,7 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   app.delete('/api/admin/agents/:id/skills/:skillId', async (req) => {
-    await requireAdmin(req.userId);
+    requireAdmin(req);
     const userId = z.coerce.number().parse((req.params as any).id);
     const skillId = z.coerce.number().parse((req.params as any).skillId);
     await db.delete(agentSkills).where(sql`user_id = ${userId} and skill_id = ${skillId}`);
@@ -396,7 +433,7 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   app.post('/api/admin/skills/sync', async (req) => {
-    await requireAdmin(req.userId);
+    requireAdmin(req);
     return deriveSkillsFromHistory();
   });
 }

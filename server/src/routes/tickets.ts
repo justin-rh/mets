@@ -8,7 +8,7 @@ import { enrichTicket } from '../services/ai/enrichment.js';
 import { completeFirstResponse } from '../services/sla/slaService.js';
 import { templatesForTicket } from '../services/templates.js';
 import { activeIncidents, broadcastIncidentUpdate, incidentInfo, resolveIncidentCascade } from '../services/incidents.js';
-import { requireStaff } from './guards.js';
+import { requireStaff, requireStaffRead } from './guards.js';
 
 const { tickets, statuses, teams, users, ticketTags, tags, slaInstances, ticketComments, ticketEvents, categories } = schema;
 
@@ -360,7 +360,7 @@ export async function ticketRoutes(app: FastifyInstance) {
   // Top agents for this ticket by expertise/queue/load fit. An agent named
   // in the ticket text leads the list regardless of fit (gold ring in the UI).
   app.get('/api/tickets/:id/fit', async (req) => {
-    requireStaff(req);
+    requireStaffRead(req);
     const id = z.coerce.number().parse((req.params as any).id);
     const [all, mention] = await Promise.all([bestFitAgents(id, 200), detectMentionedAgent(id)]);
     const top = all.slice(0, 3);
@@ -375,7 +375,7 @@ export async function ticketRoutes(app: FastifyInstance) {
   // Response templates rendered for this ticket ({{variables}} resolved),
   // matching-category templates first.
   app.get('/api/tickets/:id/templates', async (req) => {
-    requireStaff(req);
+    requireStaffRead(req);
     const id = z.coerce.number().parse((req.params as any).id);
     return templatesForTicket(id, req.userId);
   });
@@ -426,6 +426,7 @@ export async function ticketRoutes(app: FastifyInstance) {
       return comment;
     }
 
+    requireStaff(req); // readonly viewers can look, not comment
     const [comment] = await db.insert(ticketComments).values({
       ticketId: id, authorId: req.userId, visibility: body.visibility,
       bodyText: body.bodyText, source: 'agent',
