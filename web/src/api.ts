@@ -314,6 +314,14 @@ export type Suggestions = {
 };
 export const fetchSuggestions = (ticketId: number) => api<Suggestions>(`/api/tickets/${ticketId}/suggestions`);
 
+export type AdminUser = {
+  id: number; name: string; role: string; isAvailable: boolean;
+  queueVisibility: 'all' | 'own'; teamIds: number[];
+};
+export const fetchAdminUsers = () => api<AdminUser[]>('/api/admin/users');
+export const updateUserQueues = (id: number, body: { teamIds?: number[]; queueVisibility?: 'all' | 'own' }) =>
+  api(`/api/admin/users/${id}/queues`, { method: 'PATCH', body: JSON.stringify(body) });
+
 export type AgentFit = {
   id: number; name: string; fit: number; level: number | null; inQueue: boolean;
   mentioned?: boolean; snippet?: string; // named in the ticket text — leads the list

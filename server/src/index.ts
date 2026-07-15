@@ -25,6 +25,7 @@ declare module 'fastify' {
   interface FastifyRequest {
     userId: number;
     userRole: 'admin' | 'agent' | 'requester' | 'readonly';
+    userQueueVisibility: 'all' | 'own';
   }
 }
 
@@ -40,9 +41,10 @@ await app.register(multipart, {
 // (services/auth/entra.ts) — same request surface either way, so routes
 // never know which mode is running. The role rides along on every request
 // for RBAC (30s cache — roles effectively never change mid-session).
-const roleCache = new Map<number, { role: FastifyRequest['userRole']; at: number }>();
+const roleCache = new Map<number, { role: FastifyRequest['userRole']; vis: FastifyRequest['userQueueVisibility']; at: number }>();
 app.decorateRequest('userId', 0);
 app.decorateRequest('userRole', 'requester');
+app.decorateRequest('userQueueVisibility', 'all');
 app.addHook('onRequest', async (req, reply) => {
   if (env.authProvider === 'entra') {
     if (req.url === '/api/health') return; // probes stay unauthenticated
@@ -60,12 +62,14 @@ app.addHook('onRequest', async (req, reply) => {
   const hit = roleCache.get(req.userId);
   if (hit && Date.now() - hit.at < 30_000) {
     req.userRole = hit.role;
+    req.userQueueVisibility = hit.vis;
     return;
   }
-  const [u] = await db.select({ role: schema.users.role }).from(schema.users)
+  const [u] = await db.select({ role: schema.users.role, vis: schema.users.queueVisibility }).from(schema.users)
     .where(eq(schema.users.id, req.userId));
   req.userRole = u?.role ?? 'requester';
-  roleCache.set(req.userId, { role: req.userRole, at: Date.now() });
+  req.userQueueVisibility = (u?.vis as 'all' | 'own') ?? 'all';
+  roleCache.set(req.userId, { role: req.userRole, vis: req.userQueueVisibility, at: Date.now() });
 });
 
 app.setErrorHandler((err: any, _req, reply) => {

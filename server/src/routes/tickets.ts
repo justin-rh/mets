@@ -75,6 +75,13 @@ export async function ticketRoutes(app: FastifyInstance) {
     if (req.userRole === 'requester') {
       conds.push(or(eq(tickets.requesterId, req.userId), eq(tickets.submittedById, req.userId))!);
     }
+    // Admin-restricted staff ('own' queue visibility) see only the queues
+    // their teams own, whatever filters they ask for.
+    if (req.userRole !== 'requester' && req.userQueueVisibility === 'own') {
+      conds.push(sql`${tickets.queueId} in (
+        select team_id from team_memberships where user_id = ${req.userId}
+      )`);
+    }
     if (q.search) {
       conds.push(or(ilike(tickets.subject, `%${q.search}%`), ilike(tickets.number, `%${q.search}%`))!);
     }
@@ -186,6 +193,14 @@ export async function ticketRoutes(app: FastifyInstance) {
       .leftJoin(categories, eq(categories.id, tickets.categoryId))
       .where(eq(tickets.id, id));
     if (!t) return reply.status(404).send({ error: 'ticket not found' });
+
+    // Admin-restricted staff can't open tickets outside their queues.
+    if (req.userRole !== 'requester' && req.userQueueVisibility === 'own') {
+      const [member] = (await db.execute(sql`
+        select 1 from team_memberships where user_id = ${req.userId} and team_id = ${t.queue.id}
+      `)).rows;
+      if (!member) return reply.status(403).send({ error: 'queue not visible to you' });
+    }
 
     const author = alias(users, 'author');
     const comments = await db

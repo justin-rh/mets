@@ -1204,6 +1204,30 @@ select, textarea, input[type='text'], .modal input {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
   animation: toast-in 0.18s ease-out;
 }
+/* Admin: Users & Queues */
+.uq-list { display: flex; flex-direction: column; }
+.uq-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 2px; border-bottom: 1px solid var(--line);
+}
+.uq-row:last-child { border-bottom: none; }
+.uq-user { flex: 0 0 170px; display: flex; flex-direction: column; }
+.uq-user em { color: var(--text-muted); font-size: 11px; font-style: normal; }
+.uq-queues { flex: 1; display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+.uq-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 12px; padding: 2px 5px 2px 8px;
+  border: 1px solid var(--line-strong); border-radius: var(--r);
+}
+.uq-chip button {
+  border: none; background: none; cursor: pointer;
+  color: var(--text-muted); font-size: 11px; padding: 0 2px;
+}
+.uq-chip button:hover { color: #c0392b; }
+.uq-none { color: var(--text-muted); font-size: 12px; font-style: italic; }
+.uq-add, .uq-vis { font: inherit; font-size: 12px; padding: 3px 6px; }
+.uq-vis { flex: 0 0 auto; }
+
 .toast-text { flex: 1; cursor: pointer; }
 .toast-text.toast-openable:hover { text-decoration: underline; text-underline-offset: 3px; }
 .toast-dismiss {

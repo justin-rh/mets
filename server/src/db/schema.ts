@@ -59,6 +59,9 @@ export const users = pgTable(
     isVip: boolean('is_vip').notNull().default(false),
     isActive: boolean('is_active').notNull().default(true), // deactivate, never delete
     isAvailable: boolean('is_available').notNull().default(true), // agent OOO toggle
+    // 'all' = sees every queue; 'own' = ticket list/detail restricted to
+    // the queues their teams own (admin-controlled).
+    queueVisibility: text('queue_visibility').notNull().default('all'),
     maxOpenAssignments: integer('max_open_assignments').notNull().default(25),
     // { assignedToMe, slaAlerts, queueActivity, emailReplies } — all default true
     notificationPrefs: jsonb('notification_prefs'),

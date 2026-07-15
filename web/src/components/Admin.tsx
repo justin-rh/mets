@@ -3,7 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   addAgentSkill, addRecurring, addRoutingRule, addStatus, addTemplate,
   deleteRecurring, deleteRoutingRule, deleteTemplate, fetchAdminConfig,
-  fetchMeta, removeAgentSkill, renameStatus, runEscalationSweep,
+  fetchAdminUsers, fetchMeta, removeAgentSkill, renameStatus, runEscalationSweep,
+  updateUserQueues,
   saveAiThresholds, saveAutoClose, saveEscalation, saveQueueNotify,
   saveScoreKeywords, saveScoreWeights, saveSlaPolicy, setCategoryApproval,
   syncSkills, toggleRecurring, toggleRoutingRule, updateTemplate,
@@ -718,6 +719,87 @@ function TemplatesCard({ config }: { config: AdminConfig }) {
   );
 }
 
+/** Queue membership + visibility per staff user. */
+function UserQueuesCard(_: { config: AdminConfig }) {
+  const qc = useQueryClient();
+  const { data: staff } = useQuery({ queryKey: ['admin-users'], queryFn: fetchAdminUsers });
+  const { data: meta } = useQuery({ queryKey: ['meta'], queryFn: fetchMeta });
+
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ['admin-users'] });
+    qc.invalidateQueries({ queryKey: ['meta'] });
+    qc.invalidateQueries({ queryKey: ['tickets'] });
+  };
+  const save = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: { teamIds?: number[]; queueVisibility?: 'all' | 'own' } }) =>
+      updateUserQueues(id, body),
+    onSuccess: invalidate,
+  });
+
+  if (!staff || !meta) return <div className="admin-card"><div className="empty">Loading…</div></div>;
+  const queueName = new Map(meta.queues.map((q) => [q.id, q.name]));
+
+  return (
+    <div className="admin-card admin-card-wide">
+      <h3>Users & Queues</h3>
+      <p className="admin-hint">
+        Membership drives assignment, the My-queues scope, and the agent rail.
+        Visibility set to <em>only their queues</em> hides everything else
+        from that user's board — enforced server-side.
+      </p>
+      <div className="uq-list">
+        {staff.map((u) => {
+          const memberQueues = u.teamIds.map((id) => ({ id, name: queueName.get(id) ?? `#${id}` }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+          const addable = meta.queues.filter((q) => !u.teamIds.includes(q.id))
+            .sort((a, b) => a.name.localeCompare(b.name));
+          return (
+            <div key={u.id} className="uq-row">
+              <span className="uq-user">
+                <strong>{u.name}</strong>
+                <em>{u.role}</em>
+              </span>
+              <span className="uq-queues">
+                {memberQueues.map((q) => (
+                  <span key={q.id} className="uq-chip">
+                    {q.name}
+                    <button
+                      title={`Remove ${u.name.split(' ')[0]} from ${q.name}`}
+                      onClick={() => save.mutate({ id: u.id, body: { teamIds: u.teamIds.filter((t) => t !== q.id) } })}
+                    >✕</button>
+                  </span>
+                ))}
+                {memberQueues.length === 0 && <span className="uq-none">no queues</span>}
+                <select
+                  className="uq-add"
+                  value=""
+                  title="Add a queue"
+                  onChange={(e) => {
+                    if (!e.target.value) return;
+                    save.mutate({ id: u.id, body: { teamIds: [...u.teamIds, Number(e.target.value)] } });
+                  }}
+                >
+                  <option value="">+ queue…</option>
+                  {addable.map((q) => <option key={q.id} value={q.id}>{q.name}</option>)}
+                </select>
+              </span>
+              <select
+                className="uq-vis"
+                value={u.queueVisibility}
+                title="Which queues this user can see on the board"
+                onChange={(e) => save.mutate({ id: u.id, body: { queueVisibility: e.target.value as 'all' | 'own' } })}
+              >
+                <option value="all">Sees all queues</option>
+                <option value="own">Only their queues</option>
+              </select>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 const ADMIN_SECTIONS = [
   {
     key: 'scoring', label: 'Scoring', icon: '📈',
@@ -743,6 +825,11 @@ const ADMIN_SECTIONS = [
     key: 'agents', label: 'Agents', icon: '🎓',
     hint: 'Expertise that drives assignment',
     cards: [ExpertiseCard],
+  },
+  {
+    key: 'users', label: 'Users & Queues', icon: '👥',
+    hint: 'Queue membership and visibility',
+    cards: [UserQueuesCard],
   },
 ] as const;
 

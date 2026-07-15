@@ -125,6 +125,52 @@ export async function adminRoutes(app: FastifyInstance) {
     return { ok: true };
   });
 
+  // Staff users with their queue memberships + visibility, for the admin
+  // "Users & Queues" panel.
+  app.get('/api/admin/users', async (req) => {
+    await requireAdmin(req.userId);
+    const staff = await db
+      .select({
+        id: users.id, name: users.name, role: users.role,
+        queueVisibility: users.queueVisibility, isAvailable: users.isAvailable,
+      })
+      .from(users)
+      .where(sql`${users.role} in ('agent','admin') and ${users.isActive}`)
+      .orderBy(asc(users.name));
+    const memberships = await db
+      .select({ userId: schema.teamMemberships.userId, teamId: schema.teamMemberships.teamId })
+      .from(schema.teamMemberships);
+    const byUser = new Map<number, number[]>();
+    for (const m of memberships) {
+      (byUser.get(m.userId) ?? byUser.set(m.userId, []).get(m.userId)!).push(m.teamId);
+    }
+    return staff.map((u) => ({ ...u, teamIds: byUser.get(u.id) ?? [] }));
+  });
+
+  // Replace a user's queue memberships and/or set their queue visibility.
+  app.patch('/api/admin/users/:id/queues', async (req) => {
+    await requireAdmin(req.userId);
+    const id = z.coerce.number().parse((req.params as any).id);
+    const body = z.object({
+      teamIds: z.array(z.number()).max(50).optional(),
+      queueVisibility: z.enum(['all', 'own']).optional(),
+    }).parse(req.body);
+
+    if (body.teamIds) {
+      await db.delete(schema.teamMemberships).where(eq(schema.teamMemberships.userId, id));
+      if (body.teamIds.length) {
+        await db.insert(schema.teamMemberships)
+          .values(body.teamIds.map((teamId) => ({ userId: id, teamId })))
+          .onConflictDoNothing();
+      }
+    }
+    if (body.queueVisibility) {
+      await db.update(users).set({ queueVisibility: body.queueVisibility }).where(eq(users.id, id));
+      // Visibility rides the 30s role cache — changes land within half a minute.
+    }
+    return { ok: true };
+  });
+
   // Addresses emailed whenever a ticket enters the queue (comma-separated).
   app.patch('/api/admin/queues/:id/notify', async (req) => {
     await requireAdmin(req.userId);
