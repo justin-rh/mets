@@ -341,6 +341,11 @@ export default function App() {
             setNlFilter(null);
             setSearch('');
             setShowSnoozed(false);
+            // Deep-link params (?ticket=, ?requester=) would re-apply on
+            // refresh — going home clears them from the address bar too.
+            if (window.location.search) {
+              window.history.replaceState(null, '', window.location.pathname);
+            }
           }}
         >
           MET<span>S</span>
@@ -452,7 +457,17 @@ export default function App() {
         {requesterFilter && (
           <span className="filter-chip">
             Submitted by: {meta?.agents.find((a) => a.id === requesterFilter)?.name ?? `user #${requesterFilter}`}
-            <button onClick={() => setRequesterFilter(undefined)} title="Clear filter">✕</button>
+            <button
+              onClick={() => {
+                setRequesterFilter(undefined);
+                const q = new URLSearchParams(window.location.search);
+                if (q.has('requester')) {
+                  q.delete('requester');
+                  window.history.replaceState(null, '', `${window.location.pathname}${q.size ? `?${q}` : ''}`);
+                }
+              }}
+              title="Clear filter"
+            >✕</button>
           </span>
         )}
         {nlFilter && (
