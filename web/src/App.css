@@ -513,6 +513,18 @@ select, textarea, input[type='text'], .modal input {
 }
 .rail-info p { margin: 6px 0 0; }
 
+/* Collapsible "other agents" section in the left rail */
+.agent-others-toggle {
+  display: flex; align-items: center; gap: 6px;
+  width: 100%; margin-top: 6px; padding: 5px 6px;
+  border: none; background: none; cursor: pointer;
+  font: inherit; font-size: 11px; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase; text-align: left;
+  color: var(--text-muted);
+}
+.agent-others-toggle:hover { color: var(--text); }
+.agent-others-chevron { font-size: 10px; width: 10px; }
+
 .rail-divider {
   height: 1px;
   background: var(--line-strong);

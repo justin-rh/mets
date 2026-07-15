@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useDroppable } from '@dnd-kit/core';
+import { useDndContext, useDroppable } from '@dnd-kit/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchMe, openChat, setAvailability, type AgentInfo, type Meta } from '../api';
 import { actingUserId, type Mode } from '../board';
@@ -89,7 +89,11 @@ function AgentCard({ a, isMe, active, menuOpen, leadQueues, canToggleOoo, onTogg
   );
 }
 
-/** Left rail: you first, divider, then other agents alphabetically. */
+/**
+ * Left rail: you first, then your teammates (agents sharing one of your
+ * queues) alphabetically, then everyone else in a collapsible section that
+ * auto-expands while a drag is in flight so any agent stays a drop target.
+ */
 export function AgentRail({ meta, queueId, assigneeFilter, onSelectAssignee, onCollapse }: {
   meta: Meta | undefined;
   queueId?: number;
@@ -98,15 +102,27 @@ export function AgentRail({ meta, queueId, assigneeFilter, onSelectAssignee, onC
   onCollapse?: () => void;
 }) {
   const [menuAgentId, setMenuAgentId] = useState<number | null>(null);
+  const [othersOpen, setOthersOpen] = useState(() => localStorage.getItem('mets-agents-others') === '1');
+  const { active: dragActive } = useDndContext();
   const { data: meUser } = useQuery({ queryKey: ['me', actingUserId()], queryFn: fetchMe });
   if (!meta) return <aside className="rail rail-left" />;
   const me = actingUserId();
   const isAdmin = meUser?.role === 'admin';
   const myAgent = meta.agents.find((a) => a.id === me);
+  const myTeamIds = new Set(myAgent?.teamIds ?? []);
 
   let others = meta.agents.filter((a) => a.id !== me);
   if (queueId) others = others.filter((a) => a.teamIds.includes(queueId));
-  others.sort((a, b) => a.name.localeCompare(b.name));
+  const byName = (a: AgentInfo, b: AgentInfo) => a.name.localeCompare(b.name);
+  const teammates = others.filter((a) => a.teamIds.some((t) => myTeamIds.has(t))).sort(byName);
+  const rest = others.filter((a) => !a.teamIds.some((t) => myTeamIds.has(t))).sort(byName);
+  const showOthers = othersOpen || !!dragActive;
+  const toggleOthers = () => {
+    setOthersOpen((cur) => {
+      localStorage.setItem('mets-agents-others', cur ? '0' : '1');
+      return !cur;
+    });
+  };
 
   const queueName = new Map(meta.queues.map((q) => [q.id, q.name]));
   const card = (a: AgentInfo, isMe: boolean) => (
@@ -136,8 +152,19 @@ export function AgentRail({ meta, queueId, assigneeFilter, onSelectAssignee, onC
       </div>
       <div className="agent-list">
         {myAgent && card(myAgent, true)}
-        {myAgent && others.length > 0 && <div className="rail-divider" />}
-        {others.map((a) => card(a, false))}
+        {myAgent && teammates.length > 0 && <div className="rail-divider" />}
+        {teammates.map((a) => card(a, false))}
+        {rest.length > 0 && (
+          <button
+            className="agent-others-toggle"
+            title={showOthers ? 'Collapse other agents' : 'Expand other agents'}
+            onClick={toggleOthers}
+          >
+            <span className="agent-others-chevron">{showOthers ? '▾' : '▸'}</span>
+            Other agents ({rest.length})
+          </button>
+        )}
+        {showOthers && rest.map((a) => card(a, false))}
       </div>
     </aside>
   );
