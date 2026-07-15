@@ -1,18 +1,26 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createTicket, fetchTicket } from '../api';
+import { createTicket, fetchTicket, uploadAttachments } from '../api';
 
 export function NewTicketDialog({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
   const [type, setType] = useState('incident');
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [uploadedCount, setUploadedCount] = useState(0);
   const [created, setCreated] = useState<{ id: number; number: string } | null>(null);
 
   const create = useMutation({
     mutationFn: () => createTicket({ subject, description, type }),
-    onSuccess: (t) => {
+    onSuccess: async (t) => {
       setCreated(t);
+      if (pendingFiles.length) {
+        try {
+          const r = await uploadAttachments(t.id, pendingFiles);
+          setUploadedCount(r.attachments.length);
+        } catch { /* the ticket exists either way */ }
+      }
       qc.invalidateQueries({ queryKey: ['tickets'] });
     },
   });
@@ -64,6 +72,12 @@ export function NewTicketDialog({ onClose }: { onClose: () => void }) {
                       </dd>
                     </>
                   )}
+                  {uploadedCount > 0 && (
+                    <>
+                      <dt>Attached</dt>
+                      <dd>{uploadedCount} file{uploadedCount === 1 ? '' : 's'}</dd>
+                    </>
+                  )}
                 </dl>
                 {pendingApproval ? (
                   <p className="modal-hint">
@@ -112,6 +126,20 @@ export function NewTicketDialog({ onClose }: { onClose: () => void }) {
               Description
               <textarea rows={6} value={description} onChange={(e) => setDescription(e.target.value)}
                 placeholder="What happened? Who is affected? Any deadline?" />
+            </label>
+            <label>
+              Attachments <span className="modal-optional">(optional — screenshots help a lot)</span>
+              <input
+                type="file"
+                accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.txt,.log,.csv,.xlsx,.docx,.zip,.eml,.msg"
+                multiple
+                onChange={(e) => setPendingFiles(Array.from(e.target.files ?? []))}
+              />
+              {pendingFiles.length > 0 && (
+                <span className="modal-hint">
+                  {pendingFiles.map((f) => f.name).join(', ')}
+                </span>
+              )}
             </label>
             <p className="modal-hint">
               No category or queue to pick — AI routes it, and priority is

@@ -2207,3 +2207,63 @@ button.logo-home {
 }
 
 .watch-add { font: inherit; font-size: 12px; max-width: 130px; }
+
+/* attachments */
+.attachments { display: flex; flex-direction: column; gap: 8px; margin: 10px 0 14px; }
+.att-images { display: flex; gap: 8px; flex-wrap: wrap; }
+.att-image-wrap { position: relative; }
+.att-image-btn { background: none; border: none; padding: 0; cursor: zoom-in; }
+.att-thumb {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r);
+  display: block;
+}
+.att-thumb-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 96px;
+  height: 96px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r);
+  color: var(--text-muted);
+}
+.att-delete {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-card);
+  color: var(--alarm);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+}
+.att-files { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.att-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r);
+  padding: 0 6px 0 0;
+  font-size: 12px;
+}
+.att-chip-open {
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 4px 4px 8px;
+  cursor: pointer;
+}
+.att-chip-open em { font-style: normal; color: var(--text-muted); font-size: 10.5px; }
+.att-delete-inline { background: none; border: none; color: var(--alarm); cursor: pointer; font-size: 10px; }
+.att-upload { font-size: 12px; }

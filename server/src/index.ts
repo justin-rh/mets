@@ -12,6 +12,7 @@ import { metaRoutes } from './routes/meta.js';
 import { notificationRoutes } from './routes/notifications.js';
 import { approvalRoutes } from './routes/approvals.js';
 import { chatRoutes } from './routes/chat.js';
+import { attachmentRoutes } from './routes/attachments.js';
 import { ticketRoutes } from './routes/tickets.js';
 import { ensureKbEmbeddings } from './services/kb/kbService.js';
 import { startSkillsSync } from './services/skills.js';
@@ -28,6 +29,10 @@ declare module 'fastify' {
 
 const app = Fastify({ logger: true });
 await app.register(cors, { origin: true });
+const { default: multipart } = await import('@fastify/multipart');
+await app.register(multipart, {
+  limits: { fileSize: 10 * 1024 * 1024, files: 5 },
+});
 
 // Auth adapter. dev: the client says who it's acting as (x-user-id).
 // entra: validate the Microsoft ID token and map it to a METS user
@@ -88,6 +93,7 @@ await app.register(adminRoutes);
 await app.register(notificationRoutes);
 await app.register(approvalRoutes);
 await app.register(chatRoutes);
+await app.register(attachmentRoutes);
 
 try {
   await app.listen({ port: env.port, host: '0.0.0.0' });

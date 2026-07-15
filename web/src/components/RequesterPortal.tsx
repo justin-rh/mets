@@ -5,6 +5,7 @@ import {
   type TicketListItem,
 } from '../api';
 import { age, fmtDateTime } from '../format';
+import { AttachmentStrip } from './Attachments';
 import { KnowledgeBase } from './KnowledgeBase';
 import { NewTicketDialog } from './NewTicketDialog';
 import { Toasts } from './Toasts';
@@ -92,6 +93,7 @@ function PortalTicket({ t, expanded, onToggle }: {
       {expanded && detail && (
         <div className="portal-detail">
           <p className="description">{detail.description}</p>
+          <AttachmentStrip ticketId={t.id} attachments={detail.attachments ?? []} />
           {pendingApproval && (
             <div className="approval-banner approval-pending">
               <span className="approval-text">

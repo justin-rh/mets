@@ -7,6 +7,7 @@ import {
   postComment, watchTicket, type IdentifierCheck,
 } from '../api';
 import { copyToClipboard, fmtDateTime, initials } from '../format';
+import { AttachmentStrip } from './Attachments';
 import { SnoozeDialog } from './SnoozeDialog';
 import { toast } from './Toasts';
 
@@ -271,6 +272,8 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
           </div>
         )}
         <p className="description">{t.description}</p>
+
+        <AttachmentStrip ticketId={ticketId} attachments={t.attachments ?? []} canDelete={me?.role === 'admin'} />
 
         <div className="comments">
           {t.comments.map((c) => (

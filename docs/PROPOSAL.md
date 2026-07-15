@@ -42,6 +42,7 @@ different bars. Here is where each capability actually stands:
 - Scoring: priority/age/VIP/SLA/keyword/sentiment weights, all admin-tunable with instant rescore (including the ALL-CAPS penalty)
 - Requester portal with server-side role enforcement, CSAT ratings, reply-to-reopen
 - Manager approvals (category gates + org chart), response templates + auto-respond, agent chat with ticket links, watchers, merge-duplicates with exact part-number guard, escalation sweep, queue email notifications
+- Attachments: images and files on tickets (type allowlist, size caps, authenticated access mirroring ticket visibility) — local-disk adapter today, Azure Blob is the production swap; malware scanning is a pilot item
 - Dashboards: volume, median MTTR/FRT, SLA attainment, CSAT, TP leaderboard
 - Admin UI for all of the above — zero-code configuration, demonstrated live
 
@@ -50,7 +51,6 @@ different bars. Here is where each capability actually stands:
 
 **Designed and documented, not yet built**
 - Microsoft Graph mail transport (the pipeline — threading, guest contacts, auto-ack, reopen — runs today against the mock transport)
-- Attachments (schema exists; upload/scan/storage pipeline does not)
 - ServiceNow migration (export/mapping/validation plan documented, not exercised against real data)
 - Live updates via SSE (the UI polls today — adequate at our scale)
 - Confidential queues / per-ticket restricted access (today: role-level RBAC is enforced server-side; any agent can see any queue — fine for IT, not for HR/legal)
@@ -116,7 +116,7 @@ review, on-call, parallel operation).
 1. **Gap assessment → hardening sprint (3–4 weeks):** durable jobs,
    concurrency control, versioned migrations, test suite over RBAC /
    internal-note confidentiality / SLA transitions / approvals, rate
-   limits + CORS + pagination, attachment pipeline with scanning
+   limits + CORS + pagination, attachment malware scanning + short-lived URLs
 2. **Activation:** Entra app registration (SSO is one config swap), Graph
    mail transport on the shared helpdesk mailbox
 3. **Migration dry run** against a real ServiceNow export, reconciliation

@@ -44,6 +44,7 @@ export type TicketDetail = TicketListItem & {
   csatRating: number | null; csatComment: string | null;
   watching: boolean; watcherCount: number;
   watchers: { id: number; name: string }[];
+  attachments: Attachment[];
   incident: {
     parent: { id: number; number: string; subject: string } | null;
     mergedInto: { id: number; number: string; subject: string } | null;
@@ -423,6 +424,43 @@ export type NotificationPrefs = {
 export type NotificationItem = {
   id: string; type: string; number: string; subject: string; at: string;
 };
+
+export type Attachment = {
+  id: number; filename: string; contentType: string; size: number;
+  createdAt: string; uploadedBy: string | null;
+};
+
+/** Multipart upload — no JSON content-type; auth headers still apply. */
+export async function uploadAttachments(ticketId: number, files: File[]) {
+  const form = new FormData();
+  for (const f of files) form.append('files', f, f.name);
+  const { isEntra, getIdToken } = await import('./auth');
+  const authHeaders: Record<string, string> = isEntra
+    ? { authorization: `Bearer ${(await getIdToken()) ?? ''}` }
+    : { 'x-user-id': String(actingUserId()) };
+  const res = await fetch(`/api/tickets/${ticketId}/attachments`, {
+    method: 'POST', body: form, headers: authHeaders,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error ?? `${res.status} ${res.statusText}`);
+  }
+  return res.json() as Promise<{ ok: boolean; attachments: Attachment[] }>;
+}
+
+/** Fetch attachment bytes with auth headers (img tags can't send them). */
+export async function fetchAttachmentBlob(id: number): Promise<Blob> {
+  const { isEntra, getIdToken } = await import('./auth');
+  const authHeaders: Record<string, string> = isEntra
+    ? { authorization: `Bearer ${(await getIdToken()) ?? ''}` }
+    : { 'x-user-id': String(actingUserId()) };
+  const res = await fetch(`/api/attachments/${id}`, { headers: authHeaders });
+  if (!res.ok) throw new Error(`${res.status}`);
+  return res.blob();
+}
+
+export const deleteAttachment = (id: number) =>
+  api(`/api/attachments/${id}`, { method: 'DELETE' });
 
 export const watchTicket = (id: number, watch: boolean, userId?: number) =>
   api<{ ok: boolean; watching?: boolean; added?: string; alreadyWatching?: boolean }>(

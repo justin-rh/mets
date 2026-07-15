@@ -236,6 +236,9 @@ export async function ticketRoutes(app: FastifyInstance) {
       .where(eq(schema.ticketWatchers.ticketId, id));
     const watching = watchers.some((w) => w.userId === req.userId);
 
+    const { attachmentsForTicket } = await import('./attachments.js');
+    const attachmentRows = await attachmentsForTicket(id);
+
     // RBAC: requesters see only their own tickets, without internal notes,
     // the audit trail, AI internals, or SLA state.
     if (req.userRole === 'requester') {
@@ -257,6 +260,7 @@ export async function ticketRoutes(app: FastifyInstance) {
         // other requesters' tickets stay private — no child/duplicate lists
         incident: { parent: incident.parent, mergedInto: incident.mergedInto, children: [], duplicates: [] },
         watching: false, watcherCount: 0, watchers: [], // agent feature
+        attachments: attachmentRows,
       };
     }
 
@@ -265,6 +269,7 @@ export async function ticketRoutes(app: FastifyInstance) {
       ai: ai ?? null, approvals: approvalRows, incident,
       watching, watcherCount: watchers.length,
       watchers: watchers.map((w) => ({ id: w.userId, name: w.name })),
+      attachments: attachmentRows,
     };
   });
 
