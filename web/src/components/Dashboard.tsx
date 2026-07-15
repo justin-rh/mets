@@ -140,7 +140,7 @@ function AiScoreboard({ ai }: { ai: DashboardData['ai'] }) {
         <Tile
           label="AI spend · 30d"
           value={`$${cost.toFixed(2)}`}
-          sub={`${calls} calls · ${((inputTok + outputTok) / 1000).toFixed(0)}k tokens — vs a SNOW consultant hour`}
+          sub={`${calls} calls · ${((inputTok + outputTok) / 1000).toFixed(0)}k tokens · list pricing, no cache discounts`}
         />
       </div>
       <div className="chart-grid">
@@ -153,10 +153,16 @@ function AiScoreboard({ ai }: { ai: DashboardData['ai'] }) {
         />
         <HBars
           title="AI usage by feature — 30d (tokens)"
-          rows={ai.usage.map((u) => ({
-            label: `${u.feature} (${u.calls} calls)`,
-            value: n(u.input_tokens) + n(u.output_tokens),
-          }))}
+          rows={ai.usage.map((u) => {
+            const featureCost = (n(u.input_tokens) / 1e6) * PRICE_IN_PER_M + (n(u.output_tokens) / 1e6) * PRICE_OUT_PER_M;
+            const perCall = n(u.calls) > 0 ? featureCost / n(u.calls) : 0;
+            const perCallLabel = perCall < 0.095 ? `${(perCall * 100).toFixed(1)}¢` : `$${perCall.toFixed(2)}`;
+            return {
+              label: `${u.feature} (${u.calls} calls)`,
+              value: n(u.input_tokens) + n(u.output_tokens),
+              sub: `~${perCallLabel}/call`,
+            };
+          })}
         />
       </div>
     </>

@@ -418,6 +418,9 @@ export const aiEnrichments = pgTable(
 );
 
 export const aiUsage = pgTable('ai_usage', {
+  // True for demo-baseline rows the seeder synthesizes; real usage rows
+  // (false) are preserved across reseeds so spend history keeps accruing.
+  seeded: boolean('seeded').notNull().default(false),
   id: bigserial('id', { mode: 'number' }).primaryKey(),
   feature: text('feature').notNull(), // classify | summarize | draft_reply | embed
   model: text('model').notNull(),

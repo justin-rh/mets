@@ -796,14 +796,15 @@ select, textarea, input[type='text'], .modal input {
 
 .chart-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
   gap: 14px;
 }
 
 .hbars { display: flex; flex-direction: column; gap: 7px; }
 .hbar-row {
   display: grid;
-  grid-template-columns: 130px 1fr 90px;
+  /* value column fits "842525 · ~2.3¢/call" without spilling the card */
+  grid-template-columns: 130px 1fr 132px;
   align-items: center;
   gap: 10px;
   font-size: 12.5px;

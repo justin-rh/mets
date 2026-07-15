@@ -118,6 +118,14 @@ async function insertChunked<T extends { values: (rows: any[]) => any }>(
 // ==============================================================================
 
 async function main() {
+  // Real AI usage (spend history) survives the reset — only the seeder's own
+  // synthetic rows get regenerated. Ticket links are dropped since the
+  // tickets themselves are about to go.
+  const preservedUsage = (await db.execute(sql`
+    select feature, model, input_tokens, output_tokens, created_at
+    from ai_usage where not seeded
+  `)).rows as { feature: string; model: string; input_tokens: number; output_tokens: number; created_at: string }[];
+
   console.log('Truncating…');
   await db.execute(sql`
     TRUNCATE ai_usage, ai_enrichments, kb_chunks, kb_articles, sla_instances,
@@ -699,7 +707,7 @@ async function main() {
       createdAt: at,
     });
     usageRows.push({
-      feature: 'triage', model: 'claude-opus-4-8', ticketId,
+      feature: 'triage', model: 'claude-opus-4-8', ticketId, seeded: true,
       inputTokens: int(2600, 4300), outputTokens: int(170, 330), createdAt: at,
     });
   });
@@ -707,7 +715,7 @@ async function main() {
   const sprinkle = (feature: string, count: number, inp: [number, number], outp: [number, number]) => {
     for (let k = 0; k < count; k++) {
       usageRows.push({
-        feature, model: 'claude-opus-4-8', ticketId: null,
+        feature, model: 'claude-opus-4-8', ticketId: null, seeded: true,
         inputTokens: int(...inp), outputTokens: int(...outp),
         createdAt: new Date(NOW.getTime() - int(0, 29) * DAY - int(0, 20) * HOUR),
       });
@@ -721,6 +729,16 @@ async function main() {
   console.log(`Inserting ${enrichmentRows.length} AI decisions, ${usageRows.length} usage rows…`);
   await insertChunked(aiEnrichments, enrichmentRows);
   await insertChunked(aiUsage, usageRows);
+
+  // Restore the real usage history captured before the truncate.
+  if (preservedUsage.length) {
+    console.log(`Restoring ${preservedUsage.length} real AI usage rows…`);
+    await insertChunked(aiUsage, preservedUsage.map((u) => ({
+      feature: u.feature, model: u.model, ticketId: null, seeded: false,
+      inputTokens: Number(u.input_tokens), outputTokens: Number(u.output_tokens),
+      createdAt: new Date(u.created_at),
+    })));
+  }
 
   // Two request tickets parked pending manager approval, so the approval flow
   // is visible in demo data (equipment/license requests in gated categories).
