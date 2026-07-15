@@ -61,28 +61,40 @@ with sync_playwright() as p:
         nums.append(t['number'])
     print('burst filed:', nums)
 
-    # wait for declaration (triage x3 + incident AI can take a while)
-    for i in range(480):  # up to 4 min
+    # wait for declaration (triage x3 + incident AI; a transient AI failure
+    # is retried after 20s, so give it room)
+    for i in range(720):  # up to 6 min
         collect()
         if page.locator('.incident-banner-item').count() > 0:
             break
         page.wait_for_timeout(500)
     banner = page.locator('.incident-banner-item')
-    print('banner:', banner.inner_text().replace('\n', ' | ') if banner.count() else 'NEVER APPEARED')
+    declared_early = banner.count() > 0
+    print('banner:', banner.inner_text().replace('\n', ' | ') if declared_early
+          else 'not yet — the 4th report below can still trigger it')
     print('declaration toast:', next((t for t in toasts if 'Major incident declared' in t), '(missing)'))
     page.wait_for_timeout(1000); collect()
     page.screenshot(path=os.path.join(SHOT, 'incident_banner.png'))
 
-    # 4th report should be ABSORBED into the existing parent
+    # 4th report: absorbed if the parent already exists, otherwise it becomes
+    # the founding report that triggers the declaration
     t4 = req('POST', '/api/tickets', {'subject': FOURTH[0], 'description': FOURTH[1], 'type': 'incident'}, user=str(requesters[3]['id']))
     print('4th filed:', t4['number'])
-    for i in range(240):  # up to 2 min
+    for i in range(360):  # up to 3 min
         collect()
         if any('absorbed another report' in t for t in toasts):
             break
+        if not declared_early and banner.count() > 0:
+            break
         page.wait_for_timeout(500)
-    print('absorb toast:', next((t for t in toasts if 'absorbed another report' in t), '(missing)'))
-    print('banner now:', banner.inner_text().replace('\n', ' | ') if banner.count() else '-')
+    if declared_early:
+        print('absorb toast:', next((t for t in toasts if 'absorbed another report' in t), '(missing)'))
+    else:
+        print('declared by 4th report:', banner.count() > 0)
+    if banner.count() == 0:
+        print('FAIL: no incident declared — check server logs for [incidents] errors')
+        b.close(); sys.exit(1)
+    print('banner now:', banner.inner_text().replace('\n', ' | '))
 
     # requester portal: banner visible, read-only
     page.locator('.user-switcher').select_option(label=requesters[0]['name'])

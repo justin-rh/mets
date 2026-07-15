@@ -244,7 +244,10 @@ export async function enrichTicket(ticketId: number, mode: EnrichMode = 'suggest
   // a confirmed burst becomes a linked major incident.
   if (mode === 'auto') {
     const { detectMajorIncident } = await import('../incidents.js');
-    await detectMajorIncident(ticketId).catch(() => {});
+    // A failure here means a burst may go undeclared until the NEXT report
+    // arrives — never swallow it silently.
+    await detectMajorIncident(ticketId).catch((e) =>
+      console.error(`[incidents] detection failed for ticket ${ticketId}:`, e));
   }
 
   return enrichment!;

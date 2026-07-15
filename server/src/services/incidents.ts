@@ -134,7 +134,16 @@ export async function detectMajorIncident(ticketId: number) {
   const burst = [t, ...cluster].map((c) => ({
     number: c.number, subject: c.subject, description: c.description,
   }));
-  const outcome = await getAIProvider().assessIncident({ tickets: burst });
+  // One retry on transient API failure — a missed assessment here means the
+  // outage stays undeclared until another report happens to arrive.
+  let outcome;
+  try {
+    outcome = await getAIProvider().assessIncident({ tickets: burst });
+  } catch (e) {
+    console.error('[incidents] assessment failed, retrying in 20s:', e);
+    await new Promise((r) => setTimeout(r, 20_000));
+    outcome = await getAIProvider().assessIncident({ tickets: burst });
+  }
   await db.insert(aiUsage).values({
     feature: 'incident', model: outcome.model, ticketId,
     inputTokens: outcome.inputTokens, outputTokens: outcome.outputTokens,
