@@ -54,6 +54,9 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
         qc.invalidateQueries({ queryKey: ['active-incidents'] });
         toast(`Incident resolved — ${r.incidentResolved} linked ticket${r.incidentResolved === 1 ? '' : 's'} closed & requesters notified`, 'success');
       }
+      if (r?.trained === 'corrected') {
+        toast('✨ Routing correction recorded — future triage learns from this move', 'info');
+      }
     },
   });
   const comment = useMutation({

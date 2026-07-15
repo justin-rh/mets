@@ -23,10 +23,11 @@ export function IncidentBanner({ onOpen }: { onOpen?: (i: ActiveIncident) => voi
     if (seen.current !== null) {
       for (const i of data) {
         const prev = seen.current.get(i.id);
+        const open = onOpen ? () => onOpen(i) : undefined;
         if (prev === undefined) {
-          toast(`⚠️ Suspected incident declared: ${i.title} — ${i.childCount} reports linked`, 'new');
+          toast(`⚠️ Suspected incident declared: ${i.title} — ${i.childCount} reports linked`, 'new', undefined, open);
         } else if (i.childCount > prev) {
-          toast(`⚠️ ${i.number} absorbed another report (${i.childCount} linked)`, 'info');
+          toast(`⚠️ ${i.number} absorbed another report (${i.childCount} linked)`, 'info', undefined, open);
         }
       }
     }

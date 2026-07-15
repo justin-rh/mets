@@ -1193,6 +1193,13 @@ select, textarea, input[type='text'], .modal input {
   animation: toast-in 0.18s ease-out;
 }
 .toast-text { flex: 1; cursor: pointer; }
+.toast-text.toast-openable:hover { text-decoration: underline; text-underline-offset: 3px; }
+.toast-dismiss {
+  flex-shrink: 0;
+  background: none; border: none; cursor: pointer;
+  color: rgba(255, 255, 255, 0.65); font-size: 12px; padding: 2px 4px;
+}
+.toast-dismiss:hover { color: #fff; }
 .toast-action {
   flex-shrink: 0;
   background: var(--accent);

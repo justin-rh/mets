@@ -152,7 +152,12 @@ export default function App() {
       toast(`${fresh.length} new tickets came in`, 'new');
     } else {
       for (const t of fresh) {
-        toast(`New ticket ${t.number} → ${t.queue.name}: ${t.subject.slice(0, 60)}`, 'new');
+        toast(
+          `New ticket ${t.number} → ${t.queue.name}: ${t.subject.slice(0, 60)}`,
+          'new',
+          undefined,
+          () => jumpToTicket(t.id, t.number),
+        );
       }
     }
   }, [latestTickets]);
@@ -161,6 +166,19 @@ export default function App() {
     qc.invalidateQueries({ queryKey: ['tickets'] });
     qc.invalidateQueries({ queryKey: ['meta'] });
     qc.invalidateQueries({ queryKey: ['ticket'] });
+  };
+
+  // Jump straight to one ticket: queue page, filters cleared, searched by
+  // number, expanded. Used by the incident banner and ticket toasts.
+  const jumpToTicket = (id: number, number: string) => {
+    setPage('queue');
+    setMode('All Tickets');
+    setNlFilter(null);
+    setAssigneeFilter(undefined);
+    setRequesterFilter(undefined);
+    setShowSnoozed(false);
+    setSearch(number);
+    setExpandedId(id);
   };
 
   type UndoOp = { ticketId: number; restore: TicketChanges };
@@ -201,7 +219,15 @@ export default function App() {
       setSelection(new Set());
       invalidate();
       const undoAction = vars.undo?.length ? { label: 'Undo', onClick: () => runUndo(vars.undo!) } : undefined;
-      if (vars.message) toast(vars.message, 'success', undoAction);
+      // Single-ticket toasts open that ticket on click.
+      const one = vars.ids.length === 1 ? ticketRows.find((t) => t.id === vars.ids[0]) : undefined;
+      const openOne = one ? () => jumpToTicket(one.id, one.number) : undefined;
+      if (vars.message) toast(vars.message, 'success', undoAction, openOne);
+      // A queue move that contradicted the AI just became a labeled
+      // correction — say so, that's the learning loop working.
+      if (Array.isArray(result) && (result as any[]).some((r) => r?.trained === 'corrected')) {
+        toast('✨ Routing correction recorded — future triage learns from this move', 'info');
+      }
       else if (vars.action === 'auto_assign' || vars.action === 'expertise_assign') {
         type AssignResult = { ticketId: number; assigneeId: number | null; assigneeName?: string; fit?: number };
         const assigned = (result as AssignResult[]).filter((r) => r.assigneeId != null);
@@ -218,7 +244,7 @@ export default function App() {
           vars.action === 'expertise_assign' && assigned.length > 0 && assigned.length <= 3 && assigned[0]?.assigneeName
             ? `${verb}: ${assigned.map(who).join(' · ')}${suffix}`
             : `${verb}: ${assigned.length} of ${vars.ids.length} ticket${vars.ids.length > 1 ? 's' : ''}${suffix}`;
-        toast(message, 'success', assigned.length ? undoAction : undefined);
+        toast(message, 'success', assigned.length ? undoAction : undefined, openOne);
       }
     },
   });
@@ -420,17 +446,7 @@ export default function App() {
         </button>
       </header>
 
-      <IncidentBanner
-        onOpen={(i) => {
-          setPage('queue');
-          setMode('All Tickets');
-          setNlFilter(null);
-          setAssigneeFilter(undefined);
-          setRequesterFilter(undefined);
-          setSearch(i.number);
-          setExpandedId(i.id);
-        }}
-      />
+      <IncidentBanner onOpen={(i) => jumpToTicket(i.id, i.number)} />
 
       {page === 'dashboards' && <Dashboard />}
       {page === 'kb' && <KnowledgeBase />}
