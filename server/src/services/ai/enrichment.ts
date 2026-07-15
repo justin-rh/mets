@@ -248,6 +248,12 @@ export async function enrichTicket(ticketId: number, mode: EnrichMode = 'suggest
     // arrives — never swallow it silently.
     await detectMajorIncident(ticketId).catch((e) =>
       console.error(`[incidents] detection failed for ticket ${ticketId}:`, e));
+
+    // Guided intake (e.g. Databricks access): SOTO answers the intake
+    // questions from the ticket text and asks only what's missing.
+    const { maybeStartIntake } = await import('../intake.js');
+    await maybeStartIntake(ticketId).catch((e) =>
+      console.error(`[intake] failed for ticket ${ticketId}:`, e));
   }
 
   return enrichment!;

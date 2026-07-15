@@ -178,6 +178,7 @@ export const postComment = (id: number, bodyText: string, visibility: 'public' |
 export type TriageResult = {
   category: string; queueSlug: string; priority: number;
   sentiment: string; summary: string;
+  reasoning?: string; // absent on enrichments from before triage-v5
   confidence: { category: number; queue: number; priority: number };
 };
 

@@ -77,6 +77,9 @@ function SuggestionCard({ s, onDone }: { s: TriageSuggestion; onDone: () => void
         <span className="ticket-requester">{s.requesterName}</span>
       </div>
       <p className="triage-summary">{r.summary}</p>
+      {r.reasoning && (
+        <p className="ai-reasoning" title="Why the AI chose this routing">💡 {r.reasoning}</p>
+      )}
       <div className="triage-suggestions">
         <span className={`suggestion ${confClass(r.confidence.category)} ${categoryChanged ? '' : 'unchanged'}`}>
           {categoryChanged ? `${s.categoryName ?? 'Uncategorized'} → ${r.category}` : `Category: ${r.category} ✓`}
@@ -125,7 +128,10 @@ function DecisionRow({ d, onDone }: { d: AiDecision; onDone: () => void }) {
       <div className="decision-main">
         <span className="ticket-number">{d.ticket.number}</span>
         <span className="decision-subject" title={d.ticket.subject}>{d.ticket.subject}</span>
-        <span className={`suggestion ${confClass(minConf)}`} title="AI classification (lowest field confidence)">
+        <span
+          className={`suggestion ${confClass(minConf)}`}
+          title={r.reasoning ? `💡 ${r.reasoning}` : 'AI classification (lowest field confidence)'}
+        >
           {r.category} → {r.queueSlug} · P{r.priority} <em>{pct(minConf)}</em>
         </span>
         <span className={`outcome ${outcome.cls}`}>

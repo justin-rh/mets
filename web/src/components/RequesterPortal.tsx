@@ -72,6 +72,9 @@ function PortalTicket({ t, expanded, onToggle }: {
     queryKey: ['ticket', t.id],
     queryFn: () => fetchTicket(t.id),
     enabled: expanded,
+    // SOTO can reply within seconds (intake questions, incident updates) —
+    // poll while open so the conversation feels live.
+    refetchInterval: expanded ? 6_000 : false,
   });
   const send = useMutation({
     mutationFn: () => postComment(t.id, reply, 'public'),

@@ -276,6 +276,11 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
               {ai.result.category} · {ai.result.sentiment !== 'neutral' ? `${ai.result.sentiment} · ` : ''}
               {ai.status.replace('_', ' ')}
             </span>
+            {ai.result.reasoning && (
+              <span className="ai-reasoning" title="Why the AI routed it this way">
+                💡 {ai.result.reasoning}
+              </span>
+            )}
           </div>
         )}
         <p className="description">{t.description}</p>

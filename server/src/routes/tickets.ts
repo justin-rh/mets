@@ -374,6 +374,10 @@ export async function ticketRoutes(app: FastifyInstance) {
         bodyText: body.bodyText, source: 'portal',
       }).returning();
       await db.update(tickets).set({ updatedAt: new Date() }).where(eq(tickets.id, id));
+      // Guided intake awaiting answers? Parse the reply and route (async —
+      // the reply itself shouldn't wait on the AI).
+      const { handleIntakeReply } = await import('../services/intake.js');
+      handleIntakeReply(id).catch((e) => console.error(`[intake] reply handling failed for ticket ${id}:`, e));
       const [status] = await db.select().from(statuses).where(eq(statuses.id, t.statusId));
       if (status && (status.category === 'resolved' || status.category === 'closed')) {
         const [openStatus] = await db.select().from(statuses)

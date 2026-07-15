@@ -3,7 +3,7 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { z } from 'zod';
 import { env } from '../../config.js';
 
-export const PROMPT_VERSION = 'triage-v4'; // v3: screenshot attachments; v4: org glossary (ZScaler, OMS)
+export const PROMPT_VERSION = 'triage-v5'; // v3: screenshots; v4: org glossary; v5: reasoning field
 
 // Company-specific terms the model won't know from ticket text alone. Shared
 // across the triage, search, and incident prompts so they route consistently.
@@ -19,6 +19,7 @@ export const TriageSchema = z.object({
   priority: z.number().int().describe('1 (critical) to 4 (low), per the rubric'),
   sentiment: z.enum(['neutral', 'frustrated', 'urgent']),
   summary: z.string().describe('One or two sentences summarizing the issue for an agent'),
+  reasoning: z.string().describe('One short sentence for the reviewing agent: WHY this category/queue/priority — cite the decisive signal (a phrase in the ticket, an error code in a screenshot, company terminology, a correction pattern, the stated business impact)'),
   onBehalfOf: z.string().nullable().describe('EXACT directory name of the person this ticket is actually for, when the text clearly says the submitter is filing for someone else; null otherwise'),
   confidence: z.object({
     category: z.number().describe('0-1'),
@@ -149,12 +150,45 @@ export type SearchParseOutcome = {
   outputTokens: number;
 };
 
+// Guided intake (today: Databricks access). Every answer is nullable —
+// null means "the text doesn't say", which is what SOTO then asks about.
+export const IntakeSchema = z.object({
+  answers: z.object({
+    isAccessIssue: z.boolean().nullable().describe('Is this an access issue (vs a different kind of problem)? null if the text does not say'),
+    accessedBefore: z.boolean().nullable().describe('Have they successfully accessed this resource before? null if unknown'),
+    newlyIntroduced: z.boolean().nullable().describe('Is the resource something new that was recently introduced to them? null if unknown'),
+    instructedToUse: z.boolean().nullable().describe('Did someone (lead, manager) instruct them to start using a new table/dataset/process? null if unknown'),
+    firstAttempt: z.boolean().nullable().describe('Is this their first attempt at accessing it? null if unknown'),
+  }),
+  resources: z.array(z.string()).describe('Tables, datasets, schemas, or reports the requester names, exactly as written; empty if none named'),
+  verdict: z.enum(['new_access', 'broken_access', 'not_access', 'unclear']),
+  reasoning: z.string().describe('One sentence: the decisive signal for the verdict'),
+  confidence: z.number().describe('0-1 certainty in the verdict'),
+});
+export type IntakeResult = z.infer<typeof IntakeSchema>;
+
+export type IntakeInput = {
+  subject: string;
+  description: string;
+  requesterName: string;
+  /** Public conversation so far — SOTO's questions and the requester's replies. */
+  thread: { author: string; body: string }[];
+};
+
+export type IntakeOutcome = {
+  result: IntakeResult;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+};
+
 export interface AIProvider {
   triage(input: TriageInput, ctx: TriageContext): Promise<TriageOutcome>;
   draftReply(input: DraftInput): Promise<DraftOutcome>;
   assessIncident(input: IncidentInput): Promise<IncidentOutcome>;
   draftArticle(input: ArticleInput): Promise<ArticleOutcome>;
   parseSearch(query: string, ctx: SearchParseContext): Promise<SearchParseOutcome>;
+  parseIntake(input: IntakeInput): Promise<IntakeOutcome>;
 }
 
 // ---------------------------------------------------------------------------
@@ -213,7 +247,13 @@ Network & VPN ticket). When an image informed your classification, quote
 the decisive detail (app name, error code) in the summary.
 
 The summary is for the agent picking up the ticket: what is broken/needed,
-who is affected, and any deadline — one or two sentences, no preamble.`;
+who is affected, and any deadline — one or two sentences, no preamble.
+
+The reasoning is for the agent REVIEWING your routing: one short sentence
+naming the decisive signal — quote the phrase, error code, or terminology
+that settled it ('OMS is the web front-end for MERP', 'Error 5003 is a
+Zoom connectivity code', 'matches the recent correction pattern for
+docking stations'). Not a restatement of the answer; say what tipped it.`;
 }
 
 class ClaudeProvider implements AIProvider {
@@ -452,6 +492,64 @@ ${ctx.tags.map((t) => `- ${t}`).join('\n')}`,
       outputTokens: response.usage.output_tokens,
     };
   }
+
+  async parseIntake(input: IntakeInput): Promise<IntakeOutcome> {
+    const response = await this.client.messages.parse({
+      model: env.aiModel,
+      max_tokens: 1000,
+      system: [{
+        type: 'text',
+        cache_control: { type: 'ephemeral' },
+        text: `You run intake for Databricks access tickets at Master Electronics.
+The old flow relayed these through the Service Desk to collect details before
+the Data Team could act; your job is to answer the intake questions directly
+from what the requester wrote so nobody has to ask twice.
+
+From the ticket text and any Q&A thread, determine:
+1. Is this an access issue, or a different kind of problem?
+2. Have they successfully accessed the resource before?
+3. Is the resource something new that was recently introduced to them?
+4. Did someone instruct them to start using a new table, dataset, or process?
+   (A lead saying "start using this table" makes it a NEW access request,
+   not broken access.)
+5. Is this their first attempt at accessing it?
+
+Answer a question ONLY when the text actually says — null otherwise; never
+guess. Extract resource names (tables, datasets, schemas, reports) exactly as
+written, only when actually named.
+
+Verdict:
+- new_access: they never had it — newly introduced, told to start using it,
+  or a first attempt. The Data Team grants permissions.
+- broken_access: it worked before and now fails. The Service Desk
+  investigates an incident.
+- not_access: the problem isn't about access at all.
+- unclear: the text doesn't support any of the above.
+
+${ORG_GLOSSARY}`,
+      }],
+      messages: [{
+        role: 'user',
+        content: `Ticket from ${input.requesterName}:
+Subject: ${input.subject}
+Description:
+${input.description.slice(0, 3000)}${input.thread.length ? `
+
+Conversation so far:
+${input.thread.map((m) => `${m.author}: ${m.body.slice(0, 1000)}`).join('\n---\n')}` : ''}`,
+      }],
+      output_config: { format: zodOutputFormat(IntakeSchema) },
+    });
+    if (!response.parsed_output) {
+      throw new Error(`intake parse failed (stop_reason: ${response.stop_reason})`);
+    }
+    return {
+      result: response.parsed_output,
+      model: response.model,
+      inputTokens: response.usage.input_tokens + (response.usage.cache_read_input_tokens ?? 0) + (response.usage.cache_creation_input_tokens ?? 0),
+      outputTokens: response.usage.output_tokens,
+    };
+  }
 }
 
 /** Keyword-based mock for offline dev and as a demo fallback. */
@@ -503,6 +601,9 @@ class MockProvider implements AIProvider {
         priority: urgent ? 2 : 3,
         sentiment: urgent ? 'urgent' : 'neutral',
         summary: input.description.split(/[.!?]/)[0]?.slice(0, 160) ?? input.subject,
+        reasoning: hit
+          ? `Matched the ${category.name} keyword pattern ${hit[0]} (mock provider).`
+          : 'No keyword pattern matched — defaulted to the first category at low confidence (mock provider).',
         onBehalfOf: onBehalf?.name ?? null,
         confidence: {
           category: hit ? 0.85 : 0.35, queue: hit ? 0.85 : 0.35, priority: 0.5,
@@ -572,6 +673,35 @@ class MockProvider implements AIProvider {
         bodyMarkdown: `## Symptoms\n${input.description.slice(0, 300)}\n\n## Fix\n${substantive.map((c, i) => `${i + 1}. ${c.body.slice(0, 200)}`).join('\n')}`,
         reason: 'Mock heuristic: multi-step resolution thread.',
         confidence: 0.65,
+      },
+      model: 'mock', inputTokens: 0, outputTokens: 0,
+    };
+  }
+
+  async parseIntake(input: IntakeInput): Promise<IntakeOutcome> {
+    const text = [input.subject, input.description, ...input.thread.map((m) => m.body)].join(' ').toLowerCase();
+    // schema.table-style tokens, e.g. finance.revenue or sales_orders
+    const resources = [...new Set(
+      (text.match(/\b[a-z][a-z0-9_]*\.[a-z][a-z0-9_]+\b/g) ?? []).filter((r) => !r.includes('@')),
+    )];
+    const newish = /never (had|accessed)|first time|new table|start using|told (me|us) to|asked (me|us) to|recently (introduced|added)/.test(text);
+    const broken = /used to work|worked (before|yesterday|last week)|suddenly|stopped working|error|denied/.test(text);
+    const verdict = newish && !broken ? 'new_access' as const
+      : broken && !newish ? 'broken_access' as const
+      : 'unclear' as const;
+    return {
+      result: {
+        answers: {
+          isAccessIssue: /access|permission/.test(text) ? true : null,
+          accessedBefore: broken ? true : newish ? false : null,
+          newlyIntroduced: newish ? true : null,
+          instructedToUse: /told (me|us) to|asked (me|us) to|start using/.test(text) ? true : null,
+          firstAttempt: /first time/.test(text) ? true : null,
+        },
+        resources,
+        verdict,
+        reasoning: `Mock keyword heuristic (${verdict}).`,
+        confidence: verdict === 'unclear' ? 0.4 : 0.75,
       },
       model: 'mock', inputTokens: 0, outputTokens: 0,
     };

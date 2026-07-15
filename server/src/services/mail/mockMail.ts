@@ -53,6 +53,9 @@ export async function processInboundEmail(input: { from: string; subject: string
           await applyTicketChanges(existing.id, { id: null, type: 'system' }, { statusId: openStatus.id });
         }
       }
+      // Email answers to SOTO's intake questions route the same as portal ones.
+      const { handleIntakeReply } = await import('../intake.js');
+      handleIntakeReply(existing.id).catch((e) => console.error(`[intake] email reply handling failed for ticket ${existing.id}:`, e));
       return { action: 'appended' as const, ticketId: existing.id, number: token };
     }
   }
