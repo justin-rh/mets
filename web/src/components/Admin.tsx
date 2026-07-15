@@ -3,8 +3,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   addAgentSkill, addRecurring, addRoutingRule, addStatus, addTemplate,
   deleteRecurring, deleteRoutingRule, deleteTemplate, fetchAdminConfig,
-  fetchAdminUsers, fetchMeta, removeAgentSkill, renameStatus, runEscalationSweep,
+  fetchAdminUsers, fetchMeta, importPreview, importRun, removeAgentSkill,
+  renameStatus, runEscalationSweep,
   updateUserLead, updateUserQueues, updateUserRole,
+  type ImportPreview, type ImportResult,
   saveAiThresholds, saveAutoClose, saveEscalation, saveQueueNotify,
   saveScoreKeywords, saveScoreWeights, saveSlaPolicy, setCategoryApproval,
   syncSkills, toggleRecurring, toggleRoutingRule, updateTemplate,
@@ -830,6 +832,143 @@ function UserQueuesCard(_: { config: AdminConfig }) {
   );
 }
 
+const IMPORT_FIELD_LABELS: [string, string][] = [
+  ['legacyNumber', 'Original number'],
+  ['subject', 'Subject'],
+  ['description', 'Description'],
+  ['requester', 'Caller / requester'],
+  ['state', 'State'],
+  ['priority', 'Priority'],
+  ['createdAt', 'Opened at'],
+  ['resolvedAt', 'Resolved at'],
+  ['closedAt', 'Closed at'],
+  ['queue', 'Assignment group'],
+  ['notes', 'Work notes'],
+];
+
+/** ServiceNow migration: upload → mapping preview (the dry run) → import. */
+function ImportCard(_: { config: AdminConfig }) {
+  const qc = useQueryClient();
+  const [preview, setPreview] = useState<ImportPreview | null>(null);
+  const [mapping, setMapping] = useState<Record<string, string>>({});
+  const [runTriage, setRunTriage] = useState(false);
+  const [result, setResult] = useState<ImportResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const upload = useMutation({
+    mutationFn: (file: File) => importPreview(file),
+    onSuccess: (p) => { setPreview(p); setMapping(p.mapping); setResult(null); setError(null); },
+    onError: (e: any) => setError(e?.message ?? 'upload failed'),
+  });
+  const run = useMutation({
+    mutationFn: () => importRun(preview!.importId, mapping, runTriage),
+    onSuccess: (r) => {
+      setResult(r);
+      setPreview(null);
+      qc.invalidateQueries({ queryKey: ['tickets'] });
+      qc.invalidateQueries({ queryKey: ['meta'] });
+    },
+    onError: (e: any) => setError(e?.message ?? 'import failed'),
+  });
+
+  return (
+    <div className="admin-card admin-card-wide">
+      <h3>Import from ServiceNow</h3>
+      <p className="admin-hint">
+        Upload an incident-list CSV export. Columns are auto-detected and
+        adjustable below; original numbers land in the ticket as a crosswalk
+        (searchable), unknown callers become requester accounts, and
+        re-importing the same file skips rows already imported.
+      </p>
+      <input
+        type="file"
+        accept=".csv"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) upload.mutate(f);
+          e.target.value = '';
+        }}
+      />
+      {error && <p className="admin-error">{error}</p>}
+      {upload.isPending && <p className="admin-hint">Parsing…</p>}
+
+      {preview && (
+        <div className="import-preview">
+          <p className="admin-hint">
+            <strong>{preview.rowCount} rows</strong> detected.
+            {preview.warnings.map((w) => <span key={w} className="import-warning"> ⚠ {w}</span>)}
+          </p>
+          <div className="import-mapping">
+            {IMPORT_FIELD_LABELS.map(([field, label]) => (
+              <label key={field} className="import-map-row">
+                <span>{label}</span>
+                <select
+                  value={mapping[field] ?? ''}
+                  onChange={(e) => setMapping((m) => {
+                    const next = { ...m };
+                    if (e.target.value) next[field] = e.target.value;
+                    else delete next[field];
+                    return next;
+                  })}
+                >
+                  <option value="">— not imported —</option>
+                  {preview.headers.map((h) => <option key={h} value={h}>{h}</option>)}
+                </select>
+              </label>
+            ))}
+          </div>
+          <table className="import-sample">
+            <thead>
+              <tr><th>Number</th><th>Subject</th><th>Caller</th><th>State</th><th>Pri</th><th>Opened</th></tr>
+            </thead>
+            <tbody>
+              {preview.sample.map((r, i) => (
+                <tr key={i}>
+                  <td>{r.legacyNumber}</td>
+                  <td>{(r.subject ?? '').slice(0, 48)}</td>
+                  <td>{r.requester}</td>
+                  <td>{r.state}</td>
+                  <td>{r.priority?.slice(0, 10)}</td>
+                  <td>{r.createdAt}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <label className="toolbar-check import-triage">
+            <input type="checkbox" checked={runTriage} onChange={(e) => setRunTriage(e.target.checked)} />
+            Run AI triage on imported open tickets (first 15 now, rest via the AI Triage tab)
+          </label>
+          <div className="modal-actions">
+            <button className="btn" onClick={() => setPreview(null)}>Cancel</button>
+            <button className="btn primary" disabled={run.isPending || !mapping.subject} onClick={() => run.mutate()}>
+              {run.isPending ? 'Importing…' : `Import ${preview.rowCount} tickets`}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {result && (
+        <div className="import-result">
+          <p>
+            ✅ <strong>{result.created} imported</strong>
+            {result.skippedDupes > 0 && <> · {result.skippedDupes} already imported (skipped)</>}
+            {result.requestersProvisioned > 0 && <> · {result.requestersProvisioned} requester account{result.requestersProvisioned === 1 ? '' : 's'} created</>}
+            {result.openImported > 0 && <> · {result.openImported} still open</>}
+            {result.triageQueued > 0 && <> · AI triage running on {result.triageQueued}</>}
+          </p>
+          {result.errors.length > 0 && (
+            <p className="import-warning">
+              ⚠ {result.errors.length} row{result.errors.length === 1 ? '' : 's'} skipped:{' '}
+              {result.errors.slice(0, 3).map((e) => `row ${e.row} (${e.reason})`).join(', ')}
+              {result.errors.length > 3 ? '…' : ''}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const ADMIN_SECTIONS = [
   {
     key: 'scoring', label: 'Scoring', icon: '📈',
@@ -860,6 +999,11 @@ const ADMIN_SECTIONS = [
     key: 'users', label: 'Users & Queues', icon: '👥',
     hint: 'Queue membership and visibility',
     cards: [UserQueuesCard],
+  },
+  {
+    key: 'import', label: 'Import', icon: '📦',
+    hint: 'Bring your history over from ServiceNow',
+    cards: [ImportCard],
   },
 ] as const;
 

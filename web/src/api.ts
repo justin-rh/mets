@@ -37,6 +37,7 @@ export type TicketEvent = {
 };
 export type TicketDetail = TicketListItem & {
   description: string; manualBoost: number; source: string;
+  legacyNumber: string | null; // original ServiceNow number, when imported
   firstRespondedAt: string | null; resolvedAt: string | null;
   requester: { id: number; name: string; isVip: boolean; department: string | null; email: string };
   comments: Comment[]; events: TicketEvent[]; sla: any[];
@@ -314,6 +315,34 @@ export type Suggestions = {
   similarTickets: { id: number; number: string; subject: string; resolved_at: string }[];
 };
 export const fetchSuggestions = (ticketId: number) => api<Suggestions>(`/api/tickets/${ticketId}/suggestions`);
+
+export type ImportPreview = {
+  importId: string; headers: string[]; mapping: Record<string, string>;
+  rowCount: number; sample: Record<string, string>[]; warnings: string[];
+};
+export type ImportResult = {
+  created: number; skippedDupes: number; requestersProvisioned: number;
+  errors: { row: number; reason: string }[];
+  openImported: number; triageQueued: number; triageRemaining: number;
+};
+export async function importPreview(file: File): Promise<ImportPreview> {
+  const form = new FormData();
+  form.append('file', file, file.name);
+  const { isEntra, getIdToken } = await import('./auth');
+  const authHeaders: Record<string, string> = isEntra
+    ? { authorization: `Bearer ${(await getIdToken()) ?? ''}` }
+    : { 'x-user-id': String(actingUserId()) };
+  const res = await fetch('/api/admin/import/preview', { method: 'POST', body: form, headers: authHeaders });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error ?? `${res.status} ${res.statusText}`);
+  }
+  return res.json();
+}
+export const importRun = (importId: string, mapping: Record<string, string>, runTriage: boolean) =>
+  api<ImportResult>('/api/admin/import/run', {
+    method: 'POST', body: JSON.stringify({ importId, mapping, runTriage }),
+  });
 
 export type AdminUser = {
   id: number; name: string; role: string; isAvailable: boolean;

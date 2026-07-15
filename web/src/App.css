@@ -1204,6 +1204,27 @@ select, textarea, input[type='text'], .modal input {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
   animation: toast-in 0.18s ease-out;
 }
+/* ServiceNow import */
+.import-mapping { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px 14px; margin: 10px 0; }
+.import-map-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.import-map-row span { flex: 0 0 110px; color: var(--text-muted); }
+.import-map-row select { flex: 1; font: inherit; font-size: 12px; padding: 2px 4px; min-width: 0; }
+.import-sample { width: 100%; border-collapse: collapse; font-size: 12px; margin: 8px 0; }
+.import-sample th, .import-sample td {
+  text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px;
+}
+.import-sample th { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+.import-warning { color: #b45309; font-size: 12px; }
+.import-triage { margin: 8px 0; font-size: 13px; }
+.import-result { margin-top: 10px; font-size: 13px; }
+.admin-error { color: #c0392b; font-size: 13px; }
+.legacy-badge {
+  font-family: var(--font-data); font-size: 12px;
+  border: 1px solid var(--line-strong); border-radius: var(--r);
+  padding: 1px 6px;
+}
+
 /* Admin: Users & Queues */
 .uq-list { display: flex; flex-direction: column; }
 .uq-row {

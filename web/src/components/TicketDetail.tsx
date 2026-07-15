@@ -645,6 +645,12 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
           </div>
         )}
         <dl className="detail-meta">
+          {t.legacyNumber && (
+            <>
+              <dt>Imported</dt>
+              <dd title="Original ServiceNow number — searchable"><span className="legacy-badge">{t.legacyNumber}</span></dd>
+            </>
+          )}
           <dt>Status</dt>
           <dd>
             <select value={t.status.id} onChange={(e) => patch.mutate({ statusId: Number(e.target.value) })}>

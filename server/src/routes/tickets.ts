@@ -83,7 +83,11 @@ export async function ticketRoutes(app: FastifyInstance) {
       )`);
     }
     if (q.search) {
-      conds.push(or(ilike(tickets.subject, `%${q.search}%`), ilike(tickets.number, `%${q.search}%`))!);
+      conds.push(or(
+        ilike(tickets.subject, `%${q.search}%`),
+        ilike(tickets.number, `%${q.search}%`),
+        ilike(tickets.legacyNumber, `%${q.search}%`), // imported SNOW numbers resolve too
+      )!);
     }
     if (q.categoryId) conds.push(eq(tickets.categoryId, q.categoryId));
     for (const tag of (q.tags ?? '').split(',').map((s) => s.trim()).filter(Boolean)) {
@@ -176,6 +180,7 @@ export async function ticketRoutes(app: FastifyInstance) {
         firstRespondedAt: tickets.firstRespondedAt, resolvedAt: tickets.resolvedAt,
         snoozedUntil: tickets.snoozedUntil, snoozeReason: tickets.snoozeReason,
         source: tickets.source, customFields: tickets.customFields,
+        legacyNumber: tickets.legacyNumber,
         csatRating: tickets.csatRating, csatComment: tickets.csatComment,
         status: { id: statuses.id, name: statuses.name, category: statuses.category },
         queue: { id: teams.id, name: teams.name },

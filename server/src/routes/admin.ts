@@ -208,6 +208,28 @@ export async function adminRoutes(app: FastifyInstance) {
     return { ok: true };
   });
 
+  // ServiceNow migration: upload a CSV export, get back the auto-detected
+  // column mapping + sample rows (the dry run), then confirm to import.
+  app.post('/api/admin/import/preview', async (req, reply) => {
+    requireAdmin(req);
+    const file = await (req as any).file();
+    if (!file) return reply.status(400).send({ error: 'attach a CSV file' });
+    const text = (await file.toBuffer()).toString('utf8');
+    const { previewImport } = await import('../services/importService.js');
+    return previewImport(text);
+  });
+
+  app.post('/api/admin/import/run', async (req) => {
+    requireAdmin(req);
+    const body = z.object({
+      importId: z.string().max(40),
+      mapping: z.record(z.string(), z.string().max(200)),
+      runTriage: z.boolean().default(false),
+    }).parse(req.body);
+    const { runImport } = await import('../services/importService.js');
+    return runImport(body.importId, body.mapping as any, { runTriage: body.runTriage });
+  });
+
   // Addresses emailed whenever a ticket enters the queue (comma-separated).
   app.patch('/api/admin/queues/:id/notify', async (req) => {
     requireAdmin(req);
