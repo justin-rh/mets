@@ -90,9 +90,9 @@ export default function App() {
     linkedTicket && debouncedSearch === linkedTicket ? 'all' // permalinks resolve closed tickets too
     : requesterFilter ? 'all' // submitted-by view spans open and closed
     : showSnoozed ? 'snoozed'
-    : mode === 'My Queue' ? 'mine'
+    : mode === 'Assigned Tickets' ? 'mine'
     : mode === 'Unassigned' ? 'unassigned'
-    : mode === 'My Categories' ? 'my_queues'
+    : mode === 'My Queues' ? 'my_queues'
     : mode === 'Closed' ? 'closed'
     : 'open';
   const params: ListParams = nlFilter
@@ -479,8 +479,8 @@ export default function App() {
         <span className="mode-hint">
           {mode === 'All Tickets' && 'Drag tickets onto an agent (left) or a queue (right)'}
           {mode === 'Unassigned' && 'Open tickets with no assignee'}
-          {mode === 'My Categories' && 'Tickets in the queues your teams own'}
-          {mode === 'My Queue' && 'Your assigned tickets'}
+          {mode === 'My Queues' && 'Tickets in the queues your teams own'}
+          {mode === 'Assigned Tickets' && 'Your assigned tickets'}
           {mode === 'Closed' && 'Resolved and closed tickets — reopen by changing status'}
           {mode === 'AI Triage' && 'AI categorization, routing, and priority checks — accept or dismiss'}
         </span>

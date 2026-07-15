@@ -208,7 +208,7 @@ export function RequesterPortal({ userId, onSwitchUser, theme, onToggleTheme }: 
 
       <div className="modebar">
         <button className={tab === 'tickets' ? 'active' : ''} onClick={() => setTab('tickets')}>
-          My Tickets
+          Submitted Tickets
         </button>
         <button className={tab === 'kb' ? 'active' : ''} onClick={() => setTab('kb')}>
           Knowledge Base

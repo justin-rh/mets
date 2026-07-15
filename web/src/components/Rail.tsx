@@ -108,8 +108,8 @@ export function AgentRail({ meta, queueId, mode, assigneeFilter, onSelectAssigne
 
   let others = meta.agents.filter((a) => a.id !== me);
   if (queueId) others = others.filter((a) => a.teamIds.includes(queueId));
-  // My Categories: only teammates — agents who share a queue with you.
-  if (mode === 'My Categories') others = others.filter((a) => a.teamIds.some((t) => myTeamIds.has(t)));
+  // My Queues: only teammates — agents who share a queue with you.
+  if (mode === 'My Queues') others = others.filter((a) => a.teamIds.some((t) => myTeamIds.has(t)));
   others.sort((a, b) => a.name.localeCompare(b.name));
 
   const queueName = new Map(meta.queues.map((q) => [q.id, q.name]));
@@ -147,7 +147,7 @@ export function AgentRail({ meta, queueId, mode, assigneeFilter, onSelectAssigne
   );
 }
 
-/** Right rail: quick assigns, then your queues / divider / other queues, holding area. */
+/** Right rail: quick actions (assigns + holding area), then your queues / divider / other queues. */
 export function ActionRail({ mode, meta, queueId, onSelectQueue, onCollapse }: {
   mode: Mode;
   meta: Meta | undefined;
@@ -193,6 +193,10 @@ export function ActionRail({ mode, meta, queueId, onSelectQueue, onCollapse }: {
         <strong>Auto-assign (Expertise)</strong>
         <span className="rail-sub">matches category to agent skills</span>
       </DropCard>
+      <DropCard id="snooze-zone" className="snooze-zone">
+        <strong>⏸ Holding area</strong>
+        <span className="rail-sub">drop tickets to snooze</span>
+      </DropCard>
 
       <div className="rail-title">Queues — drop to move</div>
       {myQueues.map(queueCard)}
@@ -210,11 +214,6 @@ export function ActionRail({ mode, meta, queueId, onSelectQueue, onCollapse }: {
         </div>
       )}
 
-      <div className="rail-spacer" />
-      <DropCard id="snooze-zone" className="snooze-zone">
-        <strong>⏸ Holding area</strong>
-        <span className="rail-sub">drop tickets to snooze</span>
-      </DropCard>
     </aside>
   );
 }
