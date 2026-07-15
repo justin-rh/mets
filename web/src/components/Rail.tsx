@@ -218,7 +218,7 @@ export function ActionRail({ mode, meta, queueId, onSelectQueue, onCollapse }: {
       </DropCard>
       <DropCard id="assign-mentioned" className="assign-mentioned">
         <strong>Auto-assign (Mentioned)</strong>
-        <span className="rail-sub">assigns to the agent named in the ticket</span>
+        <span className="rail-sub">agent named in the ticket, else round-robin</span>
       </DropCard>
       <DropCard id="snooze-zone" className="snooze-zone">
         <strong>⏸ Holding area</strong>

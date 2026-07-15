@@ -238,21 +238,22 @@ export default function App() {
         toast('✨ Routing correction recorded — future triage learns from this move', 'info');
       }
       else if (vars.action === 'auto_assign' || vars.action === 'expertise_assign' || vars.action === 'mentioned_assign') {
-        type AssignResult = { ticketId: number; assigneeId: number | null; assigneeName?: string; fit?: number };
+        type AssignResult = { ticketId: number; assigneeId: number | null; assigneeName?: string; fit?: number; via?: string };
         const assigned = (result as AssignResult[]).filter((r) => r.assigneeId != null);
         const verb = vars.action === 'expertise_assign' ? 'Assigned by expertise'
           : vars.action === 'mentioned_assign' ? 'Assigned by mention'
           : 'Auto-assigned';
         const suffix = assigned.length < vars.ids.length
           ? (vars.action === 'expertise_assign' ? ' (rest: no skilled agent available)'
-            : vars.action === 'mentioned_assign' ? ' (rest: no queue agent mentioned)'
+            : vars.action === 'mentioned_assign' ? ' (rest: queue at capacity)'
             : '')
           : '';
         // Expertise/mention picks name the agent so the choice is
-        // explainable at a glance (fit % matches the Suggested avatars).
+        // explainable at a glance (fit % matches the Suggested avatars;
+        // mention drops fall back to round-robin when nobody is named).
         const who = (r: AssignResult) => {
           const num = ticketRows.find((t) => t.id === r.ticketId)?.number ?? `#${r.ticketId}`;
-          return `${num} → ${r.assigneeName}${r.fit != null ? ` (${Math.round(r.fit * 100)}% fit)` : ''}`;
+          return `${num} → ${r.assigneeName}${r.fit != null ? ` (${Math.round(r.fit * 100)}% fit)` : ''}${r.via === 'round_robin' ? ' (no mention — round-robin)' : ''}`;
         };
         const message =
           vars.action !== 'auto_assign' && assigned.length > 0 && assigned.length <= 3 && assigned[0]?.assigneeName

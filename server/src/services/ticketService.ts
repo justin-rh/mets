@@ -430,14 +430,25 @@ export async function detectMentionedAgent(ticketId: number) {
 
 /**
  * Drag-to-"Auto-assign (Mentioned)": assign each ticket to the queue agent
- * named in its text; tickets naming nobody (or an OOO agent) stay put.
+ * named in its text; tickets naming nobody (or an OOO agent) fall back to
+ * the normal round-robin auto-assign.
  */
 export async function autoAssignByMention(ticketIds: number[], actor: Actor) {
-  const results: { ticketId: number; assigneeId: number | null; assigneeName?: string; snippet?: string }[] = [];
+  const results: {
+    ticketId: number; assigneeId: number | null; assigneeName?: string;
+    snippet?: string; via?: 'mention' | 'round_robin';
+  }[] = [];
   for (const ticketId of ticketIds) {
     const hit = await detectMentionedAgent(ticketId);
     if (!hit || !hit.isAvailable) {
-      results.push({ ticketId, assigneeId: null });
+      const [rr] = await autoAssign([ticketId], actor);
+      const [name] = rr?.assigneeId
+        ? await db.select({ name: users.name }).from(users).where(eq(users.id, rr.assigneeId))
+        : [undefined];
+      results.push({
+        ticketId, assigneeId: rr?.assigneeId ?? null, assigneeName: name?.name,
+        via: rr?.assigneeId ? 'round_robin' : undefined,
+      });
       continue;
     }
     await applyTicketChanges(ticketId, { ...actor, type: 'system' }, { assigneeId: hit.id });
@@ -445,7 +456,7 @@ export async function autoAssignByMention(ticketIds: number[], actor: Actor) {
       ticketId, actorId: actor.id, actorType: 'system', eventType: 'assigned_by_mention',
       field: 'mention', newValue: `${hit.name} — "…${hit.snippet}…"`,
     });
-    results.push({ ticketId, assigneeId: hit.id, assigneeName: hit.name, snippet: hit.snippet });
+    results.push({ ticketId, assigneeId: hit.id, assigneeName: hit.name, snippet: hit.snippet, via: 'mention' });
   }
   return results;
 }
