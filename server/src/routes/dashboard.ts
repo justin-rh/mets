@@ -79,7 +79,41 @@ export async function dashboardRoutes(app: FastifyInstance) {
       group by tm.name order by count desc
     `)).rows;
 
-    return { tiles, daily, backlogAge, openByQueue, csatDist };
+    // The AI scoreboard: how triage is actually performing, from the same
+    // audited decisions agents see in the AI Triage log.
+    const [aiTiles] = (await db.execute(sql`
+      select
+        count(*) filter (where created_at > now() - interval '30 days') as total_30,
+        count(*) filter (where status = 'auto_applied' and created_at > now() - interval '30 days') as auto_30,
+        count(*) filter (where status = 'applied' and created_at > now() - interval '30 days') as accepted_30,
+        count(*) filter (where status = 'corrected' and created_at > now() - interval '30 days') as corrected_30,
+        count(*) filter (where status = 'dismissed' and created_at > now() - interval '30 days') as dismissed_30,
+        count(*) filter (where status in ('auto_applied','applied') and created_at > now() - interval '7 days') as agreed_wk,
+        count(*) filter (where status in ('auto_applied','applied','corrected','dismissed') and created_at > now() - interval '7 days') as judged_wk,
+        count(*) filter (where status in ('auto_applied','applied') and created_at between now() - interval '14 days' and now() - interval '7 days') as agreed_prev,
+        count(*) filter (where status in ('auto_applied','applied','corrected','dismissed') and created_at between now() - interval '14 days' and now() - interval '7 days') as judged_prev
+      from ai_enrichments where feature = 'triage'
+    `)).rows as any[];
+
+    const aiByCategory = (await db.execute(sql`
+      select result->>'category' as category,
+        count(*) as decisions,
+        count(*) filter (where status = 'corrected') as corrected
+      from ai_enrichments
+      where feature = 'triage' and created_at > now() - interval '30 days'
+        and status in ('auto_applied','applied','corrected','dismissed')
+      group by 1 having count(*) >= 3
+      order by decisions desc limit 8
+    `)).rows;
+
+    const aiUsage = (await db.execute(sql`
+      select feature, count(*) as calls,
+        sum(input_tokens) as input_tokens, sum(output_tokens) as output_tokens
+      from ai_usage where created_at > now() - interval '30 days'
+      group by feature order by sum(input_tokens) desc
+    `)).rows;
+
+    return { tiles, daily, backlogAge, openByQueue, csatDist, ai: { tiles: aiTiles, byCategory: aiByCategory, usage: aiUsage } };
   });
 
   // TP leaderboard: rank agents by Ticket Points earned (score of tickets

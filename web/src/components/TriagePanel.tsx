@@ -199,6 +199,7 @@ export function TriagePanel() {
         {stats && judged > 0 && (
           <span className="triage-stats" title="Last 30 days">
             <strong>{Math.round((agreed / judged) * 100)}% agreement</strong>
+            {Number(stats.total) > 0 && <> · {Math.round((Number(stats.auto_applied) / Number(stats.total)) * 100)}% fully automatic</>}
             {' · '}{stats.auto_applied} auto · {stats.accepted} accepted · {stats.corrected} corrected · {stats.dismissed} dismissed
           </span>
         )}

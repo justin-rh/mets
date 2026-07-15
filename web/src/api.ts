@@ -279,6 +279,15 @@ export type DashboardData = {
   backlogAge: { bucket: string; count: string }[];
   openByQueue: { name: string; count: string }[];
   csatDist: { rating: number; count: string }[];
+  ai: {
+    tiles: {
+      total_30: string; auto_30: string; accepted_30: string;
+      corrected_30: string; dismissed_30: string;
+      agreed_wk: string; judged_wk: string; agreed_prev: string; judged_prev: string;
+    };
+    byCategory: { category: string; decisions: string; corrected: string }[];
+    usage: { feature: string; calls: string; input_tokens: string; output_tokens: string }[];
+  };
 };
 
 export type LeaderboardRow = {

@@ -648,6 +648,80 @@ async function main() {
   await insertChunked(ticketTags, tagLinkRows);
   await insertChunked(slaInstances, slaRows);
 
+  // AI decision history: most recent tickets carry a triage enrichment so
+  // the accuracy scoreboard, decision log, and usage/cost numbers have a
+  // month of believable data at baseline. ~78% auto-applied, a few percent
+  // corrected (with the wrong-then-fixed categories recorded, which also
+  // feeds the corrections few-shot loop).
+  const categoryNameById = new Map(categoryRows.map((c) => [c.id, c.name]));
+  const teamSlugById = new Map(teamRows.map((t) => [t.id, t.slug]));
+  const allCategoryNames = categoryRows.map((c) => c.name);
+  const enrichmentRows: (typeof aiEnrichments.$inferInsert)[] = [];
+  const usageRows: (typeof aiUsage.$inferInsert)[] = [];
+  const promptVersionFor = (ageDays: number) =>
+    ageDays > 21 ? 'triage-v4' : ageDays > 10 ? 'triage-v5' : ageDays > 4 ? 'triage-v6' : 'triage-v7';
+
+  pendingTickets.forEach((p, i) => {
+    const ticketId = insertedIds[i]!;
+    const createdAt = p.row.createdAt!;
+    const ageDays = (NOW.getTime() - createdAt.getTime()) / DAY;
+    if (ageDays > 45 || !p.row.categoryId || !chance(0.8)) return;
+
+    const roll = rand();
+    const status = roll < 0.78 ? 'auto_applied' : roll < 0.88 ? 'applied' : roll < 0.945 ? 'corrected' : 'dismissed';
+    const realCategory = categoryNameById.get(p.row.categoryId)!;
+    const realSlug = teamSlugById.get(p.row.queueId!) ?? 'it-support';
+    const wrongCategory = status === 'corrected'
+      ? pick(allCategoryNames.filter((c) => c !== realCategory))
+      : realCategory;
+    const conf = status === 'auto_applied' ? 0.82 + rand() * 0.15
+      : status === 'applied' ? 0.5 + rand() * 0.28
+      : 0.42 + rand() * 0.35;
+    const at = new Date(createdAt.getTime() + int(15, 90) * 1000);
+
+    enrichmentRows.push({
+      ticketId, feature: 'triage', status,
+      model: 'claude-opus-4-8', promptVersion: promptVersionFor(ageDays),
+      result: {
+        category: wrongCategory, queueSlug: realSlug, priority: p.row.priority,
+        sentiment: 'neutral',
+        summary: p.row.description!.split(/[.!?]/)[0]?.slice(0, 150) ?? p.row.subject,
+        confidence: { category: conf, queue: conf, priority: Math.max(0.4, conf - 0.1), onBehalfOf: 0 },
+      },
+      confidence: { category: conf, queue: conf, priority: Math.max(0.4, conf - 0.1), onBehalfOf: 0 },
+      ...(status === 'corrected' ? {
+        feedback: {
+          original: { category: wrongCategory, queueSlug: realSlug, priority: p.row.priority },
+          corrected: { category: realCategory, queueSlug: realSlug },
+          at: at.toISOString(),
+        },
+      } : {}),
+      createdAt: at,
+    });
+    usageRows.push({
+      feature: 'triage', model: 'claude-opus-4-8', ticketId,
+      inputTokens: int(2600, 4300), outputTokens: int(170, 330), createdAt: at,
+    });
+  });
+  // A sprinkle of the other AI features so the usage breakdown looks lived-in.
+  const sprinkle = (feature: string, count: number, inp: [number, number], outp: [number, number]) => {
+    for (let k = 0; k < count; k++) {
+      usageRows.push({
+        feature, model: 'claude-opus-4-8', ticketId: null,
+        inputTokens: int(...inp), outputTokens: int(...outp),
+        createdAt: new Date(NOW.getTime() - int(0, 29) * DAY - int(0, 20) * HOUR),
+      });
+    }
+  };
+  sprinkle('search', 24, [900, 1600], [80, 160]);
+  sprinkle('deflection', 11, [1800, 3200], [120, 420]);
+  sprinkle('incident', 6, [1500, 2600], [150, 300]);
+  sprinkle('kb_draft', 9, [2200, 3800], [400, 900]);
+  sprinkle('draft_reply', 14, [1600, 2800], [150, 350]);
+  console.log(`Inserting ${enrichmentRows.length} AI decisions, ${usageRows.length} usage rows…`);
+  await insertChunked(aiEnrichments, enrichmentRows);
+  await insertChunked(aiUsage, usageRows);
+
   // Two request tickets parked pending manager approval, so the approval flow
   // is visible in demo data (equipment/license requests in gated categories).
   const botUser = allUsers.find((u) => u.name === 'SOTO Bot')!;

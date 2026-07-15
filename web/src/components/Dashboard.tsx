@@ -92,6 +92,77 @@ function Tile({ label, value, sub }: { label: string; value: string; sub?: strin
   );
 }
 
+// Opus 4.8 list pricing — the honest cost line under the accuracy numbers.
+const PRICE_IN_PER_M = 5, PRICE_OUT_PER_M = 25;
+
+/** How AI triage is actually performing — from the audited decision log. */
+function AiScoreboard({ ai }: { ai: DashboardData['ai'] }) {
+  const n = (v: string | null | undefined) => Number(v ?? 0);
+  const t = ai.tiles;
+  const judged = n(t.auto_30) + n(t.accepted_30) + n(t.corrected_30) + n(t.dismissed_30);
+  const agreed = n(t.auto_30) + n(t.accepted_30);
+  const pct = (a: number, b: number) => (b > 0 ? Math.round((a / b) * 100) : null);
+  const accuracy = pct(agreed, judged);
+  const autoRate = pct(n(t.auto_30), n(t.total_30));
+  const wk = pct(n(t.agreed_wk), n(t.judged_wk));
+  const prev = pct(n(t.agreed_prev), n(t.judged_prev));
+  const delta = wk != null && prev != null ? wk - prev : null;
+
+  const inputTok = ai.usage.reduce((s, u) => s + n(u.input_tokens), 0);
+  const outputTok = ai.usage.reduce((s, u) => s + n(u.output_tokens), 0);
+  const calls = ai.usage.reduce((s, u) => s + n(u.calls), 0);
+  const cost = (inputTok / 1e6) * PRICE_IN_PER_M + (outputTok / 1e6) * PRICE_OUT_PER_M;
+
+  if (n(t.total_30) === 0) return null;
+  return (
+    <>
+      <div className="tiles ai-tiles">
+        <Tile
+          label="✨ AI routing accuracy"
+          value={accuracy != null ? `${accuracy}%` : '—'}
+          sub={`${agreed} of ${judged} judged decisions confirmed, 30d`}
+        />
+        <Tile
+          label="Fully automatic"
+          value={autoRate != null ? `${autoRate}%` : '—'}
+          sub={`${t.auto_30} of ${t.total_30} routed with no human touch`}
+        />
+        <Tile
+          label="Corrections"
+          value={String(t.corrected_30)}
+          sub="each one becomes a routing pattern the AI follows"
+        />
+        <Tile
+          label="This week vs last"
+          value={wk != null ? `${wk}%${delta != null ? ` ${delta > 0 ? '▲' : delta < 0 ? '▼' : '·'}` : ''}` : '—'}
+          sub={prev != null ? `${prev}% last week` : 'not enough decisions yet'}
+        />
+        <Tile
+          label="AI spend · 30d"
+          value={`$${cost.toFixed(2)}`}
+          sub={`${calls} calls · ${((inputTok + outputTok) / 1000).toFixed(0)}k tokens — vs a SNOW consultant hour`}
+        />
+      </div>
+      <div className="chart-grid">
+        <HBars
+          title="AI decisions by category — 30d (accuracy)"
+          rows={ai.byCategory.map((c) => ({
+            label: `${c.category} · ${pct(n(c.decisions) - n(c.corrected), n(c.decisions))}%`,
+            value: n(c.decisions),
+          }))}
+        />
+        <HBars
+          title="AI usage by feature — 30d (tokens)"
+          rows={ai.usage.map((u) => ({
+            label: `${u.feature} (${u.calls} calls)`,
+            value: n(u.input_tokens) + n(u.output_tokens),
+          }))}
+        />
+      </div>
+    </>
+  );
+}
+
 /** Two-series line chart (created vs resolved) with crosshair tooltip. */
 function VolumeChart({ daily }: { daily: DashboardData['daily'] }) {
   const [hover, setHover] = useState<number | null>(null);
@@ -201,6 +272,8 @@ export function Dashboard() {
           sub={`of ${t.deflection_offered_30 ?? 0} KB fixes offered, 30d — closed without an agent`}
         />
       </div>
+
+      <AiScoreboard ai={data.ai} />
 
       <VolumeChart daily={data.daily} />
 
