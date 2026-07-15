@@ -520,23 +520,27 @@ async function main() {
       });
     }
 
-    // Comments.
+    // Comments — the template's topical thread when it has one, so the
+    // conversation matches the subject; generic pools otherwise.
     if (assignee && firstResponded) {
       p.comments.push({
         authorId: assignee.id, visibility: 'public', source: 'agent',
-        bodyText: pick(AGENT_COMMENTS), offsetMs: firstResponded.getTime() - createdAt.getTime(),
+        bodyText: template.c?.reply ?? pick(AGENT_COMMENTS), offsetMs: firstResponded.getTime() - createdAt.getTime(),
       });
-      if (chance(0.45)) p.comments.push({
+      // No generic internal note on a topical thread — a random "license
+      // pool exhausted" under a printer ticket is exactly what this fixes.
+      const note = template.c ? template.c.note : pick(INTERNAL_NOTES);
+      if (note && chance(0.45)) p.comments.push({
         authorId: assignee.id, visibility: 'internal', source: 'agent',
-        bodyText: pick(INTERNAL_NOTES), offsetMs: firstResponded.getTime() - createdAt.getTime() + int(10, 200) * 60_000,
+        bodyText: note, offsetMs: firstResponded.getTime() - createdAt.getTime() + int(10, 200) * 60_000,
       });
       if (chance(0.5)) p.comments.push({
         authorId: requester.id, visibility: 'public', source: 'portal',
-        bodyText: pick(REQUESTER_REPLIES), offsetMs: firstResponded.getTime() - createdAt.getTime() + int(30, 500) * 60_000,
+        bodyText: template.c?.ask ?? pick(REQUESTER_REPLIES), offsetMs: firstResponded.getTime() - createdAt.getTime() + int(30, 500) * 60_000,
       });
       if (!isOpen) p.comments.push({
         authorId: assignee.id, visibility: 'public', source: 'agent',
-        bodyText: 'This should be resolved now. Closing the ticket — reply if it comes back.',
+        bodyText: template.c?.fix ?? 'This should be resolved now. Closing the ticket — reply if it comes back.',
         offsetMs: resolvedAt.getTime() - createdAt.getTime(),
       });
     }
