@@ -56,6 +56,9 @@ export async function processInboundEmail(input: { from: string; subject: string
       // Email answers to SOTO's intake questions route the same as portal ones.
       const { handleIntakeReply } = await import('../intake.js');
       handleIntakeReply(existing.id).catch((e) => console.error(`[intake] email reply handling failed for ticket ${existing.id}:`, e));
+      // Same for "solved" replies to a deflection offer.
+      const { handleDeflectionReply } = await import('../deflection.js');
+      handleDeflectionReply(existing.id, input.body).catch((e) => console.error(`[deflection] email reply handling failed for ticket ${existing.id}:`, e));
       return { action: 'appended' as const, ticketId: existing.id, number: token };
     }
   }

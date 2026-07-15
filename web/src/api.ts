@@ -272,6 +272,7 @@ export type DashboardData = {
     median_mttr_hours: number | null; median_frt_hours: number | null;
     sla_attainment_pct: string | null;
     csat_avg_30: string | null; csat_count_30: string;
+    deflected_30: string; deflection_offered_30: string;
   };
   daily: { day: string; created: string; resolved: string }[];
   backlogAge: { bucket: string; count: string }[];

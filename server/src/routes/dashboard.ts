@@ -30,7 +30,11 @@ export async function dashboardRoutes(app: FastifyInstance) {
         (select round(avg(csat_rating)::numeric, 2) from tickets
           where csat_at > now() - interval '30 days') as csat_avg_30,
         (select count(*) from tickets
-          where csat_at > now() - interval '30 days') as csat_count_30
+          where csat_at > now() - interval '30 days') as csat_count_30,
+        (select count(*) from ticket_events
+          where event_type = 'kb_deflected' and created_at > now() - interval '30 days') as deflected_30,
+        (select count(*) from ticket_events
+          where event_type = 'kb_deflection_offered' and created_at > now() - interval '30 days') as deflection_offered_30
     `)).rows as any[];
 
     const csatDist = (await db.execute(sql`

@@ -189,6 +189,29 @@ export type IntakeOutcome = {
   outputTokens: number;
 };
 
+// KB deflection: does this article actually solve THIS ticket, and if so,
+// what's the self-service reply? The AI is the precision gate — a wrong
+// suggestion erodes trust faster than no suggestion.
+export const DeflectSchema = z.object({
+  canDeflect: z.boolean().describe('true ONLY if following the article would plausibly resolve this exact ticket without an agent; false for hardware swaps, permission grants, anything needing admin action, or a weak topical match'),
+  reply: z.string().describe('When canDeflect: the self-service fix for the requester — 2-6 short numbered steps distilled from the article and adapted to their situation, no preamble or signoff. Empty string otherwise'),
+  confidence: z.number().describe('0-1'),
+});
+export type DeflectResult = z.infer<typeof DeflectSchema>;
+
+export type DeflectInput = {
+  subject: string;
+  description: string;
+  article: { title: string; body: string };
+};
+
+export type DeflectOutcome = {
+  result: DeflectResult;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+};
+
 export interface AIProvider {
   triage(input: TriageInput, ctx: TriageContext): Promise<TriageOutcome>;
   draftReply(input: DraftInput): Promise<DraftOutcome>;
@@ -196,6 +219,7 @@ export interface AIProvider {
   draftArticle(input: ArticleInput): Promise<ArticleOutcome>;
   parseSearch(query: string, ctx: SearchParseContext): Promise<SearchParseOutcome>;
   parseIntake(input: IntakeInput): Promise<IntakeOutcome>;
+  suggestFix(input: DeflectInput): Promise<DeflectOutcome>;
 }
 
 // ---------------------------------------------------------------------------
@@ -564,6 +588,50 @@ ${input.thread.map((m) => `${m.author}: ${m.body.slice(0, 1000)}`).join('\n---\n
       outputTokens: response.usage.output_tokens,
     };
   }
+
+  async suggestFix(input: DeflectInput): Promise<DeflectOutcome> {
+    const response = await this.client.messages.parse({
+      model: env.aiModel,
+      max_tokens: 1200,
+      system: [{
+        type: 'text',
+        cache_control: { type: 'ephemeral' },
+        text: `You are the self-service gate for the Master Electronics helpdesk.
+A new ticket matched a knowledge-base article. Decide whether the requester
+can genuinely fix this THEMSELVES by following the article — and if so,
+write the fix as 2-6 short numbered steps adapted to their exact situation
+(their app, their error, their words — not a generic paste of the article).
+
+Say canDeflect=false when: the fix needs an agent or admin (permission
+grants, hardware swaps, server-side changes), the article is only
+topically related, the ticket describes something the article doesn't
+cover, or you'd be guessing. A wrong suggestion wastes the requester's
+time and erodes trust — be conservative.`,
+      }],
+      messages: [{
+        role: 'user',
+        content: `Ticket:
+Subject: ${input.subject}
+Description:
+${input.description.slice(0, 3000)}
+
+Matched KB article — "${input.article.title}":
+${input.article.body.slice(0, 4000)}
+
+Can they self-serve this?`,
+      }],
+      output_config: { format: zodOutputFormat(DeflectSchema) },
+    });
+    if (!response.parsed_output) {
+      throw new Error(`deflection parse failed (stop_reason: ${response.stop_reason})`);
+    }
+    return {
+      result: response.parsed_output,
+      model: response.model,
+      inputTokens: response.usage.input_tokens + (response.usage.cache_read_input_tokens ?? 0) + (response.usage.cache_creation_input_tokens ?? 0),
+      outputTokens: response.usage.output_tokens,
+    };
+  }
 }
 
 /** Keyword-based mock for offline dev and as a demo fallback. */
@@ -690,6 +758,24 @@ class MockProvider implements AIProvider {
         bodyMarkdown: `## Symptoms\n${input.description.slice(0, 300)}\n\n## Fix\n${substantive.map((c, i) => `${i + 1}. ${c.body.slice(0, 200)}`).join('\n')}`,
         reason: 'Mock heuristic: multi-step resolution thread.',
         confidence: 0.65,
+      },
+      model: 'mock', inputTokens: 0, outputTokens: 0,
+    };
+  }
+
+  async suggestFix(input: DeflectInput): Promise<DeflectOutcome> {
+    // Mock gate: enough word overlap between ticket and article title.
+    const ticketWords = new Set(`${input.subject} ${input.description}`.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 3));
+    const titleWords = input.article.title.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 3);
+    const overlap = titleWords.filter((w) => ticketWords.has(w)).length;
+    const canDeflect = overlap >= 2;
+    return {
+      result: {
+        canDeflect,
+        reply: canDeflect
+          ? input.article.body.split('\n').filter(Boolean).slice(0, 4).map((l, i) => `${i + 1}. ${l.slice(0, 160)}`).join('\n')
+          : '',
+        confidence: canDeflect ? 0.72 : 0.3,
       },
       model: 'mock', inputTokens: 0, outputTokens: 0,
     };

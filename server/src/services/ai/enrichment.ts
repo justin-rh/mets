@@ -272,6 +272,13 @@ export async function enrichTicket(ticketId: number, mode: EnrichMode = 'suggest
     const { maybeStartIntake } = await import('../intake.js');
     await maybeStartIntake(ticketId).catch((e) =>
       console.error(`[intake] failed for ticket ${ticketId}:`, e));
+
+    // KB deflection: a known-issue ticket gets the fix from the knowledge
+    // base before any agent looks. Runs after intake so the two never talk
+    // over each other on one ticket.
+    const { maybeOfferDeflection } = await import('../deflection.js');
+    await maybeOfferDeflection(ticketId).catch((e) =>
+      console.error(`[deflection] failed for ticket ${ticketId}:`, e));
   }
 
   return enrichment!;

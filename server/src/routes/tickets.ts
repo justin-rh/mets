@@ -415,6 +415,10 @@ export async function ticketRoutes(app: FastifyInstance) {
       // the reply itself shouldn't wait on the AI).
       const { handleIntakeReply } = await import('../services/intake.js');
       handleIntakeReply(id).catch((e) => console.error(`[intake] reply handling failed for ticket ${id}:`, e));
+      // Deflection offer outstanding? "solved" closes it; anything else
+      // hands the ticket to an agent.
+      const { handleDeflectionReply } = await import('../services/deflection.js');
+      handleDeflectionReply(id, body.bodyText).catch((e) => console.error(`[deflection] reply handling failed for ticket ${id}:`, e));
       const [status] = await db.select().from(statuses).where(eq(statuses.id, t.statusId));
       if (status && (status.category === 'resolved' || status.category === 'closed')) {
         const [openStatus] = await db.select().from(statuses)

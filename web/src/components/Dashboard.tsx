@@ -195,6 +195,11 @@ export function Dashboard() {
           value={t.csat_avg_30 ? `${Number(t.csat_avg_30).toFixed(1)} ★` : '—'}
           sub={`${t.csat_count_30} ratings, 30d`}
         />
+        <Tile
+          label="✨ Self-service deflections"
+          value={t.deflected_30 ?? 0}
+          sub={`of ${t.deflection_offered_30 ?? 0} KB fixes offered, 30d — closed without an agent`}
+        />
       </div>
 
       <VolumeChart daily={data.daily} />
