@@ -3,7 +3,7 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { z } from 'zod';
 import { env } from '../../config.js';
 
-export const PROMPT_VERSION = 'triage-v5'; // v3: screenshots; v4: org glossary; v5: reasoning field
+export const PROMPT_VERSION = 'triage-v6'; // v3: screenshots; v4: org glossary; v5: reasoning; v6: Proofpoint
 
 // Company-specific terms the model won't know from ticket text alone. Shared
 // across the triage, search, and incident prompts so they route consistently.
@@ -11,7 +11,12 @@ const ORG_GLOSSARY = `Master Electronics terminology:
 - ZScaler is the company VPN / secure-access client. ZScaler problems are
   Network & VPN tickets, not a third-party app issue.
 - MERP is the in-house ERP. OMS is the web version of MERP, used by most
-  warehouse users — OMS issues are MERP tickets, not a generic web problem.`;
+  warehouse users — OMS issues are MERP tickets, not a generic web problem.
+- Proofpoint is the spam / email-filtering platform, managed by the Security
+  team. Quarantined or blocked email, spam getting through, and sender
+  allow/block requests are Security tickets, not Email & Collaboration.
+  This includes OUTBOUND mail: a user's outgoing emails being blocked or
+  bounced is likely Proofpoint filtering — route to Security too.`;
 
 export const TriageSchema = z.object({
   category: z.string().describe('Exact name of the best-fitting category from the list'),
@@ -571,7 +576,7 @@ class MockProvider implements AIProvider {
       [/merp|\boms\b|edi|price list|erp/, 'MERP'],
       [/salesforce|quote|concur/, 'Business Apps'],
       [/phish|suspicious|mfa|security|clicked/, 'Security'],
-      [/crowdstrike|keeper|quarantin/, 'Security'],
+      [/crowdstrike|keeper|proofpoint|quarantin|spam/, 'Security'],
       [/password|locked|access|permission|account/, 'Access & Accounts'],
       [/print|label|zebra|toner|laserjet|brother/, 'Printing & Labels'],
       [/report|dashboard|power bi|extract|data/, 'Data & Reporting'],
