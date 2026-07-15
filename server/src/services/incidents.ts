@@ -225,6 +225,74 @@ export async function broadcastIncidentUpdate(parentId: number, body: string, au
   return linked.length;
 }
 
+/**
+ * Open incident parents, for the app-wide banner. Any ticket with child_of
+ * links pointing at it is an incident parent; safe for requesters (no
+ * requester names, just the outage itself).
+ */
+export async function activeIncidents() {
+  const rows = (await db.execute(sql`
+    select p.id, p.number, p.subject, p.created_at as "createdAt",
+           s.name as status, tm.name as queue,
+           count(l.ticket_id)::int as "childCount"
+    from tickets p
+    join statuses s on s.id = p.status_id
+    join teams tm on tm.id = p.queue_id
+    join ticket_links l on l.linked_ticket_id = p.id and l.type = 'child_of'
+    where s.category not in ('resolved', 'closed')
+    group by p.id, p.number, p.subject, p.created_at, s.name, tm.name
+    order by p.created_at desc
+  `)).rows as { id: number; number: string; subject: string; createdAt: string; status: string; queue: string; childCount: number }[];
+  // Raw execute() returns ids as strings and pg-format timestamps —
+  // normalize so the client's strict-equality and Date parsing hold.
+  return rows.map((r) => ({
+    ...r,
+    id: Number(r.id),
+    childCount: Number(r.childCount),
+    createdAt: new Date(r.createdAt).toISOString(),
+    title: r.subject.replace(/^Major incident:\s*/i, ''),
+  }));
+}
+
+/**
+ * Resolving an incident parent cascades: every still-open child gets a
+ * closing SOTO comment and is resolved with it. A requester who's still
+ * broken just replies — the existing reply-reopens path brings the child
+ * back. Returns how many children were closed.
+ */
+export async function resolveIncidentCascade(parentId: number, actorId: number | null) {
+  const open = (await db.execute(sql`
+    select t.id, t.number from tickets t
+    join ticket_links l on l.ticket_id = t.id and l.type = 'child_of' and l.linked_ticket_id = ${parentId}
+    join statuses s on s.id = t.status_id
+    where s.category not in ('resolved', 'closed')
+  `)).rows as { id: number; number: string }[];
+  if (open.length === 0) return 0;
+
+  const [parent] = await db.select({ number: tickets.number, subject: tickets.subject })
+    .from(tickets).where(eq(tickets.id, parentId));
+  const title = parent?.subject.replace(/^Major incident:\s*/i, '') ?? '';
+  const [resolved] = await db.select().from(statuses)
+    .where(eq(statuses.category, 'resolved')).orderBy(asc(statuses.position)).limit(1);
+  if (!resolved) return 0;
+  const bot = await getBotUser();
+  const { applyTicketChanges } = await import('./ticketService.js');
+
+  for (const child of open) {
+    await db.insert(ticketComments).values({
+      ticketId: child.id, authorId: bot.id, visibility: 'public', source: 'api',
+      bodyText: `Good news — the incident affecting you (${parent?.number}: ${title}) has been resolved, so this ticket is being closed along with it.\n\nStill seeing the problem? Just reply here and your ticket reopens automatically.\n\n— SOTO Bot`,
+    });
+    await applyTicketChanges(Number(child.id), { id: null, type: 'system' }, { statusId: resolved.id });
+  }
+  await db.insert(ticketEvents).values({
+    ticketId: parentId, actorId, actorType: actorId ? 'user' : 'system',
+    eventType: 'incident_resolved', field: 'incident',
+    newValue: `${open.length} linked tickets resolved & notified`,
+  });
+  return open.length;
+}
+
 /** Parent/children/duplicate view for the ticket detail. */
 export async function incidentInfo(ticketId: number) {
   const linkedParent = (type: 'child_of' | 'duplicate_of') => db

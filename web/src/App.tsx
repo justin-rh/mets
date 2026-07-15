@@ -33,6 +33,7 @@ import { SnoozeDialog } from './components/SnoozeDialog';
 import { TicketRow } from './components/TicketRow';
 import { toast, Toasts } from './components/Toasts';
 import { ChatDrawer } from './components/ChatDrawer';
+import { IncidentBanner } from './components/IncidentBanner';
 import { TriagePanel } from './components/TriagePanel';
 import './App.css';
 
@@ -413,6 +414,18 @@ export default function App() {
           {theme === 'light' ? '☾' : '☀'}
         </button>
       </header>
+
+      <IncidentBanner
+        onOpen={(i) => {
+          setPage('queue');
+          setMode('All Tickets');
+          setNlFilter(null);
+          setAssigneeFilter(undefined);
+          setRequesterFilter(undefined);
+          setSearch(i.number);
+          setExpandedId(i.id);
+        }}
+      />
 
       {page === 'dashboards' && <Dashboard />}
       {page === 'kb' && <KnowledgeBase />}

@@ -6,6 +6,7 @@ import {
 } from '../api';
 import { age, fmtDateTime } from '../format';
 import { AttachmentStrip, usePasteAttach } from './Attachments';
+import { IncidentBanner } from './IncidentBanner';
 import { KnowledgeBase } from './KnowledgeBase';
 import { NewTicketDialog } from './NewTicketDialog';
 import { Toasts } from './Toasts';
@@ -202,6 +203,8 @@ export function RequesterPortal({ userId, onSwitchUser, theme, onToggleTheme }: 
           {theme === 'light' ? '☾' : '☀'}
         </button>
       </header>
+
+      <IncidentBanner />
 
       <div className="modebar">
         <button className={tab === 'tickets' ? 'active' : ''} onClick={() => setTab('tickets')}>

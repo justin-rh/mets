@@ -7,7 +7,7 @@ import { applyTicketChanges, autoAssign, autoAssignByExpertise, bestFitAgents, c
 import { enrichTicket } from '../services/ai/enrichment.js';
 import { completeFirstResponse } from '../services/sla/slaService.js';
 import { templatesForTicket } from '../services/templates.js';
-import { broadcastIncidentUpdate, incidentInfo } from '../services/incidents.js';
+import { activeIncidents, broadcastIncidentUpdate, incidentInfo, resolveIncidentCascade } from '../services/incidents.js';
 import { requireStaff } from './guards.js';
 
 const { tickets, statuses, teams, users, ticketTags, tags, slaInstances, ticketComments, ticketEvents, categories } = schema;
@@ -347,7 +347,9 @@ export async function ticketRoutes(app: FastifyInstance) {
     requireStaff(req);
     const id = z.coerce.number().parse((req.params as any).id);
     const changes = changesBody.parse(req.body) as TicketChanges;
-    return applyTicketChanges(id, { id: req.userId }, changes);
+    const result = await applyTicketChanges(id, { id: req.userId }, changes);
+    const cascaded = await cascadeIfResolvedParent(id, changes, req.userId);
+    return cascaded ? { ...result, incidentResolved: cascaded } : result;
   });
 
   app.post('/api/tickets/:id/comments', async (req, reply) => {
@@ -622,7 +624,20 @@ export async function ticketRoutes(app: FastifyInstance) {
     const results = [];
     for (const ticketId of body.ticketIds) {
       results.push(await applyTicketChanges(ticketId, { id: req.userId }, body.changes as TicketChanges));
+      await cascadeIfResolvedParent(ticketId, body.changes as TicketChanges, req.userId);
     }
     return results;
   });
+
+  // Open incident parents for the app-wide banner — visible to requesters
+  // too (a known outage is exactly what stops duplicate filings).
+  app.get('/api/incidents/active', async () => activeIncidents());
+}
+
+/** Status change landed on resolved/closed? If it's an incident parent, cascade. */
+async function cascadeIfResolvedParent(ticketId: number, changes: TicketChanges, actorId: number) {
+  if (changes.statusId === undefined) return 0;
+  const [st] = await db.select().from(statuses).where(eq(statuses.id, changes.statusId));
+  if (!st || (st.category !== 'resolved' && st.category !== 'closed')) return 0;
+  return resolveIncidentCascade(ticketId, actorId);
 }

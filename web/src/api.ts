@@ -140,6 +140,12 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const fetchMeta = () => api<Meta>('/api/meta');
 
+export type ActiveIncident = {
+  id: number; number: string; title: string; status: string;
+  queue: string; childCount: number; createdAt: string;
+};
+export const fetchActiveIncidents = () => api<ActiveIncident[]>('/api/incidents/active');
+
 export function fetchTickets(p: ListParams) {
   const q = new URLSearchParams({ view: p.view, sort: p.sort });
   if (p.queueId) q.set('queueId', String(p.queueId));

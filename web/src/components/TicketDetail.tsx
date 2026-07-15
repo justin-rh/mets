@@ -48,7 +48,13 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
   };
   const patch = useMutation({
     mutationFn: (changes: Parameters<typeof patchTicket>[1]) => patchTicket(ticketId, changes),
-    onSuccess: invalidate,
+    onSuccess: (r: any) => {
+      invalidate();
+      if (r?.incidentResolved > 0) {
+        qc.invalidateQueries({ queryKey: ['active-incidents'] });
+        toast(`Incident resolved — ${r.incidentResolved} linked ticket${r.incidentResolved === 1 ? '' : 's'} closed & requesters notified`, 'success');
+      }
+    },
   });
   const comment = useMutation({
     mutationFn: () => postComment(ticketId, reply, visibility),
