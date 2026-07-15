@@ -149,7 +149,7 @@ export async function applyTicketChanges(ticketId: number, actor: Actor, changes
     }
 
     await recomputeScore(tx as unknown as typeof db, ticketId);
-    return { ticketId, changed: true };
+    return { ticketId, changed: true, queueChanged: updates.queueId !== undefined };
   });
 
   // Landing in a category fires its auto-respond template (once per ticket),
@@ -170,6 +170,15 @@ export async function applyTicketChanges(ticketId: number, actor: Actor, changes
     await notifyQueueEntry(ticketId).catch(() => {});
   }
 
+  // A human moving a ticket to a different queue is a routing label: it
+  // contradicts (or confirms) the AI's triage and feeds the corrections
+  // loop — dragging out of the catch-all IS the training gesture.
+  let trained: 'corrected' | 'confirmed' | null = null;
+  if (result.queueChanged && (actor.type ?? 'user') === 'user' && actor.id != null && changes.queueId !== undefined) {
+    const { recordQueueTraining } = await import('./ai/enrichment.js');
+    trained = await recordQueueTraining(ticketId, changes.queueId, actor.id).catch(() => null);
+  }
+
   // On resolve, the AI checks whether the fix is worth a KB article — slow
   // (a full write), so it runs off the request path entirely.
   if (result.changed && changes.statusId !== undefined) {
@@ -182,7 +191,7 @@ export async function applyTicketChanges(ticketId: number, actor: Actor, changes
         .catch(() => {});
     }
   }
-  return result;
+  return { ...result, trained };
 }
 
 /**
@@ -200,7 +209,10 @@ export async function createTicketCore(input: {
   priority?: number;
 }) {
   const [defaultStatus] = await db.select().from(statuses).where(eq(statuses.isDefault, true)).limit(1);
-  const [defaultQueue] = await db.select().from(teams).orderBy(teams.id).limit(1);
+  // IT Support is the catch-all: every ticket lands there first, and only a
+  // confident AI (or a human move, which trains the AI) takes it elsewhere.
+  let [defaultQueue] = await db.select().from(teams).where(eq(teams.slug, 'it-support'));
+  if (!defaultQueue) [defaultQueue] = await db.select().from(teams).orderBy(teams.id).limit(1);
   if (!defaultStatus || !defaultQueue) throw new Error('no default status/queue configured');
 
   const submittedById =

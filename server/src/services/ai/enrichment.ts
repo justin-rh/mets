@@ -345,6 +345,51 @@ export async function acceptEnrichment(enrichmentId: number, actorId: number, fi
   return { ok: true };
 }
 
+/**
+ * A human queue move is a routing label. Moving a ticket somewhere the AI
+ * didn't choose files a correction (same shape as correctEnrichment, so it
+ * feeds the next triage prompts); moving it where a pending suggestion
+ * already pointed confirms that suggestion.
+ */
+export async function recordQueueTraining(
+  ticketId: number,
+  newQueueId: number,
+  actorId: number,
+): Promise<'corrected' | 'confirmed' | null> {
+  const [e] = await db.select().from(aiEnrichments)
+    .where(and(eq(aiEnrichments.ticketId, ticketId), eq(aiEnrichments.feature, 'triage')))
+    .orderBy(desc(aiEnrichments.createdAt))
+    .limit(1);
+  if (!e || !['auto_applied', 'applied', 'pending'].includes(e.status)) return null;
+  const [q] = await db.select({ slug: teams.slug }).from(teams).where(eq(teams.id, newQueueId));
+  if (!q) return null;
+
+  const r = e.result as any;
+  if (r?.queueSlug === q.slug) {
+    if (e.status === 'pending') {
+      await db.update(aiEnrichments).set({ status: 'applied' }).where(eq(aiEnrichments.id, e.id));
+      return 'confirmed';
+    }
+    return null;
+  }
+
+  await db.update(aiEnrichments).set({
+    status: 'corrected',
+    feedback: {
+      original: { category: r?.category, queueSlug: r?.queueSlug, priority: r?.priority },
+      corrected: { queueSlug: q.slug },
+      byUserId: actorId,
+      at: new Date().toISOString(),
+      via: 'queue_move',
+    },
+  }).where(eq(aiEnrichments.id, e.id));
+  await db.insert(schema.ticketEvents).values({
+    ticketId, actorId, actorType: 'user', eventType: 'ai_corrected',
+    field: 'queue', oldValue: r?.queueSlug, newValue: q.slug,
+  });
+  return 'corrected';
+}
+
 export async function dismissEnrichment(enrichmentId: number) {
   await db.update(aiEnrichments).set({ status: 'dismissed' }).where(eq(aiEnrichments.id, enrichmentId));
   return { ok: true };
