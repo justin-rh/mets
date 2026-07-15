@@ -5,7 +5,7 @@ import { db, schema } from '../db/index.js';
 import { invalidateScoreWeightsCache, recomputeScore } from '../services/scoring.js';
 import { deriveSkillsFromHistory } from '../services/skills.js';
 
-const { appConfig, statuses, slaPolicies, routingRules, users, tickets, skills, agentSkills, responseTemplates, categories, teams } = schema;
+const { appConfig, statuses, slaPolicies, routingRules, users, tickets, skills, agentSkills, responseTemplates, categories, teams, recurringTickets } = schema;
 
 /** All admin mutations require the admin role — the RBAC requirement, live. */
 async function requireAdmin(userId: number) {
@@ -48,6 +48,14 @@ export async function adminRoutes(app: FastifyInstance) {
       queueNotifications: await db
         .select({ id: teams.id, name: teams.name, notifyEmails: teams.notifyEmails })
         .from(teams).orderBy(asc(teams.name)),
+      recurring: await db
+        .select({
+          id: recurringTickets.id, name: recurringTickets.name,
+          subject: recurringTickets.subject, type: recurringTickets.type,
+          frequency: recurringTickets.frequency, enabled: recurringTickets.enabled,
+          nextRunAt: recurringTickets.nextRunAt, lastRunAt: recurringTickets.lastRunAt,
+        })
+        .from(recurringTickets).orderBy(asc(recurringTickets.nextRunAt)),
       categories: await db.select({
         id: categories.id, name: categories.name, requiresApproval: categories.requiresApproval,
       }).from(categories).orderBy(asc(categories.name)),
@@ -77,6 +85,44 @@ export async function adminRoutes(app: FastifyInstance) {
       .set({ ...body, updatedAt: new Date() })
       .where(eq(responseTemplates.id, id)).returning();
     return updated;
+  });
+
+  // Recurring ticket schedules — filed through the normal intake pipeline
+  // (routing, SLA, AI triage) when due.
+  app.post('/api/admin/recurring', async (req) => {
+    await requireAdmin(req.userId);
+    const body = z.object({
+      name: z.string().trim().min(3).max(120),
+      subject: z.string().trim().min(3).max(300),
+      description: z.string().trim().min(1).max(5000),
+      type: z.enum(['incident', 'request', 'change']).default('request'),
+      frequency: z.enum(['daily', 'weekly', 'monthly', 'quarterly']),
+      firstRunAt: z.string().datetime(),
+    }).parse(req.body);
+    const [created] = await db.insert(recurringTickets).values({
+      name: body.name, subject: body.subject, description: body.description,
+      type: body.type, frequency: body.frequency,
+      nextRunAt: new Date(body.firstRunAt),
+      requesterId: req.userId, createdBy: req.userId,
+    }).returning();
+    return created;
+  });
+
+  app.patch('/api/admin/recurring/:id', async (req) => {
+    await requireAdmin(req.userId);
+    const id = z.coerce.number().parse((req.params as any).id);
+    const body = z.object({ enabled: z.boolean() }).parse(req.body);
+    const [updated] = await db.update(recurringTickets)
+      .set({ enabled: body.enabled })
+      .where(eq(recurringTickets.id, id)).returning();
+    return updated;
+  });
+
+  app.delete('/api/admin/recurring/:id', async (req) => {
+    await requireAdmin(req.userId);
+    const id = z.coerce.number().parse((req.params as any).id);
+    await db.delete(recurringTickets).where(eq(recurringTickets.id, id));
+    return { ok: true };
   });
 
   // Addresses emailed whenever a ticket enters the queue (comma-separated).

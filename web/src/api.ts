@@ -339,7 +339,22 @@ export type AdminConfig = {
   templates: ResponseTemplate[];
   categories: { id: number; name: string; requiresApproval: boolean }[];
   queueNotifications: { id: number; name: string; notifyEmails: string | null }[];
+  recurring: RecurringTicket[];
 };
+
+export type RecurringTicket = {
+  id: number; name: string; subject: string; type: string;
+  frequency: string; enabled: boolean;
+  nextRunAt: string; lastRunAt: string | null;
+};
+export const addRecurring = (r: {
+  name: string; subject: string; description: string;
+  type: string; frequency: string; firstRunAt: string;
+}) => api('/api/admin/recurring', { method: 'POST', body: JSON.stringify(r) });
+export const toggleRecurring = (id: number, enabled: boolean) =>
+  api(`/api/admin/recurring/${id}`, { method: 'PATCH', body: JSON.stringify({ enabled }) });
+export const deleteRecurring = (id: number) =>
+  api(`/api/admin/recurring/${id}`, { method: 'DELETE' });
 
 export type ResponseTemplate = {
   id: number; name: string; body: string; categoryId: number | null;

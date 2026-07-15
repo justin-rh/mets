@@ -10,7 +10,7 @@ import {
   kbArticles, kbChunks, routingRules, skills, slaInstances, slaPolicies,
   statuses, tags, teamMemberships, teams, ticketComments, ticketEvents,
   ticketLinks, ticketStatusDurations, ticketTags, tickets, users,
-  aiEnrichments, responseTemplates, chatMessages,
+  aiEnrichments, responseTemplates, chatMessages, recurringTickets,
 } from './schema.js';
 import {
   AGENT_COMMENTS, APPS, CATEGORIES, CATEGORY_TAGS, DEPARTMENTS, DEVICES,
@@ -124,7 +124,7 @@ async function main() {
       sla_policies, routing_rules, approvals, attachments,
       ticket_status_durations, ticket_events, ticket_comments, ticket_links,
       ticket_tags, tickets, agent_skills, skills, custom_field_definitions,
-      response_templates, chat_messages, tags, categories, statuses,
+      response_templates, chat_messages, recurring_tickets, tags, categories, statuses,
       team_memberships, teams, users, app_config
     RESTART IDENTITY CASCADE
   `);
@@ -679,6 +679,25 @@ async function main() {
       bodyText: `Hi ${String(g.requester_name).split(' ')[0]},\n\n${g.category} requests need a sign-off before they're worked. ${g.number} has been sent to ${approver!.name} for approval — you'll get an update here as soon as they decide.\n\n— SOTO Bot`,
     });
   }
+
+  // Recurring schedules: one due immediately (the boot sweep files it — a
+  // live demo of scheduled work) and one upcoming.
+  await db.insert(recurringTickets).values([
+    {
+      name: 'Quarterly access review', frequency: 'quarterly',
+      subject: 'Quarterly access review — terminated users and stale accounts',
+      description: 'Run the quarterly access review: pull the termination list from People Ops, verify MERP/M365/Keeper access is revoked, and disable stale accounts (no login in 90 days). Attach the completed checklist.',
+      type: 'request', nextRunAt: new Date(NOW.getTime() - 60_000),
+      requesterId: adminUser.id, createdBy: adminUser.id,
+    },
+    {
+      name: 'Monthly Zebra printer PM — Phoenix', frequency: 'monthly',
+      subject: 'Monthly preventive maintenance — Phoenix Zebra label printers',
+      description: 'Clean printheads and platen rollers on all Phoenix warehouse Zebra printers, check media guides, and log firmware versions.',
+      type: 'request', nextRunAt: new Date(NOW.getTime() + 14 * DAY),
+      requesterId: adminUser.id, createdBy: adminUser.id,
+    },
+  ]);
 
   // Agent chat history — a few threads referencing real tickets so the demo
   // isn't empty, plus unread messages waiting for the admin (badge demo).

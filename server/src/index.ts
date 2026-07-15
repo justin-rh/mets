@@ -19,6 +19,7 @@ import { startSkillsSync } from './services/skills.js';
 import { startSlaSweep } from './services/sla/slaService.js';
 import { startAutoCloseSweep } from './services/autoClose.js';
 import { startEscalationSweep } from './services/escalation.js';
+import { startRecurringSweep } from './services/recurring.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -100,6 +101,7 @@ try {
   startSlaSweep((msg) => app.log.info(msg));
   startAutoCloseSweep((msg) => app.log.info(msg));
   startEscalationSweep((msg) => app.log.info(msg));
+  startRecurringSweep((msg) => app.log.info(msg));
   startSkillsSync((msg) => app.log.info(msg));
   // Embed KB articles in the background (first run downloads the model).
   ensureKbEmbeddings((msg) => app.log.info(msg)).catch((err) =>

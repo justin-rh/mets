@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  addAgentSkill, addRoutingRule, addStatus, addTemplate, deleteRoutingRule,
-  deleteTemplate, fetchAdminConfig, fetchMeta, removeAgentSkill, renameStatus,
-  runEscalationSweep, saveAiThresholds, saveAutoClose, saveEscalation,
-  saveQueueNotify, saveScoreKeywords, saveScoreWeights, saveSlaPolicy,
-  setCategoryApproval, syncSkills, toggleRoutingRule, updateTemplate,
+  addAgentSkill, addRecurring, addRoutingRule, addStatus, addTemplate,
+  deleteRecurring, deleteRoutingRule, deleteTemplate, fetchAdminConfig,
+  fetchMeta, removeAgentSkill, renameStatus, runEscalationSweep,
+  saveAiThresholds, saveAutoClose, saveEscalation, saveQueueNotify,
+  saveScoreKeywords, saveScoreWeights, saveSlaPolicy, setCategoryApproval,
+  syncSkills, toggleRecurring, toggleRoutingRule, updateTemplate,
   type AdminConfig,
 } from '../api';
 
@@ -408,6 +409,91 @@ function KeywordsCard({ config }: { config: AdminConfig }) {
   );
 }
 
+function RecurringCard({ config }: { config: AdminConfig }) {
+  const invalidate = useInvalidate();
+  const [name, setName] = useState('');
+  const [subject, setSubject] = useState('');
+  const [description, setDescription] = useState('');
+  const [type, setType] = useState('request');
+  const [frequency, setFrequency] = useState('monthly');
+  const [firstRun, setFirstRun] = useState('');
+
+  const add = useMutation({
+    mutationFn: () => addRecurring({
+      name: name.trim(), subject: subject.trim(), description: description.trim(),
+      type, frequency, firstRunAt: new Date(`${firstRun}T08:00:00`).toISOString(),
+    }),
+    onSuccess: () => {
+      setName(''); setSubject(''); setDescription(''); setFirstRun('');
+      invalidate();
+    },
+  });
+  const toggle = useMutation({
+    mutationFn: ({ id, enabled }: { id: number; enabled: boolean }) => toggleRecurring(id, enabled),
+    onSuccess: invalidate,
+  });
+  const remove = useMutation({ mutationFn: (id: number) => deleteRecurring(id), onSuccess: invalidate });
+
+  return (
+    <div className="admin-card admin-card-wide">
+      <h3>Recurring tickets</h3>
+      <p className="admin-hint">
+        Scheduled work — preventive maintenance, cert renewals, access
+        reviews. When a schedule comes due (checked every 5 minutes) a real
+        ticket is filed through the normal pipeline: routing rules, SLA,
+        AI triage. Filed under your name; tickets wake at 8:00.
+      </p>
+      <div className="admin-rule-list">
+        {config.recurring.map((r) => (
+          <div key={r.id} className={`admin-rule ${r.enabled ? '' : 'disabled'}`}>
+            <label className="admin-rule-toggle" title={r.enabled ? 'Enabled' : 'Paused'}>
+              <input type="checkbox" checked={r.enabled}
+                onChange={(e) => toggle.mutate({ id: r.id, enabled: e.target.checked })} />
+            </label>
+            <span className="admin-rule-name">{r.name}</span>
+            <span className="admin-rule-summary">
+              {r.frequency} · next {new Date(r.nextRunAt).toLocaleDateString()}
+              {r.lastRunAt ? ` · last ${new Date(r.lastRunAt).toLocaleDateString()}` : ''} — "{r.subject}"
+            </span>
+            <button className="btn ghost" onClick={() => remove.mutate(r.id)}>✕</button>
+          </div>
+        ))}
+        {config.recurring.length === 0 && <span className="admin-hint">No schedules yet.</span>}
+      </div>
+      <div className="admin-inline-form" style={{ flexWrap: 'wrap' }}>
+        <input placeholder="Schedule name" value={name} onChange={(e) => setName(e.target.value)} style={{ width: 170 }} />
+        <input placeholder="Ticket subject" value={subject} onChange={(e) => setSubject(e.target.value)} style={{ width: 220 }} />
+        <select value={type} onChange={(e) => setType(e.target.value)}>
+          <option value="request">Request</option>
+          <option value="incident">Incident</option>
+          <option value="change">Change</option>
+        </select>
+        <select value={frequency} onChange={(e) => setFrequency(e.target.value)}>
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
+          <option value="quarterly">Quarterly</option>
+        </select>
+        <input type="date" value={firstRun} onChange={(e) => setFirstRun(e.target.value)} title="First run date" />
+        <textarea
+          placeholder="Ticket description…"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={2}
+          style={{ flexBasis: '100%' }}
+        />
+        <button
+          className="btn"
+          disabled={name.trim().length < 3 || subject.trim().length < 3 || !description.trim() || !firstRun || add.isPending}
+          onClick={() => add.mutate()}
+        >
+          Add schedule
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function QueueNotifyCard({ config }: { config: AdminConfig }) {
   const invalidate = useInvalidate();
   const [drafts, setDrafts] = useState<Record<number, string>>({});
@@ -650,8 +736,8 @@ const ADMIN_SECTIONS = [
   },
   {
     key: 'automation', label: 'AI & Automation', icon: '✨',
-    hint: 'Confidence gates and auto-responses',
-    cards: [AiCard, TemplatesCard],
+    hint: 'Confidence gates, auto-responses, schedules',
+    cards: [AiCard, TemplatesCard, RecurringCard],
   },
   {
     key: 'agents', label: 'Agents', icon: '🎓',

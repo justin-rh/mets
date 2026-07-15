@@ -429,6 +429,24 @@ export const aiUsage = pgTable('ai_usage', {
 // live here so changing them is a form edit, not a deployment.
 // ---------------------------------------------------------------------------
 
+// Recurring tickets: preventive maintenance, cert renewals, access reviews.
+// A sweep files each definition through the normal intake pipeline (routing,
+// SLA, AI triage) when next_run_at comes due, then advances the date.
+export const recurringTickets = pgTable('recurring_tickets', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  name: text('name').notNull(),
+  subject: text('subject').notNull(),
+  description: text('description').notNull(),
+  type: ticketType('type').notNull().default('request'),
+  frequency: text('frequency').notNull(), // daily | weekly | monthly | quarterly
+  nextRunAt: timestamp('next_run_at', { withTimezone: true }).notNull(),
+  lastRunAt: timestamp('last_run_at', { withTimezone: true }),
+  enabled: boolean('enabled').notNull().default(true),
+  requesterId: bigint('requester_id', { mode: 'number' }).notNull().references(() => users.id),
+  createdBy: bigint('created_by', { mode: 'number' }).references(() => users.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 // Follow any ticket: watchers get bell notifications for every event and
 // public comment on it, regardless of assignment or queue membership.
 export const ticketWatchers = pgTable(
