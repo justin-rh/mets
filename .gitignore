@@ -6,3 +6,4 @@ dist/
 *.log
 .claude/settings.local.json
 server/uploads/
+scripts/*.png
