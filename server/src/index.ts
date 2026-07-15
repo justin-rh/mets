@@ -4,6 +4,7 @@ import { eq, sql } from 'drizzle-orm';
 import { env } from './config.js';
 import { db, schema } from './db/index.js';
 import { adminRoutes } from './routes/admin.js';
+import { docsRoutes } from './routes/docs.js';
 import { aiRoutes } from './routes/ai.js';
 import { dashboardRoutes } from './routes/dashboard.js';
 import { kbRoutes } from './routes/kb.js';
@@ -46,8 +47,20 @@ app.decorateRequest('userId', 0);
 app.decorateRequest('userRole', 'requester');
 app.decorateRequest('userQueueVisibility', 'all');
 app.addHook('onRequest', async (req, reply) => {
-  if (env.authProvider === 'entra') {
-    if (req.url === '/api/health') return; // probes stay unauthenticated
+  // API docs are public; health stays open for probes.
+  if (req.url === '/api/health' || req.url === '/api/docs' || req.url === '/api/openapi.json') return;
+
+  // Public-API keys work identically in both auth modes: the key acts as
+  // its bound METS user, so RBAC and queue visibility apply unchanged.
+  const rawAuth = req.headers.authorization;
+  const apiKey = (req.headers['x-api-key'] as string | undefined)
+    ?? (rawAuth?.startsWith('Bearer mets_') ? rawAuth.slice(7) : undefined);
+  if (apiKey?.startsWith('mets_')) {
+    const { verifyApiKey } = await import('./services/apiKeys.js');
+    const userId = await verifyApiKey(apiKey);
+    if (!userId) return reply.status(401).send({ error: 'invalid or revoked API key' });
+    req.userId = userId;
+  } else if (env.authProvider === 'entra') {
     try {
       const { authenticateEntraRequest } = await import('./services/auth/entra.js');
       req.userId = await authenticateEntraRequest(req.headers.authorization);
@@ -102,6 +115,7 @@ await app.register(notificationRoutes);
 await app.register(approvalRoutes);
 await app.register(chatRoutes);
 await app.register(attachmentRoutes);
+await app.register(docsRoutes);
 
 try {
   await app.listen({ port: env.port, host: '0.0.0.0' });

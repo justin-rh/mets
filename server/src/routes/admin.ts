@@ -208,6 +208,34 @@ export async function adminRoutes(app: FastifyInstance) {
     return { ok: true };
   });
 
+  // Public-API keys: minted here, shown once, act as their bound user.
+  app.get('/api/admin/api-keys', async (req) => {
+    requireAdmin(req);
+    const { listApiKeys } = await import('../services/apiKeys.js');
+    return listApiKeys();
+  });
+
+  app.post('/api/admin/api-keys', async (req) => {
+    requireAdmin(req);
+    const body = z.object({
+      name: z.string().trim().min(1).max(120),
+      userId: z.number(),
+    }).parse(req.body);
+    const [target] = await db.select({ role: users.role }).from(users).where(eq(users.id, body.userId));
+    if (!target || target.role === 'requester') {
+      throw Object.assign(new Error('bind keys to a staff or readonly user'), { statusCode: 400 });
+    }
+    const { createApiKey } = await import('../services/apiKeys.js');
+    return createApiKey(body.name, body.userId, req.userId);
+  });
+
+  app.delete('/api/admin/api-keys/:id', async (req) => {
+    requireAdmin(req);
+    const id = z.coerce.number().parse((req.params as any).id);
+    const { revokeApiKey } = await import('../services/apiKeys.js');
+    return revokeApiKey(id);
+  });
+
   // ServiceNow migration: upload a CSV export, get back the auto-detected
   // column mapping + sample rows (the dry run), then confirm to import.
   app.post('/api/admin/import/preview', async (req, reply) => {

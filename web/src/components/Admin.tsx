@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   addAgentSkill, addRecurring, addRoutingRule, addStatus, addTemplate,
   deleteRecurring, deleteRoutingRule, deleteTemplate, fetchAdminConfig,
+  createApiKey, fetchApiKeys, revokeApiKey, type ApiKeyRow,
   fetchAdminUsers, fetchMeta, importPreview, importRun, removeAgentSkill,
   renameStatus, runEscalationSweep,
   updateUserLead, updateUserQueues, updateUserRole,
@@ -832,6 +833,79 @@ function UserQueuesCard(_: { config: AdminConfig }) {
   );
 }
 
+/** Public-API keys: mint (secret shown once), list, revoke. */
+function ApiKeysCard(_: { config: AdminConfig }) {
+  const qc = useQueryClient();
+  const { data: keys } = useQuery({ queryKey: ['api-keys'], queryFn: fetchApiKeys });
+  const { data: staff } = useQuery({ queryKey: ['admin-users'], queryFn: fetchAdminUsers });
+  const [name, setName] = useState('');
+  const [userId, setUserId] = useState('');
+  const [minted, setMinted] = useState<{ secret: string; name: string } | null>(null);
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: ['api-keys'] });
+  const mint = useMutation({
+    mutationFn: () => createApiKey(name.trim(), Number(userId)),
+    onSuccess: (r) => { setMinted({ secret: r.secret, name: name.trim() }); setName(''); setUserId(''); invalidate(); },
+  });
+  const revoke = useMutation({ mutationFn: (id: number) => revokeApiKey(id), onSuccess: invalidate });
+
+  const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString() : 'never');
+
+  return (
+    <div className="admin-card admin-card-wide">
+      <h3>API keys</h3>
+      <p className="admin-hint">
+        Keys authenticate the <a href="/api/docs" target="_blank" rel="noreferrer">public REST API ↗</a> via
+        the <code>x-api-key</code> header. A key acts as the user it's bound
+        to — role and queue visibility apply exactly as in the app, so bind a
+        readonly user (like SOTO Bot) for read-only integrations.
+      </p>
+
+      <div className="apikey-mint">
+        <input
+          placeholder="Key name — e.g. Power BI extract"
+          value={name}
+          maxLength={120}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <select value={userId} onChange={(e) => setUserId(e.target.value)}>
+          <option value="">acts as…</option>
+          {(staff ?? []).map((u) => <option key={u.id} value={u.id}>{u.name} ({u.role})</option>)}
+        </select>
+        <button
+          className="btn primary"
+          disabled={!name.trim() || !userId || mint.isPending}
+          onClick={() => mint.mutate()}
+        >
+          Create key
+        </button>
+      </div>
+
+      {minted && (
+        <div className="apikey-secret">
+          <strong>“{minted.name}” created.</strong> Copy the key now — it is shown exactly once:
+          <code>{minted.secret}</code>
+          <button className="btn ghost" onClick={() => setMinted(null)}>Done, I copied it</button>
+        </div>
+      )}
+
+      <div className="apikey-list">
+        {(keys ?? []).map((k: ApiKeyRow) => (
+          <div key={k.id} className={`apikey-row ${k.revokedAt ? 'revoked' : ''}`}>
+            <code>{k.prefix}</code>
+            <strong>{k.name}</strong>
+            <span className="apikey-meta">acts as {k.userName} ({k.userRole}) · last used {fmt(k.lastUsedAt)}</span>
+            {k.revokedAt
+              ? <em>revoked</em>
+              : <button className="btn ghost" onClick={() => revoke.mutate(k.id)}>Revoke</button>}
+          </div>
+        ))}
+        {(keys ?? []).length === 0 && <p className="admin-hint">No keys yet.</p>}
+      </div>
+    </div>
+  );
+}
+
 const IMPORT_FIELD_LABELS: [string, string][] = [
   ['legacyNumber', 'Original number'],
   ['subject', 'Subject'],
@@ -1004,6 +1078,11 @@ const ADMIN_SECTIONS = [
     key: 'import', label: 'Import', icon: '📦',
     hint: 'Bring your history over from ServiceNow',
     cards: [ImportCard],
+  },
+  {
+    key: 'api', label: 'API', icon: '🔌',
+    hint: 'Keys and docs for integrations',
+    cards: [ApiKeysCard],
   },
 ] as const;
 

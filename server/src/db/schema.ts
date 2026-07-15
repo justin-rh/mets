@@ -498,6 +498,20 @@ export const mailOutbound = pgTable(
   (t) => [index('mail_outbound_to_idx').on(t.toEmail, t.id), index('mail_outbound_dedupe_idx').on(t.dedupeKey)],
 );
 
+// Public-API keys: hashed secret, bound to a METS user so the key inherits
+// that user's role and queue visibility (a readonly user = read-only key).
+export const apiKeys = pgTable('api_keys', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  name: text('name').notNull(), // "Power BI extract", "Warehouse kiosk"
+  keyHash: text('key_hash').notNull(), // sha256 of the secret — never stored raw
+  prefix: text('prefix').notNull(), // first chars, for display: mets_a1b2…
+  userId: bigint('user_id', { mode: 'number' }).notNull().references(() => users.id),
+  createdBy: bigint('created_by', { mode: 'number' }).notNull().references(() => users.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+});
+
 export const appConfig = pgTable('app_config', {
   key: text('key').primaryKey(),
   value: jsonb('value').notNull(),

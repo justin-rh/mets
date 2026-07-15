@@ -344,6 +344,19 @@ export const importRun = (importId: string, mapping: Record<string, string>, run
     method: 'POST', body: JSON.stringify({ importId, mapping, runTriage }),
   });
 
+export type ApiKeyRow = {
+  id: number; name: string; prefix: string;
+  userId: number; userName: string; userRole: string;
+  createdAt: string; lastUsedAt: string | null; revokedAt: string | null;
+};
+export const fetchApiKeys = () => api<ApiKeyRow[]>('/api/admin/api-keys');
+export const createApiKey = (name: string, userId: number) =>
+  api<{ secret: string; key: ApiKeyRow }>('/api/admin/api-keys', {
+    method: 'POST', body: JSON.stringify({ name, userId }),
+  });
+export const revokeApiKey = (id: number) =>
+  api(`/api/admin/api-keys/${id}`, { method: 'DELETE' });
+
 export type AdminUser = {
   id: number; name: string; role: string; isAvailable: boolean;
   queueVisibility: 'all' | 'own'; teamIds: number[]; leadTeamIds: number[];

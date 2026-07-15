@@ -1204,6 +1204,29 @@ select, textarea, input[type='text'], .modal input {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
   animation: toast-in 0.18s ease-out;
 }
+/* API keys */
+.apikey-mint { display: flex; gap: 8px; margin: 10px 0; }
+.apikey-mint input { flex: 1; font: inherit; font-size: 13px; padding: 5px 8px; }
+.apikey-mint select { font: inherit; font-size: 13px; padding: 5px 6px; }
+.apikey-secret {
+  border: 1px dashed #e0a51c; border-radius: var(--r);
+  padding: 10px 12px; margin: 10px 0; font-size: 13px;
+  display: flex; flex-direction: column; gap: 8px; align-items: flex-start;
+}
+.apikey-secret code {
+  font-family: var(--font-data); font-size: 13px; user-select: all;
+  background: rgba(224, 165, 28, 0.12); padding: 4px 8px; border-radius: var(--r);
+}
+.apikey-list { display: flex; flex-direction: column; }
+.apikey-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 2px; border-bottom: 1px solid var(--line); font-size: 13px;
+}
+.apikey-row:last-child { border-bottom: none; }
+.apikey-row code { font-family: var(--font-data); font-size: 12px; color: var(--text-muted); }
+.apikey-row.revoked { opacity: 0.5; }
+.apikey-meta { color: var(--text-muted); font-size: 12px; flex: 1; }
+
 /* ServiceNow import */
 .import-mapping { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px 14px; margin: 10px 0; }
 .import-map-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
