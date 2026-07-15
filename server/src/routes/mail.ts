@@ -3,10 +3,12 @@ import { asc, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { db, schema } from '../db/index.js';
 import { mailboxFor, processInboundEmail } from '../services/mail/mockMail.js';
+import { requireStaff } from './guards.js';
 
 export async function mailRoutes(app: FastifyInstance) {
   // The mock transport: in production this is the Graph webhook + poller.
   app.post('/api/mail/inbound', async (req) => {
+    requireStaff(req);
     const body = z.object({
       from: z.string().email(),
       subject: z.string().trim().min(1).max(300),
@@ -16,12 +18,14 @@ export async function mailRoutes(app: FastifyInstance) {
   });
 
   app.get('/api/mail/mailbox', async (req) => {
+    requireStaff(req);
     const q = z.object({ email: z.string().email() }).parse(req.query);
     return mailboxFor(q.email);
   });
 
   // Outbound notifications sent to an address (queue-entry emails, etc.).
   app.get('/api/mail/outbound', async (req) => {
+    requireStaff(req);
     const q = z.object({ email: z.string().email() }).parse(req.query);
     const { mailOutbound, tickets } = schema;
     return db
@@ -38,7 +42,8 @@ export async function mailRoutes(app: FastifyInstance) {
   });
 
   // Sample senders for the simulator's From picker.
-  app.get('/api/mail/senders', async () => {
+  app.get('/api/mail/senders', async (req) => {
+    requireStaff(req);
     const rows = await db
       .select({ name: schema.users.name, email: schema.users.email, department: schema.users.department })
       .from(schema.users)

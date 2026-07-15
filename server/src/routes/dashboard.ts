@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/index.js';
+import { requireStaff } from './guards.js';
 
 /**
  * Dashboard aggregates — live queries; at ~10^5 tickets these run in
@@ -9,7 +10,8 @@ import { db } from '../db/index.js';
  * Medians throughout: one three-week vendor ticket wrecks a mean.
  */
 export async function dashboardRoutes(app: FastifyInstance) {
-  app.get('/api/dashboard', async () => {
+  app.get('/api/dashboard', async (req) => {
+    requireStaff(req);
     const tz = 'America/Phoenix';
 
     const [tiles] = (await db.execute(sql`
@@ -80,6 +82,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
   // they resolved in the window) with the quality stats that keep it honest —
   // SLA hit rate, first-response speed, and CSAT.
   app.get('/api/dashboard/leaderboard', async (req) => {
+    requireStaff(req);
     const { days } = z.object({
       days: z.coerce.number().refine((d) => [7, 30, 90].includes(d)).default(30),
     }).parse(req.query as any);

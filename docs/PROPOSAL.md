@@ -1,6 +1,10 @@
-# METS — Proposal One-Pager
+# METS — Proposal (v2.0)
 
 **Problem #4: Ticketing System Replacement · Team Rhoda**
+
+*(v1.0 preserved as PROPOSAL-v1.0.md; this revision separates what runs
+today from what a pilot requires, and replaces the headline savings claim
+with three-year scenarios.)*
 
 ## The problem
 
@@ -11,52 +15,119 @@ management. Enhancements need specialist development; agents fight the tool
 ## The solution
 
 **METS** — a purpose-built ticketing system: one web app, one PostgreSQL
-database, one job runner. Postgres alone handles transactions, full-text
-search, vector search, reporting, and scheduled jobs at our scale
-(~36k tickets/yr). AI (Claude API) does the triage humans hate.
+database. Postgres handles transactions, full-text search, vector search,
+and reporting at our scale (~36k tickets/yr). AI (Claude API) does the
+triage humans hate — and every AI action is audited, confidence-gated, and
+one click to revert.
 
 | | ServiceNow today | METS |
 |---|---|---|
-| Annual software cost | ~$300,000 + escalators | **~$5–8k** (Azure infra + AI) |
-| Admin burden | Specialist dev for changes | Admin UI: weights, SLAs, statuses, rules |
-| AI | Paid add-ons | Built in, ~$50–100/mo at full volume |
+| Annual software cost | ~$300,000 + escalators | ~$8k infra + AI (see TCO below for the honest total) |
+| Admin burden | Specialist dev for changes | Admin UI: weights, SLAs, statuses, rules, keywords, gates, templates |
+| AI | Paid add-ons | Built in — triage, incident detection, KB drafting, NL search |
 | Queues | 52 (per-site sprawl) | **17** + site/function tags |
-| Best commercial alternative | — | $24–60k/yr (HaloITSM / ManageEngine / Freshservice), generic UX |
+
+## Maturity, honestly
+
+Everything in the demo video is real and running against 800 seeded tickets
+plus live Claude calls — nothing is mocked on screen except the mail
+*transport*. But "runs in a demo" and "ready for your HR ticket" are
+different bars. Here is where each capability actually stands:
+
+**Live in the demo today**
+- Queue board: drag-and-drop assign/re-queue, bulk actions, snooze, full audit trail on every change
+- AI triage with per-field confidence gates, agent corrections that become routing patterns, and honest deferral below threshold
+- AI extras: major-incident detection with parent/child linking + broadcast updates, KB article drafting from resolutions (human-reviewed before publish), natural-language queue search, on-behalf-of detection
+- SLA engine: business-hours math, pause on pending, breach → score escalation; configurable per-priority targets
+- Scoring: priority/age/VIP/SLA/keyword/sentiment weights, all admin-tunable with instant rescore (including the ALL-CAPS penalty)
+- Requester portal with server-side role enforcement, CSAT ratings, reply-to-reopen
+- Manager approvals (category gates + org chart), response templates + auto-respond, agent chat with ticket links, watchers, merge-duplicates with exact part-number guard, escalation sweep, queue email notifications
+- Dashboards: volume, median MTTR/FRT, SLA attainment, CSAT, TP leaderboard
+- Admin UI for all of the above — zero-code configuration, demonstrated live
+
+**Built and dormant (activation is configuration, not code)**
+- Entra ID SSO: token validation, user mapping, auto-provisioning, sign-in UI — needs only an app registration (blocked on admin rights; activation checklist in docs/SSO.md)
+
+**Designed and documented, not yet built**
+- Microsoft Graph mail transport (the pipeline — threading, guest contacts, auto-ack, reopen — runs today against the mock transport)
+- Attachments (schema exists; upload/scan/storage pipeline does not)
+- ServiceNow migration (export/mapping/validation plan documented, not exercised against real data)
+- Live updates via SSE (the UI polls today — adequate at our scale)
+- Confidential queues / per-ticket restricted access (today: role-level RBAC is enforced server-side; any agent can see any queue — fine for IT, not for HR/legal)
+
+**Known engineering debt (deliberate for a one-week build)**
+- Background work runs on in-process timers; production needs durable jobs with retries and idempotency (pg-boss is already a dependency, unused)
+- No optimistic-concurrency control on ticket edits (last write wins)
+- Schema managed by push, not versioned migrations
+- One automated test (SLA business-time math); everything else was verified end-to-end in the browser per feature, but a real suite is table stakes for pilot
+- Dev conveniences to remove: permissive CORS, no rate limits, limit-based (not cursor) pagination
 
 ## Requirements coverage
 
 | Requirement | Status |
 |---|---|
-| Create/edit/assign/track/close with standard fields | ✅ Built — drag-and-drop queue, bulk actions, full audit trail |
-| Configurable queues + automated routing | ✅ Built — rules engine (first-match, logged), round-robin/load-based auto-assign |
-| Response & resolution SLAs with breach alerts | ✅ Built — business-hours engine, pause on pending, 60s sweep, breach events + score escalation |
-| Email-based creation & two-way communication | ✅ Built (mock transport) — full pipeline live: threading, guest contacts, auto-ack, reopen-on-reply; Microsoft Graph adapter is a config swap (production design documented) |
-| Searchable knowledge base / self-service | ✅ Built — hybrid search (full-text + local embeddings), suggested articles on tickets |
-| Incident / service request / change workflows | ✅ One number space, `type` drives workflow; change approvals designed (single-approver v1) |
-| Reporting & dashboards | ✅ Built — volume, median MTTR/FRT, SLA attainment, backlog age, team TP leaderboard |
-| Roles, permissions, queues, access levels | ✅ RBAC (admin/agent/requester) enforced server-side; team-based queue access; Entra SSO designed behind the dev-auth adapter |
-| ServiceNow migration | 📋 Designed & de-risked — REST Table API export incl. journal comments/attachments, field-mapping validation, open + 24mo full fidelity, older read-only archive (docs/research) |
-| ≥1 AI-assisted workflow | ✅ Four — categorization/routing with confidence gates, priority correction, summarization, KB-grounded suggested replies |
-| Reduce software & admin cost | ✅ ~97% software cost reduction; admin work becomes form edits |
-| Easy configuration changes | ✅ Demonstrated live — score weights, SLA targets, statuses, routing rules from the Admin UI |
+| Create/edit/assign/track/close, standard fields | ✅ Live |
+| Configurable queues + automated routing | ✅ Live — rules engine + AI routing + expertise/round-robin assign |
+| Response & resolution SLAs with breach alerts | ✅ Live |
+| Email-based creation & two-way communication | 🟡 Pipeline live end-to-end; production transport (Graph) designed, not built |
+| Searchable KB / self-service | ✅ Live — hybrid full-text + semantic search, AI-drafted articles |
+| Incident / request / change workflows | ✅ Live — one number space, type-driven; manager approvals live |
+| Reporting & dashboards | ✅ Live |
+| Roles, permissions, access levels | 🟡 Role-level RBAC enforced server-side (verified); queue-level confidentiality planned |
+| ServiceNow migration | 📋 Designed only — needs a dry run against real export data |
+| ≥1 AI-assisted workflow | ✅ Seven distinct AI workflows, all audited |
+| Reduce software & admin cost | ✅ See TCO scenarios — 65–90% depending on assumptions |
+| Easy configuration changes | ✅ Live, demonstrated |
 
-## What the prototype proves
+## AI governance (what leaves the building, and the controls)
 
-Everything above marked ✅ runs today against 800 realistic seeded tickets —
-live Claude triage at 0.9+ confidence on clear tickets, honest deferral to
-humans on ambiguous ones, an SLA breach visibly re-ranking the queue, and an
-email→ticket→AI→reply round-trip in under a minute.
+Ticket subject/description, requester name/department, matched directory
+candidates, and recent corrected ticket subjects are sent to the Anthropic
+API for triage. Controls that exist today: per-field confidence gates,
+full audit of every AI action with one-click revert, human review before
+KB drafts publish, per-feature token logging with a daily budget cutoff,
+and a global kill switch (`AI_PROVIDER=mock` degrades every AI feature to
+keyword heuristics, live-tested). Pilot commitments before real data: a
+redaction pass and sensitive-queue exclusion list, prompt-injection review
+(ticket text is untrusted input), a confirm-instead-of-auto mode for
+requester-changing actions (the human-correction flow for this already
+exists), and expiry on old corrections.
 
-## Production path (already designed, adapter-swap each)
+## Three-year cost scenarios (honest TCO, not license math)
 
-1. **Entra ID SSO** (OIDC/MSAL) + user sync via Graph delta queries
-2. **Microsoft Graph mail** on the shared helpdesk mailbox (RBAC-scoped app
-   permissions, webhook + poll, Message-ID threading)
-3. **ServiceNow migration** with dry-run validation, then 1-month parallel run
-4. Azure App Service + Azure Database for PostgreSQL; nightly backups
+Assumes a loaded internal FTE ≈ $140k/yr. All figures rounded.
+
+| Scenario | Assumptions | 3-yr total |
+|---|---|---|
+| **Stay on ServiceNow** | $300k/yr + escalators, continued admin dev | **~$950k+** |
+| **Commercial mid-market** (Halo/Freshservice tier) | ~$40k/yr licenses + migration/config one-time + admin time | **~$200k** |
+| **METS — best case** | $8k/yr infra+AI, 0.1 FTE steady-state after hardening | **~$90k** |
+| **METS — expected** | $10k/yr infra+AI, 0.25 FTE ownership, one-time hardening + security review + migration dev (~$50k) | **~$185k** |
+| **METS — high-support** | 0.5 FTE, pen test + compliance work, extended parallel run | **~$320k** |
+
+Even the high-support case saves ~65% versus ServiceNow over three years —
+and unlike the commercial alternative, the roadmap is ours. The v1.0
+"97% cheaper" figure compared software licenses only; these scenarios
+include the cost of owning a bespoke platform (engineering time, security
+review, on-call, parallel operation).
+
+## Pilot path
+
+1. **Gap assessment → hardening sprint (3–4 weeks):** durable jobs,
+   concurrency control, versioned migrations, test suite over RBAC /
+   internal-note confidentiality / SLA transitions / approvals, rate
+   limits + CORS + pagination, attachment pipeline with scanning
+2. **Activation:** Entra app registration (SSO is one config swap), Graph
+   mail transport on the shared helpdesk mailbox
+3. **Migration dry run** against a real ServiceNow export, reconciliation
+   report reviewed before any cutover
+4. **One-team pilot** alongside ServiceNow for one month — IT queues first
+   (no confidential-queue requirement), success criteria agreed up front
+5. Phased cutover; ServiceNow read-only archive for history
 
 ## The ask
 
-Pilot METS with one team's queue alongside ServiceNow for one month, then
-phase the cutover. Even a conservative path (run both for a full year)
-costs less than 3% of the ServiceNow renewal.
+Approve the gap assessment and one-team pilot. Even the conservative path —
+hardening sprint, security review, and a full parallel year — costs a
+fraction of one ServiceNow renewal, and every week of the pilot the tool
+gets smarter on our own tickets.
