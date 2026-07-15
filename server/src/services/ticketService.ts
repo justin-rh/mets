@@ -371,6 +371,85 @@ export async function bestFitAgents(ticketId: number, limit = 3) {
     .slice(0, limit);
 }
 
+const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * An agent of the ticket's queue named in the ticket text ("Spoke to Derek",
+ * "Hannah has been working on this"). Full names always match; a first name
+ * matches only when it's unique among the queue's agents (two Kevins → no
+ * match on "Kevin"). Earliest mention wins; full-name beats first-name at
+ * the same spot. Public comments count too.
+ */
+export async function detectMentionedAgent(ticketId: number) {
+  const [t] = await db
+    .select({ queueId: tickets.queueId, subject: tickets.subject, description: tickets.description, requesterId: tickets.requesterId })
+    .from(tickets).where(eq(tickets.id, ticketId));
+  if (!t) return null;
+
+  const comments = await db
+    .select({ body: schema.ticketComments.bodyText })
+    .from(schema.ticketComments)
+    .where(and(eq(schema.ticketComments.ticketId, ticketId), eq(schema.ticketComments.visibility, 'public')));
+  const text = [t.subject, t.description, ...comments.map((c) => c.body)].join('\n');
+
+  const agents = await db
+    .select({ id: users.id, name: users.name, isAvailable: users.isAvailable })
+    .from(users)
+    .innerJoin(teamMemberships, eq(teamMemberships.userId, users.id))
+    .where(and(
+      eq(teamMemberships.teamId, t.queueId),
+      sql`${users.role} in ('agent','admin')`,
+      eq(users.isActive, true),
+    ))
+    .then((rows) => rows.filter((a) => a.id !== t.requesterId));
+
+  const firstNameCounts = new Map<string, number>();
+  for (const a of agents) {
+    const first = a.name.split(' ')[0]!.toLowerCase();
+    firstNameCounts.set(first, (firstNameCounts.get(first) ?? 0) + 1);
+  }
+
+  type Hit = { agent: typeof agents[number]; pos: number; full: boolean; snippet: string };
+  const hits: Hit[] = [];
+  const tryMatch = (a: typeof agents[number], pattern: string, full: boolean) => {
+    const m = new RegExp(`\\b${pattern}\\b`, 'i').exec(text);
+    if (!m) return;
+    const snippet = text.slice(Math.max(0, m.index - 25), m.index + m[0].length + 25).replace(/\s+/g, ' ').trim();
+    hits.push({ agent: a, pos: m.index, full, snippet });
+  };
+  for (const a of agents) {
+    tryMatch(a, escapeRegExp(a.name), true);
+    const first = a.name.split(' ')[0]!;
+    if (firstNameCounts.get(first.toLowerCase()) === 1) tryMatch(a, escapeRegExp(first), false);
+  }
+  if (hits.length === 0) return null;
+  hits.sort((a, b) => a.pos - b.pos || Number(b.full) - Number(a.full));
+  const best = hits[0]!;
+  return { id: best.agent.id, name: best.agent.name, isAvailable: best.agent.isAvailable, snippet: best.snippet };
+}
+
+/**
+ * Drag-to-"Auto-assign (Mentioned)": assign each ticket to the queue agent
+ * named in its text; tickets naming nobody (or an OOO agent) stay put.
+ */
+export async function autoAssignByMention(ticketIds: number[], actor: Actor) {
+  const results: { ticketId: number; assigneeId: number | null; assigneeName?: string; snippet?: string }[] = [];
+  for (const ticketId of ticketIds) {
+    const hit = await detectMentionedAgent(ticketId);
+    if (!hit || !hit.isAvailable) {
+      results.push({ ticketId, assigneeId: null });
+      continue;
+    }
+    await applyTicketChanges(ticketId, { ...actor, type: 'system' }, { assigneeId: hit.id });
+    await db.insert(ticketEvents).values({
+      ticketId, actorId: actor.id, actorType: 'system', eventType: 'assigned_by_mention',
+      field: 'mention', newValue: `${hit.name} — "…${hit.snippet}…"`,
+    });
+    results.push({ ticketId, assigneeId: hit.id, assigneeName: hit.name, snippet: hit.snippet });
+  }
+  return results;
+}
+
 /**
  * Expertise-based auto-assign: match the ticket's category to agent skills
  * (earned from history or manually granted). Queue members are preferred,

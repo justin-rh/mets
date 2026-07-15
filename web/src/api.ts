@@ -168,7 +168,7 @@ export const fetchTicket = (id: number) => api<TicketDetail>(`/api/tickets/${id}
 export const patchTicket = (id: number, changes: TicketChanges) =>
   api(`/api/tickets/${id}`, { method: 'PATCH', body: JSON.stringify(changes) });
 
-export const bulkTickets = (ticketIds: number[], action: 'update' | 'auto_assign' | 'expertise_assign', changes?: TicketChanges) =>
+export const bulkTickets = (ticketIds: number[], action: 'update' | 'auto_assign' | 'expertise_assign' | 'mentioned_assign', changes?: TicketChanges) =>
   api('/api/tickets/bulk', { method: 'POST', body: JSON.stringify({ ticketIds, action, changes }) });
 
 export const postComment = (id: number, bodyText: string, visibility: 'public' | 'internal') =>
@@ -314,7 +314,10 @@ export type Suggestions = {
 };
 export const fetchSuggestions = (ticketId: number) => api<Suggestions>(`/api/tickets/${ticketId}/suggestions`);
 
-export type AgentFit = { id: number; name: string; fit: number; level: number | null; inQueue: boolean };
+export type AgentFit = {
+  id: number; name: string; fit: number; level: number | null; inQueue: boolean;
+  mentioned?: boolean; snippet?: string; // named in the ticket text — leads the list
+};
 export const fetchBestFits = (ticketId: number) => api<AgentFit[]>(`/api/tickets/${ticketId}/fit`);
 
 export const draftReply = (ticketId: number) =>

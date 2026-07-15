@@ -221,7 +221,7 @@ export default function App() {
 
   const bulk = useMutation({
     mutationFn: ({ ids, action, changes }: {
-      ids: number[]; action: 'update' | 'auto_assign' | 'expertise_assign'; changes?: TicketChanges;
+      ids: number[]; action: 'update' | 'auto_assign' | 'expertise_assign' | 'mentioned_assign'; changes?: TicketChanges;
       message?: string; undo?: UndoOp[];
     }) => bulkTickets(ids, action, changes),
     onSuccess: (result, vars) => {
@@ -237,20 +237,25 @@ export default function App() {
       if (Array.isArray(result) && (result as any[]).some((r) => r?.trained === 'corrected')) {
         toast('✨ Routing correction recorded — future triage learns from this move', 'info');
       }
-      else if (vars.action === 'auto_assign' || vars.action === 'expertise_assign') {
+      else if (vars.action === 'auto_assign' || vars.action === 'expertise_assign' || vars.action === 'mentioned_assign') {
         type AssignResult = { ticketId: number; assigneeId: number | null; assigneeName?: string; fit?: number };
         const assigned = (result as AssignResult[]).filter((r) => r.assigneeId != null);
-        const verb = vars.action === 'expertise_assign' ? 'Assigned by expertise' : 'Auto-assigned';
-        const suffix = vars.action === 'expertise_assign' && assigned.length < vars.ids.length
-          ? ' (rest: no skilled agent available)' : '';
-        // Expertise picks name the agent and the same fit % the Suggested
-        // avatars show, so the choice is explainable at a glance.
+        const verb = vars.action === 'expertise_assign' ? 'Assigned by expertise'
+          : vars.action === 'mentioned_assign' ? 'Assigned by mention'
+          : 'Auto-assigned';
+        const suffix = assigned.length < vars.ids.length
+          ? (vars.action === 'expertise_assign' ? ' (rest: no skilled agent available)'
+            : vars.action === 'mentioned_assign' ? ' (rest: no queue agent mentioned)'
+            : '')
+          : '';
+        // Expertise/mention picks name the agent so the choice is
+        // explainable at a glance (fit % matches the Suggested avatars).
         const who = (r: AssignResult) => {
           const num = ticketRows.find((t) => t.id === r.ticketId)?.number ?? `#${r.ticketId}`;
           return `${num} → ${r.assigneeName}${r.fit != null ? ` (${Math.round(r.fit * 100)}% fit)` : ''}`;
         };
         const message =
-          vars.action === 'expertise_assign' && assigned.length > 0 && assigned.length <= 3 && assigned[0]?.assigneeName
+          vars.action !== 'auto_assign' && assigned.length > 0 && assigned.length <= 3 && assigned[0]?.assigneeName
             ? `${verb}: ${assigned.map(who).join(' · ')}${suffix}`
             : `${verb}: ${assigned.length} of ${vars.ids.length} ticket${vars.ids.length > 1 ? 's' : ''}${suffix}`;
         toast(message, 'success', assigned.length ? undoAction : undefined, openOne);
@@ -283,6 +288,7 @@ export default function App() {
     if (target === 'assign-me') act(ids, { assigneeId: userId }, `${label(ids)} assigned to you`);
     else if (target === 'assign-auto') bulk.mutate({ ids, action: 'auto_assign', undo: buildUndo(ids, { assigneeId: null }) });
     else if (target === 'assign-expertise') bulk.mutate({ ids, action: 'expertise_assign', undo: buildUndo(ids, { assigneeId: null }) });
+    else if (target === 'assign-mentioned') bulk.mutate({ ids, action: 'mentioned_assign', undo: buildUndo(ids, { assigneeId: null }) });
     else if (target === 'snooze-zone') setSnoozeIds(ids);
     else if (target.startsWith('agent-')) {
       const agentId = Number(target.slice(6));

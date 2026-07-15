@@ -396,8 +396,8 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
             {bestFits.map((f) => (
               <button
                 key={f.id}
-                className={`avatar fit-avatar ${f.fit <= 0.5 ? 'fit-weak' : ''}`}
-                title={`${f.name} — ${Math.round(f.fit * 100)}% fit${f.level ? ` · skill L${f.level}` : ''}${f.inQueue ? ' · in queue' : ''} — click to assign`}
+                className={`avatar fit-avatar ${f.fit <= 0.5 && !f.mentioned ? 'fit-weak' : ''} ${f.mentioned ? 'fit-mentioned' : ''}`}
+                title={`${f.name} — ${f.mentioned ? `mentioned in ticket ("…${f.snippet}…") · ` : ''}${Math.round(f.fit * 100)}% fit${f.level ? ` · skill L${f.level}` : ''}${f.inQueue ? ' · in queue' : ''} — click to assign`}
                 onClick={() =>
                   patch.mutate({ assigneeId: f.id }, {
                     onSuccess: () => toast(`${t.number} assigned to ${f.name}`, 'success', {

@@ -216,6 +216,10 @@ export function ActionRail({ mode, meta, queueId, onSelectQueue, onCollapse }: {
         <strong>Auto-assign (Expertise)</strong>
         <span className="rail-sub">matches category to agent skills</span>
       </DropCard>
+      <DropCard id="assign-mentioned" className="assign-mentioned">
+        <strong>Auto-assign (Mentioned)</strong>
+        <span className="rail-sub">assigns to the agent named in the ticket</span>
+      </DropCard>
       <DropCard id="snooze-zone" className="snooze-zone">
         <strong>⏸ Holding area</strong>
         <span className="rail-sub">drop tickets to snooze</span>

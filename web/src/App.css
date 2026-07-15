@@ -1234,6 +1234,7 @@ select, textarea, input[type='text'], .modal input {
 }
 
 .assign-expertise { border-left: 3px solid var(--ok); cursor: default; }
+.assign-mentioned { border-left: 3px solid #e0a51c; cursor: default; }
 
 /* best-fit suggestions in ticket detail */
 .fit-row {
@@ -1249,6 +1250,8 @@ select, textarea, input[type='text'], .modal input {
 }
 .fit-avatar:hover { transform: scale(1.12); }
 .fit-avatar.fit-weak { opacity: 0.5; }
+/* named in the ticket text — leads the list with a gold ring */
+.fit-avatar.fit-mentioned { box-shadow: 0 0 0 2px #e0a51c; }
 
 /* ===== notifications bell ===== */
 
