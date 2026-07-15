@@ -169,7 +169,7 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
         {t.incident?.children.length > 0 && (
           <div className="incident-banner incident-parent">
             <span className="incident-title">
-              ⚡ <strong>Major incident</strong> — {t.incident.children.length} linked ticket{t.incident.children.length === 1 ? '' : 's'}
+              ⚡ <strong>Suspected incident</strong> — {t.incident.children.length} linked ticket{t.incident.children.length === 1 ? '' : 's'}
             </span>
             <span className="incident-children">
               {t.incident.children.map((c) => (
@@ -196,7 +196,7 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
             >
               {t.incident.parent.number}
             </button>
-            <span className="incident-hint">{t.incident.parent.subject.replace(/^Major incident:\s*/i, '')}</span>
+            <span className="incident-hint">{t.incident.parent.subject.replace(/^(?:major|suspected) incident:\s*/i, '')}</span>
           </div>
         )}
         {t.incident?.mergedInto && (

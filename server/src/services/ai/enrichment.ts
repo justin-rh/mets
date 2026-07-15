@@ -241,7 +241,7 @@ export async function enrichTicket(ticketId: number, mode: EnrichMode = 'suggest
   await recomputeScore(db, ticketId);
 
   // With a category on the ticket, look for a burst of similar reports —
-  // a confirmed burst becomes a linked major incident.
+  // a confirmed burst becomes a linked suspected incident.
   if (mode === 'auto') {
     const { detectMajorIncident } = await import('../incidents.js');
     // A failure here means a burst may go undeclared until the NEXT report

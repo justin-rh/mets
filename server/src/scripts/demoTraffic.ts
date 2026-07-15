@@ -10,7 +10,7 @@ import { enrichTicket } from '../services/ai/enrichment.js';
 const BATCH_SIZE = 10;
 
 // `npm run demo:traffic -- outage`: a burst of same-root-cause reports that
-// should trip major-incident detection (parent ticket + linked children).
+// should trip suspected-incident detection (parent ticket + linked children).
 const OUTAGE_BURST: { subject: string; description: string; type?: 'incident' | 'request' | 'change' }[] = [
   { subject: 'Zoom won\'t connect — meetings failing', description: 'Zoom desktop client says "unable to connect" for every meeting since about 10 minutes ago. Tried restarting, same thing.' },
   { subject: 'Zoom down for our whole team', description: 'Nobody on the inside sales team can join Zoom calls — clients are waiting in meetings we cannot join. Started within the last 15 minutes.' },

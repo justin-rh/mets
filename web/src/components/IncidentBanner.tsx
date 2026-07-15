@@ -5,7 +5,7 @@ import { age } from '../format';
 import { toast } from './Toasts';
 
 /**
- * App-wide red bar while a major incident is open, on every page and in the
+ * App-wide amber bar while a suspected incident is open, on every page and in the
  * requester portal. Also the toast source: a newly declared incident and
  * each absorbed report announce themselves wherever you happen to be.
  */
@@ -24,9 +24,9 @@ export function IncidentBanner({ onOpen }: { onOpen?: (i: ActiveIncident) => voi
       for (const i of data) {
         const prev = seen.current.get(i.id);
         if (prev === undefined) {
-          toast(`🚨 Major incident declared: ${i.title} — ${i.childCount} reports linked`, 'new');
+          toast(`⚠️ Suspected incident declared: ${i.title} — ${i.childCount} reports linked`, 'new');
         } else if (i.childCount > prev) {
-          toast(`🚨 ${i.number} absorbed another report (${i.childCount} linked)`, 'info');
+          toast(`⚠️ ${i.number} absorbed another report (${i.childCount} linked)`, 'info');
         }
       }
     }
@@ -45,7 +45,7 @@ export function IncidentBanner({ onOpen }: { onOpen?: (i: ActiveIncident) => voi
           title={onOpen ? `Open ${i.number}` : undefined}
         >
           <span className="incident-pulse" aria-hidden />
-          <strong className="incident-label">Major incident</strong>
+          <strong className="incident-label">Suspected incident</strong>
           <span className="incident-title">{i.title}</span>
           <span className="incident-meta">
             {i.number} · {i.childCount} linked report{i.childCount === 1 ? '' : 's'} · started {age(i.createdAt)} ago

@@ -4,7 +4,7 @@ Simulates a Zoom outage and verifies the whole incident lifecycle in a
 headless browser:
 
   1. Files 3 similar tickets as different requesters -> AI declares a
-     major incident (declaration toast + app-wide red banner)
+     suspected incident (declaration toast + app-wide amber banner)
   2. Files a 4th report -> absorbed into the parent (toast, count ticks up)
   3. Switches to a requester -> portal shows the banner read-only
   4. Clicks the banner -> incident ticket opens
@@ -72,7 +72,7 @@ with sync_playwright() as p:
     declared_early = banner.count() > 0
     print('banner:', banner.inner_text().replace('\n', ' | ') if declared_early
           else 'not yet — the 4th report below can still trigger it')
-    print('declaration toast:', next((t for t in toasts if 'Major incident declared' in t), '(missing)'))
+    print('declaration toast:', next((t for t in toasts if 'Suspected incident declared' in t), '(missing)'))
     page.wait_for_timeout(1000); collect()
     page.screenshot(path=os.path.join(SHOT, 'incident_banner.png'))
 

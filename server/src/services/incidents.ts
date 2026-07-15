@@ -6,9 +6,9 @@ import { getBotUser } from './templates.js';
 const { tickets, ticketLinks, ticketComments, ticketEvents, statuses, users, aiUsage } = schema;
 
 // A burst of MIN_CLUSTER similar tickets in the same category within
-// WINDOW_MINUTES triggers an AI assessment; a confirmed incident gets a P1
-// parent ticket and the burst is linked under it.
-const WINDOW_MINUTES = 120;
+// WINDOW_MINUTES triggers an AI assessment; a confirmed burst gets a P1
+// "Suspected incident" parent ticket and the burst is linked under it.
+const WINDOW_MINUTES = 20;
 const MIN_CLUSTER = 3;
 const MIN_CONFIDENCE = 0.6;
 
@@ -69,7 +69,7 @@ async function linkChild(childId: number, parent: { id: number; number: string; 
 /**
  * Run after AI triage lands a category. Looks for a burst of textually
  * similar open tickets in the same category; a confirmed burst becomes a P1
- * "Major incident" parent with the burst linked as children (existing open
+ * "Suspected incident" parent with the burst linked as children (existing open
  * incidents absorb matching newcomers instead of spawning duplicates).
  */
 export async function detectMajorIncident(ticketId: number) {
@@ -98,7 +98,7 @@ export async function detectMajorIncident(ticketId: number) {
       and exists (select 1 from ticket_links l where l.linked_ticket_id = p.id and l.type = 'child_of')
   `)).rows as { id: number; number: string; subject: string }[];
   for (const p of openParents) {
-    const title = p.subject.replace(/^Major incident:\s*/i, '');
+    const title = p.subject.replace(/^(?:major|suspected) incident:\s*/i, '');
     if (sharedTokens(myTokens, tokens(title)) >= 1) {
       await linkChild(ticketId, { id: Number(p.id), number: p.number, title });
       return { attached: p.number };
@@ -167,7 +167,7 @@ export async function detectMajorIncident(ticketId: number) {
     const [defaultStatus] = await tx.select().from(statuses)
       .where(eq(statuses.isDefault, true)).limit(1);
     const [created] = await tx.insert(tickets).values({
-      subject: `Major incident: ${outcome.result.title}`,
+      subject: `Suspected incident: ${outcome.result.title}`,
       description: `${outcome.result.summary}\n\nDeclared automatically from ${burst.length} similar reports: ${burst.map((b) => b.number).join(', ')}. Public replies on this ticket broadcast to every linked requester.`,
       type: 'incident', priority: 1,
       statusId: defaultStatus!.id, queueId: t.queueId, categoryId: t.categoryId,
@@ -259,7 +259,7 @@ export async function activeIncidents() {
     id: Number(r.id),
     childCount: Number(r.childCount),
     createdAt: new Date(r.createdAt).toISOString(),
-    title: r.subject.replace(/^Major incident:\s*/i, ''),
+    title: r.subject.replace(/^(?:major|suspected) incident:\s*/i, ''),
   }));
 }
 
@@ -280,7 +280,7 @@ export async function resolveIncidentCascade(parentId: number, actorId: number |
 
   const [parent] = await db.select({ number: tickets.number, subject: tickets.subject })
     .from(tickets).where(eq(tickets.id, parentId));
-  const title = parent?.subject.replace(/^Major incident:\s*/i, '') ?? '';
+  const title = parent?.subject.replace(/^(?:major|suspected) incident:\s*/i, '') ?? '';
   const [resolved] = await db.select().from(statuses)
     .where(eq(statuses.category, 'resolved')).orderBy(asc(statuses.position)).limit(1);
   if (!resolved) return 0;

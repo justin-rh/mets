@@ -513,8 +513,6 @@ select, textarea, input[type='text'], .modal input {
 }
 .rail-info p { margin: 6px 0 0; }
 
-.rail-spacer { flex: 1; min-height: 12px; }
-
 .rail-divider {
   height: 1px;
   background: var(--line-strong);
@@ -1840,7 +1838,7 @@ select, textarea, input[type='text'], .modal input {
 }
 .csat-quote { font-size: 12px; color: var(--text-muted); font-style: italic; }
 
-/* major incidents */
+/* suspected incidents */
 .incident-banner {
   display: flex;
   align-items: center;
@@ -2310,25 +2308,25 @@ button.logo-home {
 
 .triage-summary { font-size: 13px; margin: 6px 0 2px; line-height: 1.45; }
 
-/* App-wide banner while a major incident is open */
+/* App-wide banner while a suspected incident is open */
 .incident-banner { display: flex; flex-direction: column; }
 .incident-banner-item {
   display: flex; align-items: center; gap: 10px;
   width: 100%; padding: 7px 16px;
-  border: none; border-bottom: 1px solid rgba(0, 0, 0, 0.25);
-  background: linear-gradient(90deg, #a41623, #c0392b);
-  color: #fff; font: inherit; font-size: 13px;
+  border: none; border-bottom: 1px solid rgba(0, 0, 0, 0.2);
+  background: linear-gradient(90deg, #f0a10c, #fbbf24);
+  color: #42250a; font: inherit; font-size: 13px;
   text-align: left; cursor: pointer;
 }
 .incident-banner-item:disabled { cursor: default; }
-.incident-banner-item:not(:disabled):hover { background: linear-gradient(90deg, #b21827, #d24435); }
+.incident-banner-item:not(:disabled):hover { background: linear-gradient(90deg, #f5ab1c, #fcc93f); }
 .incident-pulse {
   width: 10px; height: 10px; flex: none; border-radius: 50%;
-  background: #fff; animation: incident-pulse 1.4s ease-in-out infinite;
+  background: #7c3a0d; animation: incident-pulse 1.4s ease-in-out infinite;
 }
 @keyframes incident-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.6); }
-  50% { box-shadow: 0 0 0 6px rgba(255, 255, 255, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(124, 58, 13, 0.45); }
+  50% { box-shadow: 0 0 0 6px rgba(124, 58, 13, 0); }
 }
 .incident-label {
   text-transform: uppercase; letter-spacing: 0.08em;

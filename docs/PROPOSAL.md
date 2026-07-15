@@ -37,7 +37,7 @@ different bars. Here is where each capability actually stands:
 **Live in the demo today**
 - Queue board: drag-and-drop assign/re-queue, bulk actions, snooze, full audit trail on every change
 - AI triage with per-field confidence gates, agent corrections that become routing patterns, and honest deferral below threshold
-- AI extras: major-incident detection with parent/child linking + broadcast updates, KB article drafting from resolutions (human-reviewed before publish), natural-language queue search, on-behalf-of detection
+- AI extras: suspected-incident detection with parent/child linking + broadcast updates, KB article drafting from resolutions (human-reviewed before publish), natural-language queue search, on-behalf-of detection
 - SLA engine: business-hours math, pause on pending, breach → score escalation; configurable per-priority targets
 - Scoring: priority/age/VIP/SLA/keyword/sentiment weights, all admin-tunable with instant rescore (including the ALL-CAPS penalty)
 - Requester portal with server-side role enforcement, CSAT ratings, reply-to-reopen

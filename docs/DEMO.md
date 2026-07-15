@@ -63,19 +63,26 @@ approves. The org chart is wired in."
 **Shots:**
 1. Terminal: `npm run demo:traffic -- outage`. Four "Zoom is down" tickets
    from four people hit the queue (sort by newest).
-2. The P1 parent appears: **"Major incident: Zoom outage"** with the
-   AI-written responder summary and four linked tickets. *(Bonus frame:
+2. The ⚠️ toast fires and the amber **SUSPECTED INCIDENT** banner appears
+   app-wide (portal too — requesters see the known outage and stop filing
+   duplicates). The P1 parent **"Suspected incident: Zoom outage"** carries
+   the AI-written responder summary and four linked tickets. *(Bonus frame:
    the Security queue's `soc@` inbox in the Email tab already has
    queue-entry alerts from earlier phishing tickets.)*
 3. Open one child: SOTO Bot already told the requester "you're not alone."
 4. Type one update on the parent → toast: "broadcast to 4 linked tickets"
    → cut to a child showing it landed.
+5. Resolve the parent → cascade toast: "4 linked tickets closed &
+   requesters notified" — every child closes with a SOTO comment, banner
+   clears. (A still-broken requester just replies; their ticket reopens.)
 
 **VO:** "Four people just reported the same outage. Nobody triaged
-anything. The system recognized one root cause, declared a P1 incident,
-wrote the responder summary, and told every requester they weren't alone.
-One update from me — all four people just heard back. In ServiceNow this
-is a consulting engagement."
+anything. The system recognized one root cause, declared a suspected
+incident at P1, put a banner in front of the whole company, wrote the
+responder summary, and told every requester they weren't alone. One
+update from me — all four people just heard back. And when it's fixed,
+one status change closes every linked ticket and tells everyone. In
+ServiceNow this is a consulting engagement."
 
 ## SEGMENT 4 — It gets smarter (2:30–3:15)
 
@@ -145,7 +152,8 @@ links, dark/light themes, clickable-logo home.
 **AI (seven workflows, all audited + revertible):** triage
 (category/queue/priority with per-field confidence), correction learning
 loop (category, queue, priority, *and* wrong-user), on-behalf-of
-detection from plain text, major-incident detection with parent/child +
+detection from plain text, suspected-incident detection (app-wide amber
+banner, absorb toasts, resolve-cascade) with parent/child +
 broadcast, KB article drafting from resolutions, KB-grounded draft
 replies, natural-language queue search. Mock fallback for every feature;
 daily token budget; usage logged per feature.
