@@ -90,10 +90,9 @@ function AgentCard({ a, isMe, active, menuOpen, leadQueues, canToggleOoo, onTogg
 }
 
 /** Left rail: you first, divider, then other agents alphabetically. */
-export function AgentRail({ meta, queueId, mode, assigneeFilter, onSelectAssignee, onCollapse }: {
+export function AgentRail({ meta, queueId, assigneeFilter, onSelectAssignee, onCollapse }: {
   meta: Meta | undefined;
   queueId?: number;
-  mode: Mode;
   assigneeFilter?: number;
   onSelectAssignee: (id: number | undefined) => void;
   onCollapse?: () => void;
@@ -104,12 +103,9 @@ export function AgentRail({ meta, queueId, mode, assigneeFilter, onSelectAssigne
   const me = actingUserId();
   const isAdmin = meUser?.role === 'admin';
   const myAgent = meta.agents.find((a) => a.id === me);
-  const myTeamIds = new Set(myAgent?.teamIds ?? []);
 
   let others = meta.agents.filter((a) => a.id !== me);
   if (queueId) others = others.filter((a) => a.teamIds.includes(queueId));
-  // My Queues: only teammates — agents who share a queue with you.
-  if (mode === 'My Queues') others = others.filter((a) => a.teamIds.some((t) => myTeamIds.has(t)));
   others.sort((a, b) => a.name.localeCompare(b.name));
 
   const queueName = new Map(meta.queues.map((q) => [q.id, q.name]));

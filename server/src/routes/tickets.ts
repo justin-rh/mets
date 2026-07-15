@@ -27,6 +27,9 @@ const listQuery = z.object({
   newerThanDays: z.coerce.number().min(0).max(3650).optional(),
   priorityAtMost: z.coerce.number().min(1).max(4).optional(),
   unassigned: z.enum(['1']).optional(),
+  // Scope any view to the queues the caller's teams own (the queue
+  // dropdown's "My queues" aggregate) — composes with view, unlike my_queues.
+  myQueues: z.enum(['1']).optional(),
 });
 
 const changesBody = z.object({
@@ -84,6 +87,11 @@ export async function ticketRoutes(app: FastifyInstance) {
     if (q.newerThanDays) conds.push(sql`${tickets.createdAt} > now() - make_interval(days => ${q.newerThanDays})`);
     if (q.priorityAtMost) conds.push(sql`${tickets.priority} <= ${q.priorityAtMost}`);
     if (q.unassigned === '1') conds.push(sql`${tickets.assigneeId} is null`);
+    if (q.myQueues === '1') {
+      conds.push(sql`${tickets.queueId} in (
+        select team_id from team_memberships where user_id = ${req.userId}
+      )`);
+    }
 
     const order =
       q.sort === 'newest' ? [desc(tickets.id)] // arrival order, immune to backdated timestamps

@@ -99,7 +99,7 @@ export type ListParams = {
   sort: string; search?: string; limit?: number;
   categoryId?: number; tags?: string;
   olderThanDays?: number; newerThanDays?: number;
-  priorityAtMost?: number; unassigned?: '1';
+  priorityAtMost?: number; unassigned?: '1'; myQueues?: '1';
 };
 
 export type NlFilters = Partial<Pick<ListParams,
@@ -159,6 +159,7 @@ export function fetchTickets(p: ListParams) {
   if (p.newerThanDays) q.set('newerThanDays', String(p.newerThanDays));
   if (p.priorityAtMost) q.set('priorityAtMost', String(p.priorityAtMost));
   if (p.unassigned) q.set('unassigned', p.unassigned);
+  if (p.myQueues) q.set('myQueues', p.myQueues);
   return api<TicketListItem[]>(`/api/tickets?${q}`);
 }
 

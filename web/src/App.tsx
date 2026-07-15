@@ -43,7 +43,10 @@ export default function App() {
   const qc = useQueryClient();
   const [mode, setMode] = useState<Mode>('All Tickets');
   const [sort, setSort] = useState<string>('score');
-  const [queueId, setQueueId] = useState<number | undefined>();
+  // Queue scope: 'mine' (the default — queues your teams own), a specific
+  // queue id, or undefined for everything.
+  const [queueSel, setQueueSel] = useState<number | 'mine' | undefined>('mine');
+  const queueId = typeof queueSel === 'number' ? queueSel : undefined;
   const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get('ticket') ?? '');
   const [debouncedSearch, setDebouncedSearch] = useState(search);
   const [showSnoozed, setShowSnoozed] = useState(false);
@@ -92,12 +95,17 @@ export default function App() {
     : showSnoozed ? 'snoozed'
     : mode === 'Assigned Tickets' ? 'mine'
     : mode === 'Unassigned' ? 'unassigned'
-    : mode === 'My Queues' ? 'my_queues'
     : mode === 'Closed' ? 'closed'
     : 'open';
   const params: ListParams = nlFilter
     ? { view: 'open', sort, ...nlFilter.filters }
-    : { view, queueId, assigneeId: assigneeFilter, requesterId: requesterFilter, sort, search: debouncedSearch };
+    : {
+        view, queueId, assigneeId: assigneeFilter, requesterId: requesterFilter,
+        sort, search: debouncedSearch,
+        // "My queues" dropdown scope — suppressed for permalinks and the
+        // submitted-by view, which must resolve tickets anywhere.
+        myQueues: queueSel === 'mine' && view !== 'all' ? '1' : undefined,
+      };
 
   const nlParse = useMutation({
     mutationFn: (query: string) => parseSearch(query),
@@ -177,6 +185,7 @@ export default function App() {
     setAssigneeFilter(undefined);
     setRequesterFilter(undefined);
     setShowSnoozed(false);
+    setQueueSel(undefined); // the ticket may live outside your queues
     setSearch(number);
     setExpandedId(id);
   };
@@ -361,7 +370,7 @@ export default function App() {
           onClick={() => {
             setPage('queue');
             setMode('All Tickets');
-            setQueueId(undefined);
+            setQueueSel('mine');
             setAssigneeFilter(undefined);
             setRequesterFilter(undefined);
             setNlFilter(null);
@@ -494,8 +503,9 @@ export default function App() {
         )}
         <span className="mode-hint">
           {mode === 'All Tickets' && 'Drag tickets onto an agent (left) or a queue (right)'}
-          {mode === 'Unassigned' && 'Open tickets with no assignee'}
-          {mode === 'My Queues' && 'Tickets in the queues your teams own'}
+          {mode === 'Unassigned' && (queueSel === 'mine'
+            ? 'Open tickets with no assignee in your queues'
+            : 'Open tickets with no assignee')}
           {mode === 'Assigned Tickets' && 'Your assigned tickets'}
           {mode === 'Closed' && 'Resolved and closed tickets — reopen by changing status'}
           {mode === 'AI Triage' && 'AI categorization, routing, and priority checks — accept or dismiss'}
@@ -503,10 +513,19 @@ export default function App() {
         <span className="spacer" />
         <label className="toolbar-field">
           Queue
-          <select value={queueId ?? ''} onChange={(e) => setQueueId(e.target.value ? Number(e.target.value) : undefined)}>
-            {myQueues.map((q) => <option key={q.id} value={q.id}>{q.name} ({q.openCount})</option>)}
-            {myQueues.length > 0 && <option disabled>────────────</option>}
+          <select
+            value={queueSel ?? ''}
+            onChange={(e) => setQueueSel(
+              e.target.value === 'mine' ? 'mine'
+              : e.target.value ? Number(e.target.value)
+              : undefined,
+            )}
+          >
+            <option value="mine">My queues ({myQueues.reduce((n, q) => n + q.openCount, 0)})</option>
             <option value="">All queues</option>
+            {myQueues.length > 0 && <option disabled>────────────</option>}
+            {myQueues.map((q) => <option key={q.id} value={q.id}>{q.name} ({q.openCount})</option>)}
+            {myQueues.length > 0 && otherQueues.length > 0 && <option disabled>────────────</option>}
             {otherQueues.map((q) => <option key={q.id} value={q.id}>{q.name} ({q.openCount})</option>)}
           </select>
         </label>
@@ -532,7 +551,6 @@ export default function App() {
           <AgentRail
             meta={meta}
             queueId={queueId}
-            mode={mode}
             assigneeFilter={assigneeFilter}
             onSelectAssignee={(id) => { setAssigneeFilter(id); if (id && mode !== 'All Tickets') setMode('All Tickets'); }}
             onCollapse={leftCollapsed ? undefined : () => setLeftCollapsed(true)}
@@ -611,7 +629,7 @@ export default function App() {
             mode={mode}
             meta={meta}
             queueId={queueId}
-            onSelectQueue={setQueueId}
+            onSelectQueue={(id) => setQueueSel(id ?? 'mine')}
             onCollapse={rightCollapsed ? undefined : () => setRightCollapsed(true)}
           />
         )}
