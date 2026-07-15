@@ -152,12 +152,37 @@ export async function enrichTicket(ticketId: number, mode: EnrichMode = 'suggest
   const ctx = await getTriageContext();
   ctx.directory = candidateBeneficiaries(
     `${t.subject} ${t.description}`, t.requesterName, ctx.directory);
+
+  // Vision: attached screenshots go to the model as image blocks — error
+  // dialogs often say more than the requester did. Capped at 3 images,
+  // 3.5MB each (API limit is 5MB post-base64).
+  const VISION_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
+  const imageRows = await db.select({
+    contentType: schema.attachments.contentType,
+    storageKey: schema.attachments.storageKey,
+    size: schema.attachments.size,
+  })
+    .from(schema.attachments)
+    .where(eq(schema.attachments.ticketId, ticketId))
+    .limit(6);
+  const images: NonNullable<Parameters<ReturnType<typeof getAIProvider>['triage']>[0]['images']> = [];
+  for (const img of imageRows) {
+    if (images.length >= 3) break;
+    if (!VISION_TYPES.has(img.contentType) || img.size > 3_500_000) continue;
+    try {
+      const { readFile } = await import('../storage/localStorage.js');
+      const buf = await readFile(img.storageKey);
+      images.push({ mediaType: img.contentType as any, data: buf.toString('base64') });
+    } catch { /* unreadable file — triage proceeds on text alone */ }
+  }
+
   const outcome = await getAIProvider().triage(
     {
       subject: t.subject, description: t.description,
       requesterName: t.requesterName,
       requesterDepartment: t.department, requesterIsVip: t.isVip,
       source: t.source, statedPriority: t.priority,
+      images: images.length ? images : undefined,
     },
     ctx,
   );

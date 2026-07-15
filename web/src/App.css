@@ -2307,3 +2307,5 @@ button.logo-home {
 .cal-day.cal-today { border-color: var(--line-strong); }
 .cal-day.cal-selected { background: var(--accent); color: #fff; font-weight: 700; }
 .cal-summary { font-size: 13px; margin: 10px 0 4px; }
+
+.triage-summary { font-size: 13px; margin: 6px 0 2px; line-height: 1.45; }

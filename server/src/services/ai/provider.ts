@@ -3,7 +3,15 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { z } from 'zod';
 import { env } from '../../config.js';
 
-export const PROMPT_VERSION = 'triage-v2';
+export const PROMPT_VERSION = 'triage-v4'; // v3: screenshot attachments; v4: org glossary (ZScaler, OMS)
+
+// Company-specific terms the model won't know from ticket text alone. Shared
+// across the triage, search, and incident prompts so they route consistently.
+const ORG_GLOSSARY = `Master Electronics terminology:
+- ZScaler is the company VPN / secure-access client. ZScaler problems are
+  Network & VPN tickets, not a third-party app issue.
+- MERP is the in-house ERP. OMS is the web version of MERP, used by most
+  warehouse users — OMS issues are MERP tickets, not a generic web problem.`;
 
 export const TriageSchema = z.object({
   category: z.string().describe('Exact name of the best-fitting category from the list'),
@@ -29,6 +37,8 @@ export type TriageInput = {
   requesterIsVip: boolean;
   source: string;
   statedPriority: number;
+  /** Screenshot attachments, base64 — the model reads error dialogs the requester didn't describe. */
+  images?: { mediaType: 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp'; data: string }[];
 };
 
 export type TriageCorrection = {
@@ -168,6 +178,8 @@ ${categoryList}
 Queues (use the exact slug):
 ${queueList}
 
+${ORG_GLOSSARY}
+
 Priority rubric — judge by BUSINESS IMPACT described in the ticket text, not
 by how urgent the requester sounds; requesters routinely over- and under-state
 priority:
@@ -193,6 +205,13 @@ Confidence values: report your honest certainty per field, 0 to 1. Use lower
 values when the ticket is vague, spans multiple categories, or the priority
 depends on facts not stated. Do not inflate confidence.
 
+Screenshots: tickets may include screenshot attachments. Read them — error
+dialogs, application names, and error codes visible in the image often
+identify the category and severity better than the requester's words
+("getting this error, help" plus a ZScaler error dialog is a
+Network & VPN ticket). When an image informed your classification, quote
+the decisive detail (app name, error code) in the summary.
+
 The summary is for the agent picking up the ticket: what is broken/needed,
 who is affected, and any deadline — one or two sentences, no preamble.`;
 }
@@ -216,20 +235,30 @@ class ClaudeProvider implements AIProvider {
           role: 'user',
           // Corrections and beneficiary candidates ride in the user turn (not
           // the system block) so the cached static prompt prefix survives
-          // new feedback and per-ticket variation.
-          content: `${ctx.corrections.length ? `Agents recently corrected these AI classifications — follow these patterns when similar tickets appear:
+          // new feedback and per-ticket variation. Screenshots become image
+          // blocks ahead of the text.
+          content: [
+            ...(input.images ?? []).map((img) => ({
+              type: 'image' as const,
+              source: { type: 'base64' as const, media_type: img.mediaType, data: img.data },
+            })),
+            {
+              type: 'text' as const,
+              text: `${ctx.corrections.length ? `Agents recently corrected these AI classifications — follow these patterns when similar tickets appear:
 ${ctx.corrections.map((c) => `- "${c.subject}": AI chose ${c.aiChose}; agents corrected to ${c.agentCorrectedTo}`).join('\n')}
 
 ` : ''}${ctx.directory.length ? `Possible beneficiaries (directory entries whose names appear in this ticket):
 ${ctx.directory.map((u) => `- ${u.name} (${u.department ?? '—'}, ${u.location ?? '—'})`).join('\n')}
 
-` : ''}Triage this ticket:
+` : ''}Triage this ticket${input.images?.length ? ` (${input.images.length} screenshot${input.images.length > 1 ? 's' : ''} attached above)` : ''}:
 Subject: ${input.subject}
 Submitted by: ${input.requesterName} (${input.requesterDepartment ?? 'unknown'}${input.requesterIsVip ? ', VIP/executive' : ''})
 Source: ${input.source}
 Requester-stated priority: P${input.statedPriority}
 Description:
 ${input.description.slice(0, 4000)}`,
+            },
+          ],
         },
       ],
       output_config: { format: zodOutputFormat(TriageSchema) },
@@ -310,7 +339,9 @@ whether they are symptoms of ONE underlying incident (an outage, a broken
 service, a failed change) or merely coincidental lookalikes (e.g. several
 unrelated password resets). Judge by whether one root cause plausibly explains
 all of them. Be conservative: separate people with separate problems is NOT an
-incident, even if the subjects rhyme.`,
+incident, even if the subjects rhyme.
+
+${ORG_GLOSSARY}`,
       messages: [
         {
           role: 'user',
@@ -397,6 +428,8 @@ Don't invent filters the query doesn't ask for. Topics ("printer",
 "password") belong in categoryName — use tags only for places (location
 slugs) or when the query literally says "tagged X".
 
+${ORG_GLOSSARY}
+
 Queues (slug: name):
 ${ctx.queues.map((q) => `- ${q.slug}: ${q.name}`).join('\n')}
 
@@ -426,7 +459,7 @@ class MockProvider implements AIProvider {
   async triage(input: TriageInput, ctx: TriageContext): Promise<TriageOutcome> {
     const text = `${input.subject} ${input.description}`.toLowerCase();
     const rules: [RegExp, string][] = [
-      [/vpn|wi-?fi|network|internet|firewall/, 'Network & VPN'],
+      [/vpn|zscaler|wi-?fi|network|internet|firewall/, 'Network & VPN'],
       [/receiving|shipment|shipping|cycle count|ltl|pallet|value-add/, 'Warehouse Operations'],
       [/payroll|ukg|recruiting|requisition|training/, 'People Operations'],
       [/invoice|credit memo|gl |expense/, 'Finance & Accounting'],
@@ -437,7 +470,7 @@ class MockProvider implements AIProvider {
       [/dc connect|dc solutions/, 'DC Solutions'],
       [/quote|order status|sample|c of c/, 'Sales Support'],
       [/scanner|rf |pack station|conveyor/, 'Warehouse Tech'],
-      [/merp|edi|price list|erp/, 'MERP'],
+      [/merp|\boms\b|edi|price list|erp/, 'MERP'],
       [/salesforce|quote|concur/, 'Business Apps'],
       [/phish|suspicious|mfa|security|clicked/, 'Security'],
       [/crowdstrike|keeper|quarantin/, 'Security'],

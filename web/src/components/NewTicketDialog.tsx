@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createTicket, fetchTicket, uploadAttachments } from '../api';
+import { createTicket, fetchTicket, triageNow, uploadAttachments } from '../api';
 
 export function NewTicketDialog({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
@@ -12,7 +12,9 @@ export function NewTicketDialog({ onClose }: { onClose: () => void }) {
   const [created, setCreated] = useState<{ id: number; number: string } | null>(null);
 
   const create = useMutation({
-    mutationFn: () => createTicket({ subject, description, type }),
+    // With attachments, triage is held until they're uploaded so the AI
+    // can read the screenshots, then kicked explicitly.
+    mutationFn: () => createTicket({ subject, description, type, holdTriage: pendingFiles.length > 0 }),
     onSuccess: async (t) => {
       setCreated(t);
       if (pendingFiles.length) {
@@ -20,6 +22,7 @@ export function NewTicketDialog({ onClose }: { onClose: () => void }) {
           const r = await uploadAttachments(t.id, pendingFiles);
           setUploadedCount(r.attachments.length);
         } catch { /* the ticket exists either way */ }
+        triageNow(t.id).catch(() => {});
       }
       qc.invalidateQueries({ queryKey: ['tickets'] });
     },
@@ -79,6 +82,9 @@ export function NewTicketDialog({ onClose }: { onClose: () => void }) {
                     </>
                   )}
                 </dl>
+                {ai.result?.summary && (
+                  <p className="triage-summary">✨ {ai.result.summary}</p>
+                )}
                 {pendingApproval ? (
                   <p className="modal-hint">
                     ⏳ {routed!.category} requests need a manager sign-off — this one

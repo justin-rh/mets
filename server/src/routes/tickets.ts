@@ -253,7 +253,10 @@ export async function ticketRoutes(app: FastifyInstance) {
         ai: ai ? {
           status: ai.status,
           confidence: { category: (ai.confidence as any)?.category ?? 0 },
-          result: { category: (ai.result as any)?.category },
+          result: {
+            category: (ai.result as any)?.category,
+            summary: (ai.result as any)?.summary, // their own ticket's summary
+          },
         } : null,
         tags: tagRows.map((r) => r.name),
         approvals: approvalRows,
@@ -280,9 +283,12 @@ export async function ticketRoutes(app: FastifyInstance) {
       type: z.enum(['incident', 'request', 'change']).default('incident'),
       priority: z.number().min(1).max(4).default(3),
       onBehalfOfId: z.number().optional(), // file for another user
+      // The dialog uploads attachments right after create; holding triage
+      // until they land lets the model see the screenshots.
+      holdTriage: z.boolean().default(false),
     }).parse(req.body);
 
-    const { onBehalfOfId, ...ticketBody } = body;
+    const { onBehalfOfId, holdTriage, ...ticketBody } = body;
     const created = await createTicketCore({
       ...ticketBody,
       requesterId: onBehalfOfId ?? req.userId,
@@ -292,11 +298,34 @@ export async function ticketRoutes(app: FastifyInstance) {
 
     // AI enrichment runs off the request path — categorization/queue/priority
     // land seconds later as audited 'ai' events (or a pending suggestion).
-    enrichTicket(created.id, 'auto').catch((err) =>
-      app.log.warn({ err, ticketId: created.id }, 'ai enrichment failed'),
-    );
+    // With holdTriage the client kicks /triage-now after attachments land.
+    if (!holdTriage) {
+      enrichTicket(created.id, 'auto').catch((err) =>
+        app.log.warn({ err, ticketId: created.id }, 'ai enrichment failed'),
+      );
+    }
 
     return created;
+  });
+
+  // Fire held-back triage once attachments are uploaded (screenshots go to
+  // the model). Owner or staff; once — repeat calls are ignored if triage
+  // already ran.
+  app.post('/api/tickets/:id/triage-now', async (req, reply) => {
+    const id = z.coerce.number().parse((req.params as any).id);
+    const [t] = await db.select({ requesterId: tickets.requesterId, submittedById: tickets.submittedById })
+      .from(tickets).where(eq(tickets.id, id));
+    if (!t) return reply.status(404).send({ error: 'ticket not found' });
+    const isOwner = t.requesterId === req.userId || t.submittedById === req.userId;
+    if (!isOwner && req.userRole !== 'admin' && req.userRole !== 'agent') {
+      return reply.status(403).send({ error: 'not your ticket' });
+    }
+    const [existing] = await db.select({ id: schema.aiEnrichments.id }).from(schema.aiEnrichments)
+      .where(and(eq(schema.aiEnrichments.ticketId, id), eq(schema.aiEnrichments.feature, 'triage')));
+    if (existing) return { ok: true, alreadyTriaged: true };
+    enrichTicket(id, 'auto').catch((err) =>
+      app.log.warn({ err, ticketId: id }, 'ai enrichment failed'));
+    return { ok: true };
   });
 
   // Top agents for this ticket by expertise/queue/load fit.

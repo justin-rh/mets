@@ -221,9 +221,13 @@ export const fetchDecisions = () =>
   api<{ decisions: AiDecision[]; stats: AiDecisionStats }>('/api/ai/decisions');
 
 export const createTicket = (data: {
-  subject: string; description: string; type?: string; priority?: number; onBehalfOfId?: number;
+  subject: string; description: string; type?: string; priority?: number;
+  onBehalfOfId?: number; holdTriage?: boolean;
 }) =>
   api<{ id: number; number: string }>('/api/tickets', { method: 'POST', body: JSON.stringify(data) });
+
+export const triageNow = (id: number) =>
+  api<{ ok: boolean }>(`/api/tickets/${id}/triage-now`, { method: 'POST', body: '{}' });
 
 export type DirectoryUser = {
   id: number; name: string; role: string;
