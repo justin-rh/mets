@@ -7,7 +7,7 @@ import {
   postComment, watchTicket, type IdentifierCheck,
 } from '../api';
 import { copyToClipboard, fmtDateTime, initials } from '../format';
-import { AttachmentStrip } from './Attachments';
+import { AttachmentStrip, usePasteAttach } from './Attachments';
 import { SnoozeDialog } from './SnoozeDialog';
 import { toast } from './Toasts';
 
@@ -16,6 +16,7 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
   const { data: t } = useQuery({ queryKey: ['ticket', ticketId], queryFn: () => fetchTicket(ticketId) });
   const { data: meta } = useQuery({ queryKey: ['meta'], queryFn: fetchMeta });
   const [reply, setReply] = useState('');
+  const pasteAttach = usePasteAttach(ticketId);
   const [visibility, setVisibility] = useState<'public' | 'internal'>('public');
   const [showActivity, setShowActivity] = useState(false);
   const [snoozeOpen, setSnoozeOpen] = useState(false);
@@ -293,9 +294,10 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
 
         <div className="reply-box">
           <textarea
-            placeholder={visibility === 'public' ? 'Reply to requester…' : 'Add an internal note…'}
+            placeholder={visibility === 'public' ? 'Reply to requester… (paste a screenshot to attach it)' : 'Add an internal note…'}
             value={reply}
             onChange={(e) => setReply(e.target.value)}
+            onPaste={pasteAttach}
           />
           <div className="reply-actions">
             <label className={`vis-toggle ${visibility}`}>

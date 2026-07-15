@@ -7,6 +7,47 @@ import { toast } from './Toasts';
 
 const ACCEPT = '.png,.jpg,.jpeg,.gif,.webp,.pdf,.txt,.log,.csv,.xlsx,.docx,.zip,.eml,.msg';
 
+// Browsers name every pasted image "image.png" — number them so multiple
+// pastes in one session stay distinguishable.
+let pasteCounter = 0;
+const PASTE_EXT: Record<string, string> = {
+  'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp',
+};
+
+/** Images from a paste event (screenshot in the clipboard), renamed pasted-screenshot-N. */
+export function filesFromPaste(e: React.ClipboardEvent): File[] {
+  const files: File[] = [];
+  for (const item of Array.from(e.clipboardData?.items ?? [])) {
+    const ext = PASTE_EXT[item.type];
+    if (!ext) continue;
+    const f = item.getAsFile();
+    if (f) files.push(new File([f], `pasted-screenshot-${++pasteCounter}.${ext}`, { type: item.type }));
+  }
+  return files;
+}
+
+/**
+ * Paste-to-attach for reply boxes: returns an onPaste handler that uploads
+ * clipboard screenshots straight onto the ticket. Text pastes pass through.
+ */
+export function usePasteAttach(ticketId: number) {
+  const qc = useQueryClient();
+  const upload = useMutation({
+    mutationFn: (files: File[]) => uploadAttachments(ticketId, files),
+    onSuccess: (r) => {
+      toast(`📎 ${r.attachments.map((a) => a.filename).join(', ')} attached`, 'success');
+      qc.invalidateQueries({ queryKey: ['ticket', ticketId] });
+    },
+    onError: (e: any) => toast(e?.message ?? 'Upload failed', 'info'),
+  });
+  return (e: React.ClipboardEvent) => {
+    const files = filesFromPaste(e);
+    if (!files.length) return;
+    e.preventDefault();
+    upload.mutate(files);
+  };
+}
+
 function fmtSize(bytes: number): string {
   if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
   if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;

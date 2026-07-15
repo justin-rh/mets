@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createTicket, fetchTicket, triageNow, uploadAttachments } from '../api';
+import { filesFromPaste } from './Attachments';
 
 export function NewTicketDialog({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
@@ -48,7 +49,17 @@ export function NewTicketDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal modal-wide" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="modal modal-wide"
+        onClick={(e) => e.stopPropagation()}
+        onPaste={(e) => {
+          if (created) return;
+          const pasted = filesFromPaste(e);
+          if (!pasted.length) return;
+          e.preventDefault();
+          setPendingFiles((cur) => [...cur, ...pasted]);
+        }}
+      >
         {created ? (
           <>
             <h3>{created.number} created</h3>
@@ -134,16 +145,30 @@ export function NewTicketDialog({ onClose }: { onClose: () => void }) {
                 placeholder="What happened? Who is affected? Any deadline?" />
             </label>
             <label>
-              Attachments <span className="modal-optional">(optional — screenshots help a lot)</span>
+              Attachments <span className="modal-optional">(optional — screenshots help a lot; paste one with Ctrl+V)</span>
               <input
                 type="file"
                 accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.txt,.log,.csv,.xlsx,.docx,.zip,.eml,.msg"
                 multiple
-                onChange={(e) => setPendingFiles(Array.from(e.target.files ?? []))}
+                onChange={(e) => {
+                  const picked = Array.from(e.target.files ?? []);
+                  if (picked.length) setPendingFiles((cur) => [...cur, ...picked]);
+                  e.target.value = '';
+                }}
               />
               {pendingFiles.length > 0 && (
-                <span className="modal-hint">
-                  {pendingFiles.map((f) => f.name).join(', ')}
+                <span className="pending-files">
+                  {pendingFiles.map((f, i) => (
+                    <span key={`${f.name}-${i}`} className="pending-chip">
+                      {f.name}
+                      <button
+                        type="button"
+                        className="pending-remove"
+                        title="Remove"
+                        onClick={() => setPendingFiles((cur) => cur.filter((_, j) => j !== i))}
+                      >✕</button>
+                    </span>
+                  ))}
                 </span>
               )}
             </label>

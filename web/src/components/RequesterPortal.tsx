@@ -5,7 +5,7 @@ import {
   type TicketListItem,
 } from '../api';
 import { age, fmtDateTime } from '../format';
-import { AttachmentStrip } from './Attachments';
+import { AttachmentStrip, usePasteAttach } from './Attachments';
 import { KnowledgeBase } from './KnowledgeBase';
 import { NewTicketDialog } from './NewTicketDialog';
 import { Toasts } from './Toasts';
@@ -66,6 +66,7 @@ function PortalTicket({ t, expanded, onToggle }: {
 }) {
   const qc = useQueryClient();
   const [reply, setReply] = useState('');
+  const pasteAttach = usePasteAttach(t.id);
   const { data: detail } = useQuery({
     queryKey: ['ticket', t.id],
     queryFn: () => fetchTicket(t.id),
@@ -119,9 +120,10 @@ function PortalTicket({ t, expanded, onToggle }: {
           {closed && <CsatWidget ticketId={t.id} rated={detail.csatRating} />}
           <div className="reply-box">
             <textarea
-              placeholder={closed ? 'Reply to reopen this ticket…' : 'Add a reply…'}
+              placeholder={closed ? 'Reply to reopen this ticket…' : 'Add a reply… (paste a screenshot to attach it)'}
               value={reply}
               onChange={(e) => setReply(e.target.value)}
+              onPaste={pasteAttach}
             />
             <div className="reply-actions">
               <button
