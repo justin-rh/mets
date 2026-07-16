@@ -17,10 +17,10 @@ beat in between.
 2. Browser 1920×1080, dark mode, acting user = Justin Rhoda. Decide on the
    welcome card: leave it for the opening frame (it states the product in
    one sentence), dismiss it for every later segment.
-3. **Incident b-roll first** (it brews 1–6 min): run
-   `python scripts\incident-demo.py`, wait for the amber banner, capture
-   10s — banner, parent ticket, one broadcast toast, resolve cascade.
-   Reseed + restage afterward.
+3. **Incident b-roll first** (it brews 1–6 min): press **⚠️ Incident
+   Demo** on the mode bar, wait for the amber banner, capture 10s —
+   banner, parent ticket (note SOTO's handling note), one broadcast
+   toast, then resolve it for the cascade. Reseed + restage afterward.
 4. `.env`: `AI_PROVIDER=claude` + key (start-demo warns if not). Cut AI
    wait time in editing but leave a beat of spinner — it reads as live.
 5. Voiceover after picture lock. Script business outcomes, not UI
