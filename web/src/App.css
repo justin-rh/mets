@@ -1117,8 +1117,10 @@ select, textarea, input[type='text'], .modal input {
   min-width: 0;
 }
 
-.ticket-tags.expanded { flex-wrap: wrap; overflow: visible; }
-.ticket-tags.expanded .tag { overflow: visible; }
+/* Expanded rows wrap the chips but still clip to the column — the full
+   tag list lives in the detail pane's Tags field right below. */
+.ticket-tags.expanded { flex-wrap: wrap; overflow: hidden; }
+.ticket-tags.expanded .tag { overflow: hidden; text-overflow: ellipsis; max-width: 100%; min-width: 0; }
 .detail-tags { display: flex; flex-wrap: wrap; gap: 4px; }
 
 /* ===== admin ===== */
