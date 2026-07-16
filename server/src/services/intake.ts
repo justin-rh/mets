@@ -108,11 +108,11 @@ async function postQuestions(ticketId: number, t: { requesterName: string }, r: 
   const missing = unanswered(r);
   const first = t.requesterName.split(' ')[0];
   const intro = rounds === 0
-    ? `Hi ${first} — I can route this without the usual back-and-forth, I just need ${missing.length === 1 ? 'one thing' : 'a few quick answers'}:`
+    ? `Hi ${first} — I can route this **without the usual back-and-forth**, I just need ${missing.length === 1 ? 'one thing' : 'a few quick answers'}:`
     : `Thanks! Almost there — ${missing.length === 1 ? 'one more thing' : 'just a couple more'}:`;
   await db.insert(ticketComments).values({
     ticketId, authorId: bot.id, visibility: 'public', source: 'api',
-    bodyText: `${intro}\n\n${missing.map((q, i) => `${i + 1}. ${q}`).join('\n')}\n\nReply here and I'll send this straight to the right team.\n\n— SOTO Bot`,
+    bodyText: `${intro}\n\n${missing.map((q, i) => `${i + 1}. ${q}`).join('\n')}\n\nReply here and I'll send this straight to the right team.\n\n*— SOTO Bot*`,
   });
   await db.insert(ticketEvents).values({
     ticketId, actorId: bot.id, actorType: 'ai', eventType: 'intake_questions',
@@ -136,18 +136,37 @@ async function applyVerdict(ticketId: number, t: NonNullable<Awaited<ReturnType<
 
   // Structured handoff for the receiving team — the info the Service Desk
   // used to chase down by hand.
+  const ANSWER_LABELS: Record<string, string> = {
+    isAccessIssue: 'Access issue?',
+    accessedBefore: 'Successfully accessed before?',
+    newlyIntroduced: 'Newly introduced resource?',
+    instructedToUse: 'Instructed to start using it?',
+    firstAttempt: 'First access attempt?',
+  };
   const answers = Object.entries(r.answers)
-    .map(([k, v]) => `- ${k}: ${v === null ? '—' : v ? 'yes' : 'no'}`)
+    .map(([k, v]) => `| ${ANSWER_LABELS[k] ?? k} | ${v === null ? '—' : v ? 'yes' : 'no'} |`)
     .join('\n');
   await db.insert(ticketComments).values({
     ticketId, authorId: bot.id, visibility: 'internal', source: 'api',
-    bodyText: `Intake result: ${isNew ? 'NEW ACCESS REQUEST' : 'BROKEN ACCESS'} (confidence ${Math.round(r.confidence * 100)}%)\n\nResources: ${r.resources.length ? r.resources.join(', ') : 'none named'}\n${answers}\n\nWhy: ${r.reasoning}\n\n— SOTO Bot`,
+    bodyText: [
+      `**Intake result: ${isNew ? '🆕 New access request' : '🔧 Broken access'}** · ${Math.round(r.confidence * 100)}% confidence`,
+      '',
+      `**Resources:** ${r.resources.length ? r.resources.map((res) => `\`${res}\``).join(', ') : '*none named*'}`,
+      '',
+      '| Question | Answer |',
+      '| --- | --- |',
+      answers,
+      '',
+      `**Why:** ${r.reasoning}`,
+      '',
+      '*— SOTO Bot*',
+    ].join('\n'),
   });
   await db.insert(ticketComments).values({
     ticketId, authorId: bot.id, visibility: 'public', source: 'api',
     bodyText: isNew
-      ? `Thanks ${first} — that's everything I need. This is a new-access request, so I've sent it straight to the ${targetLabel} to grant access to: ${r.resources.join(', ')}. You'll hear back here once it's applied.\n\n— SOTO Bot`
-      : `Thanks ${first} — since this worked for you before, I'm treating it as a broken-access issue and the ${targetLabel} will investigate. You'll hear back here.\n\n— SOTO Bot`,
+      ? `Thanks ${first} — that's everything I need. This is a **new-access request**, so I've sent it straight to the **${targetLabel}** to grant access to: ${r.resources.map((res) => `\`${res}\``).join(', ')}. You'll hear back here once it's applied.\n\n*— SOTO Bot*`
+      : `Thanks ${first} — since this worked for you before, I'm treating it as a **broken-access issue** and the **${targetLabel}** will investigate. You'll hear back here.\n\n*— SOTO Bot*`,
   });
   await db.insert(ticketEvents).values({
     ticketId, actorId: bot.id, actorType: 'ai', eventType: 'intake_resolved',
@@ -209,7 +228,7 @@ export async function handleIntakeReply(ticketId: number) {
     const bot = await getBotUser();
     await db.insert(ticketComments).values({
       ticketId, authorId: bot.id, visibility: 'internal', source: 'api',
-      bodyText: `Intake unresolved after ${intake.rounds} rounds — needs a human. Best read so far: ${r.verdict} (${Math.round(r.confidence * 100)}%). ${r.reasoning}\n\n— SOTO Bot`,
+      bodyText: `**Intake unresolved after ${intake.rounds} rounds — needs a human.**\n\nBest read so far: **${r.verdict}** (${Math.round(r.confidence * 100)}%). ${r.reasoning}\n\n*— SOTO Bot*`,
     });
     await saveState(ticketId, t.customFields, { ...intake, state: 'needs_human' });
     return;
