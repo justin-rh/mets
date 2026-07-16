@@ -11,6 +11,12 @@ export function EmailSimulator() {
   const [lastResult, setLastResult] = useState<string | null>(null);
 
   const { data: senders } = useQuery({ queryKey: ['mail-senders'], queryFn: fetchSenders });
+  const { data: health } = useQuery({
+    queryKey: ['health'],
+    queryFn: () => fetch('/api/health').then((r) => r.json()),
+    staleTime: 300_000,
+  });
+  const mailAdapter: string = health?.adapters?.mail ?? 'mock';
   const effectiveFrom = from || senders?.[0]?.email || '';
 
   const { data: mailbox } = useQuery({
@@ -45,10 +51,10 @@ export function EmailSimulator() {
     <div className="mail-sim">
       <div className="mail-compose">
         <div className="mail-demo-note">
-          <strong>Mail adapter: mock.</strong> This simulates the shared
-          helpdesk mailbox — in production the Microsoft Graph adapter
-          receives real mail through the same pipeline (subject-token
-          threading, guest contacts, auto-ack, reopen on reply).
+          <strong>Mail adapter: {mailAdapter}.</strong>{' '}
+          {mailAdapter === 'smtp'
+            ? 'Outbound notifications really send over SMTP (✓ delivered badges below). Inbound stays simulated here until the Graph mailbox adapter is activated — see docs/EMAIL.md.'
+            : 'This simulates the shared helpdesk mailbox — outbound activates with SMTP env config (docs/EMAIL.md), and the same pipeline (subject-token threading, guest contacts, auto-ack, reopen on reply) carries real mail.'}
         </div>
         <label>
           From (any address works — unknown senders become guest contacts)
@@ -106,7 +112,11 @@ export function EmailSimulator() {
                       </button>
                     )}
                   </span>
-                  <span className="comment-time">{fmtDateTime(m.createdAt)}</span>
+                  <span className="comment-time">
+                    {m.deliveredAt && <span className="mail-delivery ok" title={`Delivered via SMTP ${fmtDateTime(m.deliveredAt)}`}>✓ delivered</span>}
+                    {m.deliveryError && <span className="mail-delivery err" title={m.deliveryError}>✕ send failed</span>}
+                    {fmtDateTime(m.createdAt)}
+                  </span>
                 </div>
                 <div className="mail-entry-body"><strong>{m.subject}</strong>{'\n'}{m.body}</div>
               </div>

@@ -3,6 +3,7 @@
 // The Graph adapter replaces the transport; this pipeline stays.
 import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import { db, schema } from '../../db/index.js';
+import { env } from '../../config.js';
 import { enrichTicket } from '../ai/enrichment.js';
 import { applyTicketChanges, createTicketCore } from '../ticketService.js';
 
@@ -159,14 +160,31 @@ export async function sendMail(input: {
       .where(eq(mailOutbound.dedupeKey, input.dedupeKey)).limit(1);
     if (dupe) return false;
   }
-  await db.insert(mailOutbound).values({
+  const [row] = await db.insert(mailOutbound).values({
     toEmail: input.to.trim().toLowerCase(),
     subject: input.subject,
     body: input.body,
     kind: input.kind ?? 'notification',
     ticketId: input.ticketId,
     dedupeKey: input.dedupeKey,
-  });
+  }).returning({ id: mailOutbound.id });
+
+  // Real transport (MAIL_PROVIDER=smtp): the row above stays the audit log;
+  // delivery happens off the caller's path and stamps its outcome back.
+  if (env.mailProvider === 'smtp') {
+    void (async () => {
+      try {
+        const { deliverSmtp } = await import('./smtp.js');
+        await deliverSmtp({ to: input.to.trim(), subject: input.subject, body: input.body });
+        await db.update(mailOutbound).set({ deliveredAt: new Date() })
+          .where(eq(mailOutbound.id, row!.id));
+      } catch (e: any) {
+        console.error(`[mail] smtp delivery failed for ${input.to}:`, e?.message ?? e);
+        await db.update(mailOutbound).set({ deliveryError: String(e?.message ?? e).slice(0, 300) })
+          .where(eq(mailOutbound.id, row!.id));
+      }
+    })();
+  }
   return true;
 }
 

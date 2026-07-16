@@ -11,7 +11,13 @@ export const env = {
   authProvider: process.env.AUTH_PROVIDER ?? 'dev', // 'dev' | 'entra' — see docs/SSO.md
   entraTenantId: process.env.ENTRA_TENANT_ID ?? '',
   entraClientId: process.env.ENTRA_CLIENT_ID ?? '',
-  mailProvider: process.env.MAIL_PROVIDER ?? 'mock',
+  mailProvider: process.env.MAIL_PROVIDER ?? 'mock', // 'mock' | 'smtp' — see docs/EMAIL.md
+  smtpHost: process.env.SMTP_HOST ?? '',
+  smtpPort: Number(process.env.SMTP_PORT ?? 587),
+  smtpSecure: process.env.SMTP_SECURE === 'true', // implicit TLS (465); default STARTTLS
+  smtpUser: process.env.SMTP_USER ?? '', // empty = unauthenticated relay
+  smtpPass: process.env.SMTP_PASS ?? '',
+  smtpFrom: process.env.SMTP_FROM ?? 'mets@masterelectronics.com',
   aiProvider: process.env.AI_PROVIDER ?? 'mock',
   storageProvider: process.env.STORAGE_PROVIDER ?? 'local',
   anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? '',

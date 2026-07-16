@@ -481,6 +481,7 @@ export const saveQueueNotify = (id: number, notifyEmails: string | null) =>
 export type OutboundMail = {
   id: number; subject: string; body: string; kind: string;
   createdAt: string; ticketNumber: string | null;
+  deliveredAt: string | null; deliveryError: string | null; // smtp transport audit
 };
 export const fetchOutbound = (email: string) =>
   api<OutboundMail[]>(`/api/mail/outbound?email=${encodeURIComponent(email)}`);

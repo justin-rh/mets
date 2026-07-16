@@ -32,6 +32,7 @@ export async function mailRoutes(app: FastifyInstance) {
       .select({
         id: mailOutbound.id, subject: mailOutbound.subject, body: mailOutbound.body,
         kind: mailOutbound.kind, createdAt: mailOutbound.createdAt,
+        deliveredAt: mailOutbound.deliveredAt, deliveryError: mailOutbound.deliveryError,
         ticketNumber: tickets.number,
       })
       .from(mailOutbound)

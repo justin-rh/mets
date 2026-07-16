@@ -1205,6 +1205,14 @@ select, textarea, input[type='text'], .modal input {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
   animation: toast-in 0.18s ease-out;
 }
+/* SMTP delivery badges in the outbound mail list */
+.mail-delivery {
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em;
+  border-radius: var(--r); padding: 1px 6px; margin-right: 8px;
+}
+.mail-delivery.ok { color: #1a7f37; background: rgba(26, 127, 55, 0.1); }
+.mail-delivery.err { color: #c0392b; background: rgba(192, 57, 43, 0.1); }
+
 /* API keys */
 .apikey-mint { display: flex; gap: 8px; margin: 10px 0; }
 .apikey-mint input { flex: 1; font: inherit; font-size: 13px; padding: 5px 8px; }

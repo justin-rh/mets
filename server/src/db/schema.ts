@@ -496,6 +496,10 @@ export const mailOutbound = pgTable(
     ticketId: bigint('ticket_id', { mode: 'number' }).references(() => tickets.id),
     // e.g. queue:<queueId>:<ticketId> — one notification per ticket per queue
     dedupeKey: text('dedupe_key'),
+    // Real-transport audit: set when the SMTP adapter actually sent it;
+    // both null = logged only (mock mode).
+    deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+    deliveryError: text('delivery_error'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('mail_outbound_to_idx').on(t.toEmail, t.id), index('mail_outbound_dedupe_idx').on(t.dedupeKey)],
