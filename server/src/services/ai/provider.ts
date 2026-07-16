@@ -125,6 +125,8 @@ export type ArticleInput = {
   categoryName: string;
   thread: { author: string; visibility: string; body: string }[];
   existingTitles: string[];
+  /** An agent explicitly asked for this draft — always write one. */
+  requested?: boolean;
 };
 
 export type ArticleOutcome = {
@@ -531,7 +533,15 @@ ${input.thread.map((c) => `${c.author}${c.visibility === 'internal' ? ' (interna
 Existing article titles (do not duplicate):
 ${input.existingTitles.map((t) => `- ${t}`).join('\n')}
 
-Worth an article?`,
+${input.requested
+  ? `An agent read this ticket and explicitly asked for a KB draft, so their
+judgment overrides the worth-an-article test: ALWAYS write the article —
+title and full bodyMarkdown — even if the thread is thin. Work from what is
+stated (the description alone if need be), generalize the specific case into
+a reusable procedure, and put any caveats about missing detail in the article
+body itself. Set worthArticle to your honest opinion; the draft is written
+either way.`
+  : 'Worth an article?'}`,
         },
       ],
       output_config: { format: zodOutputFormat(ArticleSchema) },

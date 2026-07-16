@@ -103,7 +103,7 @@ export async function kbRoutes(app: FastifyInstance) {
     if (!t) return reply.status(404).send({ error: 'ticket not found' });
     const { maybeDraftArticle } = await import('../services/kbDrafts.js');
     const article = await maybeDraftArticle(id, { force: true });
-    if (!article) return reply.status(503).send({ error: 'drafting unavailable (AI budget exhausted?)' });
+    if (!article) return reply.status(422).send({ error: 'SOTO could not write an article from this ticket — add resolution notes to the thread and try again.' });
     return { id: article.id, title: article.title, status: article.status };
   });
 

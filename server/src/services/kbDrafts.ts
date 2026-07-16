@@ -67,6 +67,7 @@ export async function maybeDraftArticle(ticketId: number, opts: { force?: boolea
       author: c.authorName, visibility: c.visibility, body: c.body,
     })),
     existingTitles,
+    requested: !!opts.force,
   });
   await db.insert(aiUsage).values({
     feature: 'kb_draft', model: outcome.model, ticketId,
@@ -74,10 +75,21 @@ export async function maybeDraftArticle(ticketId: number, opts: { force?: boolea
   });
 
   const r = outcome.result;
+  // A forced draft must never be blank — if the model still returned an
+  // empty body despite the explicit instruction, fail loudly rather than
+  // saving a hollow article (the route surfaces this to the agent).
+  if (opts.force && !r.bodyMarkdown.trim()) {
+    await db.insert(aiEnrichments).values({
+      ticketId, feature: 'kb_draft', status: 'dismissed',
+      model: outcome.model, promptVersion: 'kb-draft-v2', result: r, confidence: { article: r.confidence },
+    });
+    return null;
+  }
+  if (!r.title.trim()) r.title = `${t.subject} — resolution notes`;
   if ((!r.worthArticle || r.confidence < MIN_CONFIDENCE) && !opts.force) {
     await db.insert(aiEnrichments).values({
       ticketId, feature: 'kb_draft', status: 'dismissed',
-      model: outcome.model, promptVersion: 'kb-draft-v1', result: r, confidence: { article: r.confidence },
+      model: outcome.model, promptVersion: 'kb-draft-v2', result: r, confidence: { article: r.confidence },
     });
     return null;
   }
@@ -91,7 +103,7 @@ export async function maybeDraftArticle(ticketId: number, opts: { force?: boolea
 
   await db.insert(aiEnrichments).values({
     ticketId, feature: 'kb_draft', status: 'pending',
-    model: outcome.model, promptVersion: 'kb-draft-v1', result: { ...r, articleId: article!.id },
+    model: outcome.model, promptVersion: 'kb-draft-v2', result: { ...r, articleId: article!.id },
     confidence: { article: r.confidence },
   });
   await db.insert(ticketEvents).values({
