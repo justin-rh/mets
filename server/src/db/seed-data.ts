@@ -467,6 +467,10 @@ export const KB_ARTICLES: { title: string; body: string }[] = [
     body: 'Open Settings > Printers, click Add Device, and select the printer named for your floor and area (for example SALES-RICOH-2F). Printers are location-restricted, so map the one physically nearest your desk.\n\nFor warehouse Zebra label printers, do not map them directly — label printing is configured through the pack station software. Open a ticket with Printing & Labels if a pack station cannot print.',
   },
   {
+    title: 'Fixing TMP folder / M: drive access (\\\\windx\\tmp)',
+    body: 'When the TMP share (the M: drive, \\\\windx\\tmp) will not connect, the usual cause is the SMB security-signature requirement on the workstation. The fix is a registry change and requires administrator rights — IT staff only.\n\nOpen Registry Editor (regedit) and navigate to HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Services\\LanmanWorkstation\\Parameters — you can copy and paste the path into the address bar, keeping "Computer\\" at the front. Look for a value named RequireSecuritySignature. If it is not there, create it: right-click the background of the right-hand pane, choose New > DWORD (32-bit) Value, and name it RequireSecuritySignature. Set its value to 0.\n\nReboot the machine (or restart the Workstation service) and reconnect to \\\\windx\\tmp. If the M: drive still does not appear, re-map it: File Explorer > This PC > Map network drive > choose M: and enter \\\\windx\\tmp.',
+  },
+  {
     title: 'Enrolling a new phone in MFA',
     body: 'Before wiping or trading in your old phone, sign in to mysignins.microsoft.com/security-info from a computer, choose Add sign-in method, and enroll the new phone\'s authenticator app. Keep both enrolled until the new phone confirms a successful push.\n\nIf you already lost access to the old phone, open a Security ticket for an MFA reset — identity verification with your manager is required.',
   },
