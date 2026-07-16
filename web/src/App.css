@@ -1712,6 +1712,14 @@ select, textarea, input[type='text'], .modal input {
   align-self: center;
 }
 .triage-routing dd { margin: 0; font-size: 13.5px; }
+.modal label.triage-correct {
+  flex-direction: row; align-items: center; gap: 8px;
+  margin-top: 4px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+.triage-correct select { padding: 4px 6px; width: auto; }
+.triage-moved { color: var(--ink); }
 
 /* agent chat */
 .chat-fab {

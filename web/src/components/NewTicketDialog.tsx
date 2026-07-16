@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createTicket, fetchTicket, triageNow, uploadAttachments } from '../api';
+import {
+  actingUserId, createTicket, fetchMe, fetchMeta, fetchTicket, patchTicket,
+  triageNow, uploadAttachments,
+} from '../api';
 import { filesFromPaste } from './Attachments';
 
 export function NewTicketDialog({ onClose }: { onClose: () => void }) {
@@ -11,6 +14,25 @@ export function NewTicketDialog({ onClose }: { onClose: () => void }) {
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [uploadedCount, setUploadedCount] = useState(0);
   const [created, setCreated] = useState<{ id: number; number: string } | null>(null);
+  const [moved, setMoved] = useState<{ name: string; trained: boolean } | null>(null);
+
+  const { data: meta } = useQuery({ queryKey: ['meta'], queryFn: fetchMeta, staleTime: 300_000 });
+  const { data: me } = useQuery({ queryKey: ['me', actingUserId()], queryFn: fetchMe });
+  const staff = me?.role === 'admin' || me?.role === 'agent';
+
+  // Queue correction straight from the confirmation screen — a move that
+  // contradicts the AI's routing is recorded as training, same as a drag.
+  const move = useMutation({
+    mutationFn: (queueId: number) => patchTicket(created!.id, { queueId }),
+    onSuccess: (r: any, queueId) => {
+      setMoved({
+        name: meta?.queues.find((q) => q.id === queueId)?.name ?? 'the selected queue',
+        trained: !!r?.trained,
+      });
+      qc.invalidateQueries({ queryKey: ['tickets'] });
+      qc.invalidateQueries({ queryKey: ['ticket', created!.id] });
+    },
+  });
 
   const create = useMutation({
     // With attachments, triage is held until they're uploaded so the AI
@@ -122,6 +144,29 @@ export function NewTicketDialog({ onClose }: { onClose: () => void }) {
                     it's waiting in <strong>{routed!.queue.name}</strong> for a human
                     to triage.
                   </p>
+                )}
+                {staff && (
+                  moved ? (
+                    <p className="modal-hint triage-moved">
+                      ✓ Moved to <strong>{moved.name}</strong>
+                      {moved.trained && ' — ✨ SOTO learns from this correction'}
+                    </p>
+                  ) : (
+                    <label className="triage-correct">
+                      Wrong queue? Move it:
+                      <select
+                        value={routed!.queue.id}
+                        disabled={move.isPending}
+                        onChange={(e) => move.mutate(Number(e.target.value))}
+                      >
+                        {[...(meta?.queues ?? [])]
+                          .sort((a, b) => a.name.localeCompare(b.name))
+                          .map((q) => (
+                            <option key={q.id} value={q.id}>{q.name}</option>
+                          ))}
+                      </select>
+                    </label>
+                  )
                 )}
               </div>
             )}
