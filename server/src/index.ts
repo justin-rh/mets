@@ -5,6 +5,7 @@ import { env } from './config.js';
 import { db, schema } from './db/index.js';
 import { adminRoutes } from './routes/admin.js';
 import { docsRoutes } from './routes/docs.js';
+import { demoRoutes } from './routes/demo.js';
 import { aiRoutes } from './routes/ai.js';
 import { dashboardRoutes } from './routes/dashboard.js';
 import { kbRoutes } from './routes/kb.js';
@@ -117,6 +118,7 @@ await app.register(approvalRoutes);
 await app.register(chatRoutes);
 await app.register(attachmentRoutes);
 await app.register(docsRoutes);
+await app.register(demoRoutes);
 
 try {
   await app.listen({ port: env.port, host: '0.0.0.0' });

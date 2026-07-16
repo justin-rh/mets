@@ -15,7 +15,7 @@ const cursorFirst: CollisionDetection = (args) => {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   actingUserId, bulkTickets, fetchMe, fetchMeta, fetchTickets, fetchUsers,
-  parseSearch, patchTicket, setActingUserId, type ListParams, type NlFilters,
+  parseSearch, patchTicket, runIncidentDemo, setActingUserId, type ListParams, type NlFilters,
   type TicketChanges, type TicketListItem,
 } from './api';
 import { RequesterPortal } from './components/RequesterPortal';
@@ -219,6 +219,15 @@ export default function App() {
     invalidate();
     toast(`Undone — ${ops.length > 1 ? `${ops.length} tickets` : 'ticket'} restored`, 'info');
   };
+
+  const incidentDemo = useMutation({
+    mutationFn: runIncidentDemo,
+    onSuccess: (r) => {
+      invalidate();
+      toast(`🔥 Outage simulated — ${r.filed.join(', ')} filed. SOTO correlates them and the amber banner appears within a few minutes.`, 'info');
+    },
+    onError: (e: any) => toast(e?.message ?? 'Incident demo failed', 'info'),
+  });
 
   const bulk = useMutation({
     mutationFn: ({ ids, action, changes }: {
@@ -481,6 +490,14 @@ export default function App() {
             {m}
           </button>
         ))}
+        <button
+          className="incident-demo-btn"
+          disabled={incidentDemo.isPending}
+          title="Simulate an outage: three similar tickets are filed and SOTO declares a suspected incident within a few minutes"
+          onClick={() => incidentDemo.mutate()}
+        >
+          {incidentDemo.isPending ? 'Filing…' : '⚠️ Incident Demo'}
+        </button>
         {assigneeFilter && (
           <span className="filter-chip">
             Assigned: {meta?.agents.find((a) => a.id === assigneeFilter)?.name ?? `#${assigneeFilter}`}

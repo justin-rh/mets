@@ -191,6 +191,15 @@ export async function detectMajorIncident(ticketId: number) {
   for (const b of [t, ...cluster]) {
     await linkChild(Number(b.id), { id: parent.id, number: parent.number, title });
   }
+
+  // Handling instructions for whoever picks this up — internal so it never
+  // broadcasts to the linked requesters.
+  const bot = await getBotUser();
+  await db.insert(ticketComments).values({
+    ticketId: parent.id, authorId: bot.id, visibility: 'internal', source: 'api',
+    bodyText: 'Comments on this parent ticket automatically propagate to children tickets. Close or resolve this ticket to close/resolve the incident and all children tickets as well.\n\n*— SOTO Bot*',
+  });
+
   return { declared: parent.number, children: burst.length };
 }
 

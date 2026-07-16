@@ -146,6 +146,9 @@ export type ActiveIncident = {
   queue: string; childCount: number; createdAt: string;
 };
 export const fetchActiveIncidents = () => api<ActiveIncident[]>('/api/incidents/active');
+/** Demo: file the Zoom-outage burst; SOTO declares the incident in 1–6 min. */
+export const runIncidentDemo = () =>
+  api<{ filed: string[] }>('/api/demo/incident', { method: 'POST', body: '{}' });
 
 export function fetchTickets(p: ListParams) {
   const q = new URLSearchParams({ view: p.view, sort: p.sort });

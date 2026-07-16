@@ -96,6 +96,20 @@
   border-bottom-color: var(--ink);
 }
 .modebar > button.active.accent { border-bottom-color: var(--accent); }
+/* action, not a view — bordered chip so it reads as a button, not a tab */
+.modebar > button.incident-demo-btn {
+  margin-left: 10px;
+  align-self: center;
+  padding: 4px 10px;
+  border: 1px solid var(--accent);
+  border-radius: var(--r);
+  color: var(--accent-dark);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.modebar > button.incident-demo-btn:hover { background: #fdeed7; color: var(--accent-dark); }
+.modebar > button.incident-demo-btn:disabled { opacity: 0.55; cursor: default; }
+[data-theme='dark'] .modebar > button.incident-demo-btn:hover { background: #3a2d12; }
 
 .mode-hint { color: var(--text-muted); font-size: 12px; margin-left: 12px; }
 
