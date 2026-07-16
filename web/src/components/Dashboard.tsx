@@ -313,8 +313,25 @@ export function Dashboard() {
   const backlog = BUCKET_ORDER
     .map((b) => ({ label: b, value: Number(data.backlogAge.find((r) => r.bucket === b)?.count ?? 0) }));
 
+  // The business case in one line: what the AI did vs what it cost.
+  const nn = (v: string | number | null | undefined) => Number(v ?? 0);
+  const aiCost = data.ai.usage.reduce(
+    (s, u) => s + (nn(u.input_tokens) / 1e6) * PRICE_IN_PER_M + (nn(u.output_tokens) / 1e6) * PRICE_OUT_PER_M,
+    0,
+  );
+  const autoRouted = nn(data.ai.tiles.auto_30);
+
   return (
     <div className="dashboard">
+      {autoRouted > 0 && (
+        <p className="dashboard-headline">
+          ✨ Last 30 days: <strong>{autoRouted} tickets</strong> routed hands-free
+          {nn(t.deflected_30) > 0 && (
+            <> · <strong>{t.deflected_30}</strong> resolved with no agent at all</>
+          )}
+          {' '}· total AI spend <strong>${aiCost.toFixed(2)}</strong>
+        </p>
+      )}
       <div className="tiles">
         <Tile label="Open tickets" value={t.open_count} />
         <Tile label="Created · 30d" value={t.created_30} />

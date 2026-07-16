@@ -858,6 +858,20 @@ select, textarea, input[type='text'], .modal input {
 .kb-list-head { display: flex; gap: 6px; }
 .kb-list-head .kb-search { flex: 1; }
 
+/* ===== dashboard headline ===== */
+
+.dashboard-headline {
+  margin: 0 0 4px;
+  padding: 10px 16px;
+  background: var(--surface-card);
+  border: 1px solid var(--line-strong);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--r);
+  font-size: 14.5px;
+  color: var(--text);
+}
+.dashboard-headline strong { color: var(--ink); }
+
 /* ===== welcome card (first visit) ===== */
 
 .welcome-card {
