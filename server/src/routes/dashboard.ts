@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '../db/index.js';
-import { requireStaffRead } from './guards.js';
+import { requireStaff, requireStaffRead } from './guards.js';
 
 /**
  * Dashboard aggregates — live queries; at ~10^5 tickets these run in
@@ -114,6 +114,19 @@ export async function dashboardRoutes(app: FastifyInstance) {
     `)).rows;
 
     return { tiles, daily, backlogAge, openByQueue, csatDist, ai: { tiles: aiTiles, byCategory: aiByCategory, usage: aiUsage } };
+  });
+
+  // SOTO's weekly briefing — problem patterns, trends, KB gaps.
+  app.get('/api/digest', async (req) => {
+    requireStaffRead(req);
+    const { latestDigest } = await import('../services/digest.js');
+    return { digest: await latestDigest() };
+  });
+
+  app.post('/api/digest/generate', async (req) => {
+    requireStaff(req);
+    const { generateDigest } = await import('../services/digest.js');
+    return { digest: await generateDigest() };
   });
 
   // TP leaderboard: rank agents by Ticket Points earned (score of tickets

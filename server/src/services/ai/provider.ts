@@ -212,6 +212,34 @@ export type DeflectOutcome = {
   outputTokens: number;
 };
 
+// Weekly digest: deterministic aggregation happens in code; the AI turns
+// the facts into a briefing a queue lead would actually read.
+export const DigestSchema = z.object({
+  headline: z.string().describe('One sentence: the single most important thing in this period, specific ("Docking-station failures tripled" not "ticket volume changed")'),
+  findings: z.array(z.object({
+    kind: z.enum(['problem', 'trend', 'kb_gap', 'ops']).describe('problem = recurring issue worth root-causing; trend = volume shift; kb_gap = repeated issue with no article; ops = SLA/CSAT/staffing signal'),
+    title: z.string().describe('Short, specific, max ~60 chars'),
+    detail: z.string().describe('1-2 sentences citing the numbers provided — never invent figures'),
+    suggestedAction: z.string().describe('One concrete next step ("replace the side-entrance reader panel", "draft a KB article from T-1000432")'),
+  })).describe('3-6 findings, most important first. Only findings the data actually supports'),
+});
+export type DigestResult = z.infer<typeof DigestSchema>;
+
+export type DigestInput = {
+  periodDays: number;
+  clusters: { category: string; token: string; count: number; distinctDays: number; sampleSubjects: string[]; kbGap: boolean }[];
+  categoryTrends: { category: string; recent: number; prior: number }[];
+  slaByQueue: { queue: string; breached: number; total: number }[];
+  csatLow: { queue: string; avg: number; count: number }[];
+};
+
+export type DigestOutcome = {
+  result: DigestResult;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+};
+
 export interface AIProvider {
   triage(input: TriageInput, ctx: TriageContext): Promise<TriageOutcome>;
   draftReply(input: DraftInput): Promise<DraftOutcome>;
@@ -220,6 +248,7 @@ export interface AIProvider {
   parseSearch(query: string, ctx: SearchParseContext): Promise<SearchParseOutcome>;
   parseIntake(input: IntakeInput): Promise<IntakeOutcome>;
   suggestFix(input: DeflectInput): Promise<DeflectOutcome>;
+  writeDigest(input: DigestInput): Promise<DigestOutcome>;
 }
 
 // ---------------------------------------------------------------------------
@@ -632,6 +661,61 @@ Can they self-serve this?`,
       outputTokens: response.usage.output_tokens,
     };
   }
+
+  async writeDigest(input: DigestInput): Promise<DigestOutcome> {
+    const response = await this.client.messages.parse({
+      model: env.aiModel,
+      max_tokens: 1500,
+      system: [{
+        type: 'text',
+        cache_control: { type: 'ephemeral' },
+        text: `You write the weekly operations briefing for the Master Electronics
+helpdesk — the thing a queue lead reads Monday morning to know where the
+fires are before they're fires.
+
+You are given pre-computed facts: recurring-issue clusters (the same
+kind of ticket appearing across multiple days — candidate PROBLEMS worth
+root-causing rather than fixing one ticket at a time), category volume
+trends, SLA breach rates by queue, low CSAT pockets, and which clusters
+have NO matching knowledge-base article (kb_gap — repeated issues nobody
+has documented; suggest drafting from a recent resolved example).
+
+Rules: cite only the numbers given, never invent figures or ticket
+numbers. Prefer the finding that saves the most future tickets. A
+cluster spanning several days is a problem pattern; one busy day is not.
+Plain language, no filler.`,
+      }],
+      messages: [{
+        role: 'user',
+        content: `Period: last ${input.periodDays} days.
+
+Recurring clusters (category · signal word · count · distinct days · KB gap?):
+${input.clusters.map((c) => `- ${c.category} · "${c.token}" · ${c.count} tickets over ${c.distinctDays} days${c.kbGap ? ' · NO KB ARTICLE' : ''}
+  e.g. ${c.sampleSubjects.slice(0, 3).join(' | ')}`).join('\n') || '- none detected'}
+
+Category volume (recent half vs prior half of period):
+${input.categoryTrends.map((t) => `- ${t.category}: ${t.prior} → ${t.recent}`).join('\n') || '- flat'}
+
+Resolution SLA by queue (breached/total):
+${input.slaByQueue.map((s) => `- ${s.queue}: ${s.breached}/${s.total}`).join('\n') || '- none'}
+
+Low CSAT pockets:
+${input.csatLow.map((c) => `- ${c.queue}: ${c.avg}★ over ${c.count} ratings`).join('\n') || '- none'}
+
+Write the briefing.`,
+      }],
+      output_config: { format: zodOutputFormat(DigestSchema) },
+    });
+    if (!response.parsed_output) {
+      throw new Error(`digest parse failed (stop_reason: ${response.stop_reason})`);
+    }
+    return {
+      result: response.parsed_output,
+      model: response.model,
+      inputTokens: response.usage.input_tokens + (response.usage.cache_read_input_tokens ?? 0) + (response.usage.cache_creation_input_tokens ?? 0),
+      outputTokens: response.usage.output_tokens,
+    };
+  }
 }
 
 /** Keyword-based mock for offline dev and as a demo fallback. */
@@ -805,6 +889,24 @@ class MockProvider implements AIProvider {
         verdict,
         reasoning: `Mock keyword heuristic (${verdict}).`,
         confidence: verdict === 'unclear' ? 0.4 : 0.75,
+      },
+      model: 'mock', inputTokens: 0, outputTokens: 0,
+    };
+  }
+
+  async writeDigest(input: DigestInput): Promise<DigestOutcome> {
+    const top = input.clusters[0];
+    return {
+      result: {
+        headline: top
+          ? `${top.count} "${top.token}" tickets in ${top.category} over ${top.distinctDays} days`
+          : 'No recurring problems detected this period',
+        findings: input.clusters.slice(0, 4).map((c) => ({
+          kind: (c.kbGap ? 'kb_gap' : 'problem') as 'kb_gap' | 'problem',
+          title: `${c.category}: recurring "${c.token}" tickets`,
+          detail: `${c.count} similar tickets across ${c.distinctDays} days. e.g. ${c.sampleSubjects[0] ?? ''}`,
+          suggestedAction: c.kbGap ? 'Draft a KB article from a resolved example.' : 'Investigate a shared root cause.',
+        })),
       },
       model: 'mock', inputTokens: 0, outputTokens: 0,
     };

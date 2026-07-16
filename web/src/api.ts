@@ -297,6 +297,17 @@ export type LeaderboardRow = {
 };
 
 export const fetchDashboard = () => api<DashboardData>('/api/dashboard');
+
+export type Digest = {
+  generatedAt: string;
+  periodDays: number;
+  result: {
+    headline: string;
+    findings: { kind: 'problem' | 'trend' | 'kb_gap' | 'ops'; title: string; detail: string; suggestedAction: string }[];
+  };
+};
+export const fetchDigest = () => api<{ digest: Digest | null }>('/api/digest');
+export const generateDigest = () => api<{ digest: Digest }>('/api/digest/generate', { method: 'POST', body: '{}' });
 export const fetchLeaderboard = (days: number) =>
   api<{ days: number; rows: LeaderboardRow[] }>(`/api/dashboard/leaderboard?days=${days}`);
 

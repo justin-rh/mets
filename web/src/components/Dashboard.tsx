@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { fetchDashboard, fetchLeaderboard, type DashboardData } from '../api';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { fetchDashboard, fetchDigest, fetchLeaderboard, generateDigest, type DashboardData } from '../api';
 import { initials } from '../format';
 
 const MEDALS = ['🥇', '🥈', '🥉'];
@@ -88,6 +88,61 @@ function Tile({ label, value, sub }: { label: string; value: string; sub?: strin
       <span className="tile-label">{label}</span>
       <span className="tile-value">{value}</span>
       {sub && <span className="tile-sub">{sub}</span>}
+    </div>
+  );
+}
+
+const FINDING_ICON: Record<string, { icon: string; label: string }> = {
+  problem: { icon: '🔁', label: 'Recurring problem' },
+  trend: { icon: '📈', label: 'Trend' },
+  kb_gap: { icon: '📚', label: 'KB gap' },
+  ops: { icon: '⏱', label: 'Operations' },
+};
+
+/** SOTO's weekly briefing — problem patterns across weeks, not days. */
+function DigestCard() {
+  const qc = useQueryClient();
+  const { data } = useQuery({ queryKey: ['digest'], queryFn: fetchDigest, staleTime: 300_000 });
+  const regen = useMutation({
+    mutationFn: generateDigest,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['digest'] }),
+  });
+  const d = data?.digest;
+
+  return (
+    <div className="chart-card digest-card">
+      <div className="chart-head">
+        <h3>✨ SOTO's weekly briefing</h3>
+        <span className="digest-meta">
+          {d ? `${new Date(d.generatedAt).toLocaleDateString()} · last ${d.periodDays} days` : ''}
+          <button className="btn ghost" disabled={regen.isPending} onClick={() => regen.mutate()}>
+            {regen.isPending ? 'Analyzing…' : d ? 'Regenerate' : 'Generate now'}
+          </button>
+        </span>
+      </div>
+      {!d && !regen.isPending && (
+        <p className="digest-empty">No briefing yet — it generates automatically every week, or click Generate now.</p>
+      )}
+      {d && (
+        <>
+          <p className="digest-headline">{d.result.headline}</p>
+          <div className="digest-findings">
+            {d.result.findings.map((f, i) => {
+              const k = FINDING_ICON[f.kind] ?? FINDING_ICON.ops!;
+              return (
+                <div key={i} className="digest-finding">
+                  <span className="digest-kind" title={k.label}>{k.icon}</span>
+                  <div>
+                    <strong>{f.title}</strong>
+                    <p>{f.detail}</p>
+                    <p className="digest-action">→ {f.suggestedAction}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -278,6 +333,8 @@ export function Dashboard() {
           sub={`of ${t.deflection_offered_30 ?? 0} KB fixes offered, 30d — closed without an agent`}
         />
       </div>
+
+      <DigestCard />
 
       <AiScoreboard ai={data.ai} />
 

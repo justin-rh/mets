@@ -126,6 +126,12 @@ async function main() {
     from ai_usage where not seeded
   `)).rows as { feature: string; model: string; input_tokens: number; output_tokens: number; created_at: string }[];
 
+  // The weekly briefing survives too — the seed is deterministic, so the
+  // clusters it describes regenerate essentially unchanged.
+  const [preservedDigest] = (await db.execute(sql`
+    select value from app_config where key = 'weekly_digest'
+  `)).rows as { value: unknown }[];
+
   console.log('Truncating…');
   await db.execute(sql`
     TRUNCATE ai_usage, ai_enrichments, kb_chunks, kb_articles, sla_instances,
@@ -738,6 +744,11 @@ async function main() {
     console.log(`Embedded ${embedded} KB articles…`);
   } catch (e: any) {
     console.warn('KB embedding skipped (regenerates at server start):', e?.message ?? e);
+  }
+
+  if (preservedDigest) {
+    await db.insert(appConfig).values({ key: 'weekly_digest', value: preservedDigest.value });
+    console.log('Restored the weekly digest…');
   }
 
   // Restore the real usage history captured before the truncate.

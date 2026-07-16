@@ -21,6 +21,7 @@ import { startSlaSweep } from './services/sla/slaService.js';
 import { startAutoCloseSweep } from './services/autoClose.js';
 import { startEscalationSweep } from './services/escalation.js';
 import { startRecurringSweep } from './services/recurring.js';
+import { startDigestSweep } from './services/digest.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -124,6 +125,7 @@ try {
   startEscalationSweep((msg) => app.log.info(msg));
   startRecurringSweep((msg) => app.log.info(msg));
   startSkillsSync((msg) => app.log.info(msg));
+  startDigestSweep((msg) => app.log.info(msg));
   // Embed KB articles in the background (first run downloads the model).
   ensureKbEmbeddings((msg) => app.log.info(msg)).catch((err) =>
     app.log.warn({ err }, 'kb embedding failed — search degrades to FTS-only'),
