@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { and, asc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { db, schema } from '../db/index.js';
-import { hybridSearch, suggestionsForTicket } from '../services/kb/kbService.js';
+import { ensureKbEmbeddings, hybridSearch, suggestionsForTicket } from '../services/kb/kbService.js';
 import { getAIProvider } from '../services/ai/provider.js';
 import { requireStaff } from './guards.js';
 
@@ -58,6 +58,53 @@ export async function kbRoutes(app: FastifyInstance) {
     if (!article) return reply.status(404).send({ error: 'article not found' });
     if (article.status !== 'published') requireStaff(req);
     return article;
+  });
+
+  // Manual authoring — agents add articles directly from the KB tab.
+  app.post('/api/kb', async (req) => {
+    requireStaff(req);
+    const body = z.object({
+      title: z.string().trim().min(3).max(200),
+      bodyText: z.string().trim().min(20).max(20_000),
+      publish: z.boolean().default(true),
+    }).parse(req.body);
+    const [article] = await db.insert(kbArticles).values({
+      title: body.title, bodyText: body.bodyText,
+      status: body.publish ? 'published' : 'draft', authorId: req.userId,
+    }).returning();
+    if (body.publish) await ensureKbEmbeddings();
+    return article;
+  });
+
+  // Edit title/body of any article (drafts included — fix before publishing).
+  // Chunks are rebuilt so search and deflection see the new text immediately.
+  app.patch('/api/kb/:id', async (req, reply) => {
+    requireStaff(req);
+    const id = z.coerce.number().parse((req.params as any).id);
+    const body = z.object({
+      title: z.string().trim().min(3).max(200).optional(),
+      bodyText: z.string().trim().min(20).max(20_000).optional(),
+    }).parse(req.body);
+    const [updated] = await db.update(kbArticles)
+      .set({ ...body, updatedAt: new Date() })
+      .where(eq(kbArticles.id, id)).returning();
+    if (!updated) return reply.status(404).send({ error: 'article not found' });
+    await db.delete(kbChunks).where(eq(kbChunks.articleId, id));
+    await ensureKbEmbeddings();
+    return updated;
+  });
+
+  // Turn a ticket into a KB draft on demand — the agent decided this thread
+  // is worth documenting, so the automatic gates step aside.
+  app.post('/api/tickets/:id/draft-article', async (req, reply) => {
+    requireStaff(req);
+    const id = z.coerce.number().parse((req.params as any).id);
+    const [t] = await db.select({ id: tickets.id }).from(tickets).where(eq(tickets.id, id));
+    if (!t) return reply.status(404).send({ error: 'ticket not found' });
+    const { maybeDraftArticle } = await import('../services/kbDrafts.js');
+    const article = await maybeDraftArticle(id, { force: true });
+    if (!article) return reply.status(503).send({ error: 'drafting unavailable (AI budget exhausted?)' });
+    return { id: article.id, title: article.title, status: article.status };
   });
 
   // Review actions for AI drafts. Publishing embeds the article so hybrid

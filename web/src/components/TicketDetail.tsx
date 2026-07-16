@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  actingUserId, decideApproval, draftReply, fetchArticle, fetchBestFits, fetchMe,
+  actingUserId, decideApproval, draftArticleFromTicket, draftReply, fetchArticle, fetchBestFits, fetchMe,
   fetchMergeCandidates, fetchMeta, fetchSuggestions, fetchTicket,
   fetchTicketTemplates, fetchUsers, flagTicket, mergeTicket, openChat, patchTicket,
   postComment, searchKbForTicket, watchTicket, type IdentifierCheck, type KbHit,
@@ -34,6 +34,11 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
   const [kbHits, setKbHits] = useState<KbHit[] | null>(null);
   const [kbOpenId, setKbOpenId] = useState<number | null>(null);
   const kbSearch = useMutation({ mutationFn: () => searchKbForTicket(ticketId), onSuccess: setKbHits });
+  const draftKb = useMutation({
+    mutationFn: () => draftArticleFromTicket(ticketId),
+    onSuccess: (a) => toast(`✨ KB draft “${a.title}” created — review it on the Knowledge Base tab`, 'success'),
+    onError: (e: any) => toast(e?.message ?? 'Could not draft an article', 'info'),
+  });
   const { data: kbOpenArticle } = useQuery({
     queryKey: ['kb-article', kbOpenId],
     queryFn: () => fetchArticle(kbOpenId!),
@@ -403,6 +408,17 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
             <button className="btn" disabled={kbSearch.isPending} onClick={() => kbSearch.mutate()}>
               {kbSearch.isPending ? 'Searching…' : '📚 Search KB'}
             </button>
+            {me && me.role !== 'readonly' && (
+              <button
+                className="btn"
+                style={{ marginLeft: 8 }}
+                disabled={draftKb.isPending}
+                title="Have SOTO draft a KB article from this ticket's thread — lands as a draft for review"
+                onClick={() => draftKb.mutate()}
+              >
+                {draftKb.isPending ? 'Drafting…' : '📝 Draft KB article'}
+              </button>
+            )}
             {kbHits && kbHits.length === 0 && (
               <span className="kb-search-empty">No knowledge-base articles match this ticket.</span>
             )}

@@ -13,11 +13,21 @@ const MIN_CONFIDENCE = 0.6;
  * KB article (status draft — invisible to search until an agent publishes it
  * from the KB tab). Conservative by prompt; once per ticket; skips tickets
  * with no substantive staff replies.
+ *
+ * force = an agent asked for this draft explicitly (the ticket-side button):
+ * their judgment overrides the automatic gates — the once-per-ticket guard,
+ * the thread-length minimum, and the AI's own worth-an-article verdict.
  */
-export async function maybeDraftArticle(ticketId: number) {
+export async function maybeDraftArticle(ticketId: number, opts: { force?: boolean } = {}) {
+  // An unreviewed draft from this ticket already exists — hand it back
+  // instead of piling up duplicates.
+  const [pendingDraft] = await db.select().from(kbArticles)
+    .where(and(eq(kbArticles.sourceTicketId, ticketId), eq(kbArticles.status, 'draft')));
+  if (pendingDraft) return opts.force ? pendingDraft : null;
+
   const [existing] = await db.select({ id: aiEnrichments.id }).from(aiEnrichments)
     .where(and(eq(aiEnrichments.ticketId, ticketId), eq(aiEnrichments.feature, 'kb_draft')));
-  if (existing) return null;
+  if (existing && !opts.force) return null;
   if (await overDailyBudget()) return null;
 
   const [t] = await db
@@ -44,7 +54,7 @@ export async function maybeDraftArticle(ticketId: number) {
   const staffText = comments
     .filter((c) => c.authorRole === 'agent' || c.authorRole === 'admin')
     .map((c) => c.body).join(' ');
-  if (staffText.length < 80) return null;
+  if (staffText.length < 80 && !opts.force) return null;
 
   const existingTitles = (await db.select({ title: kbArticles.title }).from(kbArticles)
     .where(ne(kbArticles.status, 'archived'))).map((r) => r.title);
@@ -64,7 +74,7 @@ export async function maybeDraftArticle(ticketId: number) {
   });
 
   const r = outcome.result;
-  if (!r.worthArticle || r.confidence < MIN_CONFIDENCE) {
+  if ((!r.worthArticle || r.confidence < MIN_CONFIDENCE) && !opts.force) {
     await db.insert(aiEnrichments).values({
       ticketId, feature: 'kb_draft', status: 'dismissed',
       model: outcome.model, promptVersion: 'kb-draft-v1', result: r, confidence: { article: r.confidence },

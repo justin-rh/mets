@@ -331,6 +331,13 @@ export const publishArticle = (id: number) =>
   api<KbArticle>(`/api/kb/${id}/publish`, { method: 'POST', body: '{}' });
 export const discardArticle = (id: number) =>
   api(`/api/kb/${id}/discard`, { method: 'POST', body: '{}' });
+export const createArticle = (a: { title: string; bodyText: string; publish: boolean }) =>
+  api<KbArticle>('/api/kb', { method: 'POST', body: JSON.stringify(a) });
+export const updateArticle = (id: number, a: { title: string; bodyText: string }) =>
+  api<KbArticle>(`/api/kb/${id}`, { method: 'PATCH', body: JSON.stringify(a) });
+/** Ask SOTO to draft a KB article from this ticket's thread, right now. */
+export const draftArticleFromTicket = (ticketId: number) =>
+  api<{ id: number; title: string; status: string }>(`/api/tickets/${ticketId}/draft-article`, { method: 'POST', body: '{}' });
 
 export type Suggestions = {
   articles: KbHit[];
