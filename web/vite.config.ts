@@ -5,10 +5,13 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
-    // Serve at http://mets.masterelectronics.com (hosts-file entry -> 127.0.0.1).
-    // Port 80 so the URL needs no port; tests can override with --port.
-    // IPv4 bind: Node resolves plain `localhost` to ::1, but the hosts entry is IPv4.
-    host: '127.0.0.1',
+    // Serve at http://mets.masterelectronics.com (hosts-file entry) locally
+    // AND at http://<machine-ip>/ for demo viewers on the LAN — 0.0.0.0
+    // binds every interface; raw-IP hosts are always allowed by Vite, the
+    // allowedHosts entry covers the DNS name. Port 80 so URLs need no port.
+    // The API (3001) and Postgres (5433) stay loopback-only; everything
+    // rides the /api proxy below.
+    host: '0.0.0.0',
     port: 80,
     allowedHosts: ['mets.masterelectronics.com'],
     proxy: {
