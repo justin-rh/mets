@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import type { TicketListItem } from '../api';
 import { TYPE_LABEL, age, initials, slaView } from '../format';
+import { useAwayTag } from '../useAwayTag';
 import { TicketDetail } from './TicketDetail';
 
 type Props = {
@@ -18,6 +19,7 @@ export function TicketRow({ ticket: t, selected, expanded, onToggleSelect, onTog
     data: { ticketId: t.id },
   });
   const sla = slaView(t.sla);
+  const isAway = useAwayTag();
 
   // Drag starts anywhere on the row (>6px movement); a plain click expands.
   // After a drop, the browser still fires a click on the row — swallow it.
@@ -75,8 +77,15 @@ export function TicketRow({ ticket: t, selected, expanded, onToggleSelect, onTog
           className={`ticket-tags ${expanded ? 'expanded' : ''}`}
           title={t.tags.length ? t.tags.join(', ') : undefined}
         >
-          {(expanded ? t.tags : t.tags.slice(0, 1)).map((tag) => (
-            <span key={tag} className="tag">{tag}</span>
+          {/* Collapsed rows show one tag — prefer an away-site tag so it's never buried in the +N. */}
+          {(expanded ? t.tags : [t.tags.find(isAway) ?? t.tags[0]].filter(Boolean) as string[]).map((tag) => (
+            <span
+              key={tag}
+              className={`tag ${isAway(tag) ? 'tag-away' : ''}`}
+              title={isAway(tag) ? 'Requester is at a different site than you' : undefined}
+            >
+              {tag}
+            </span>
           ))}
           {!expanded && t.tags.length > 1 && <span className="tag tag-more">+{t.tags.length - 1}</span>}
         </span>

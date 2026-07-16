@@ -7,6 +7,7 @@ import {
   postComment, searchKbForTicket, watchTicket, type IdentifierCheck, type KbHit,
 } from '../api';
 import { copyToClipboard, fmtDateTime, initials } from '../format';
+import { useAwayTag } from '../useAwayTag';
 import { AttachmentStrip, usePasteAttach } from './Attachments';
 import { Md } from './Md';
 import { SnoozeDialog } from './SnoozeDialog';
@@ -101,6 +102,7 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
     staleTime: 300_000,
   });
   const { data: me } = useQuery({ queryKey: ['me', actingUserId()], queryFn: fetchMe });
+  const isAway = useAwayTag();
   const { data: mergeCands } = useQuery({
     queryKey: ['merge-candidates', ticketId],
     queryFn: () => fetchMergeCandidates(ticketId),
@@ -750,7 +752,15 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
             <>
               <dt>Tags</dt>
               <dd className="detail-tags">
-                {t.tags.map((tag) => <span key={tag} className="tag">{tag}</span>)}
+                {t.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className={`tag ${isAway(tag) ? 'tag-away' : ''}`}
+                    title={isAway(tag) ? 'Requester is at a different site than you' : undefined}
+                  >
+                    {tag}
+                  </span>
+                ))}
               </dd>
             </>
           )}

@@ -242,6 +242,12 @@ select, textarea, input[type='text'], .modal input {
   padding: 1px 6px;
   white-space: nowrap;
 }
+/* Location tag for a site other than the viewer's home — remote-site tickets pop. */
+.tag-away {
+  background: #fdeed7;
+  color: var(--accent-dark);
+  font-weight: 600;
+}
 
 .ticket-requester {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -683,6 +689,8 @@ select, textarea, input[type='text'], .modal input {
 [data-theme='dark'] .actor-user { background: #1c3450; color: #9fc0dd; }
 [data-theme='dark'] .actor-rule { background: #2b2440; color: #b8a5d8; }
 [data-theme='dark'] .actor-ai { background: #3a2d12; }
+
+[data-theme='dark'] .tag-away { background: #3a2d12; }
 
 [data-theme='dark'] .sla-breach .sla-meter { background: #3d1d14; }
 
