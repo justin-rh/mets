@@ -142,7 +142,11 @@ export async function enrichTicket(ticketId: number, mode: EnrichMode = 'suggest
       id: tickets.id, subject: tickets.subject, description: tickets.description,
       priority: tickets.priority, source: tickets.source,
       categoryId: tickets.categoryId, queueId: tickets.queueId,
-      requesterName: users.name, department: users.department, isVip: users.isVip,
+      requesterName: users.name, department: users.department,
+      isVip: sql<boolean>`${users.isVip} or exists (
+        select 1 from queue_vips qv
+        where qv.user_id = ${tickets.requesterId} and qv.team_id = ${tickets.queueId}
+      )`,
     })
     .from(tickets)
     .innerJoin(users, eq(users.id, tickets.requesterId))

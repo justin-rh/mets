@@ -10,7 +10,7 @@ import {
   kbArticles, kbChunks, routingRules, skills, slaInstances, slaPolicies,
   statuses, tags, teamMemberships, teams, ticketComments, ticketEvents,
   ticketLinks, ticketStatusDurations, ticketTags, tickets, users,
-  aiEnrichments, responseTemplates, chatMessages, recurringTickets,
+  aiEnrichments, responseTemplates, chatMessages, recurringTickets, queueVips,
 } from './schema.js';
 import {
   AGENT_COMMENTS, APPS, CATEGORIES, CATEGORY_TAGS, DEPARTMENTS, DEVICES,
@@ -730,6 +730,16 @@ async function main() {
   await insertChunked(aiEnrichments, enrichmentRows);
   await insertChunked(aiUsage, usageRows);
 
+  // Rebuild KB embeddings now instead of waiting for a server restart —
+  // without them, long ticket-seeded searches lose their semantic half.
+  try {
+    const { ensureKbEmbeddings } = await import('../services/kb/kbService.js');
+    const embedded = await ensureKbEmbeddings();
+    console.log(`Embedded ${embedded} KB articles…`);
+  } catch (e: any) {
+    console.warn('KB embedding skipped (regenerates at server start):', e?.message ?? e);
+  }
+
   // Restore the real usage history captured before the truncate.
   if (preservedUsage.length) {
     console.log(`Restoring ${preservedUsage.length} real AI usage rows…`);
@@ -738,6 +748,14 @@ async function main() {
       inputTokens: Number(u.input_tokens), outputTokens: Number(u.output_tokens),
       createdAt: new Date(u.created_at),
     })));
+  }
+
+  // One per-queue VIP for the demo: a sales-side requester who's VIP to
+  // Sales Support only — star and score boost there, normal elsewhere.
+  const salesVip = allUsers.find((u) => u.role === 'requester' && !u.isVip && /sales/i.test(u.department ?? ''));
+  if (salesVip) {
+    await db.insert(queueVips).values({ userId: salesVip.id, teamId: teamBySlug['sales-support']!.id });
+    console.log(`Per-queue VIP: ${salesVip.name} → Sales Support`);
   }
 
   // Two request tickets parked pending manager approval, so the approval flow

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   addAgentSkill, addRecurring, addRoutingRule, addStatus, addTemplate,
   deleteRecurring, deleteRoutingRule, deleteTemplate, fetchAdminConfig,
+  addVip, fetchUsers, fetchVips, removeVip, type VipEntry,
   createApiKey, fetchApiKeys, revokeApiKey, type ApiKeyRow,
   fetchAdminUsers, fetchMeta, importPreview, importRun, removeAgentSkill,
   renameStatus, runEscalationSweep,
@@ -833,6 +834,85 @@ function UserQueuesCard(_: { config: AdminConfig }) {
   );
 }
 
+/** VIP list: global (★ everywhere) and per-queue designations. */
+function VipCard(_: { config: AdminConfig }) {
+  const qc = useQueryClient();
+  const { data: vips } = useQuery({ queryKey: ['vips'], queryFn: fetchVips });
+  const { data: directory } = useQuery({ queryKey: ['users'], queryFn: fetchUsers, staleTime: 300_000 });
+  const { data: meta } = useQuery({ queryKey: ['meta'], queryFn: fetchMeta });
+  const [userId, setUserId] = useState('');
+  const [scope, setScope] = useState(''); // '' = all queues, else teamId
+
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ['vips'] });
+    qc.invalidateQueries({ queryKey: ['tickets'] });
+    qc.invalidateQueries({ queryKey: ['users'] });
+  };
+  const add = useMutation({
+    mutationFn: () => addVip(Number(userId), scope ? Number(scope) : null),
+    onSuccess: () => { setUserId(''); setScope(''); invalidate(); },
+  });
+  const remove = useMutation({
+    mutationFn: ({ id, teamId }: { id: number; teamId?: number }) => removeVip(id, teamId),
+    onSuccess: invalidate,
+  });
+
+  const sortedUsers = [...(directory ?? [])].sort((a, b) => a.name.localeCompare(b.name));
+  return (
+    <div className="admin-card admin-card-wide">
+      <h3>VIPs</h3>
+      <p className="admin-hint">
+        VIP tickets get the ★ marker and the score boost (tunable in
+        Scoring). Global = every queue; per-queue = only where it matters —
+        a sales director is a VIP to Sales Support, not Facilities. Changes
+        rescore the person's open tickets immediately.
+      </p>
+
+      <div className="apikey-mint">
+        <select value={userId} onChange={(e) => setUserId(e.target.value)}>
+          <option value="">add a VIP…</option>
+          {sortedUsers.map((u) => (
+            <option key={u.id} value={u.id}>{u.name}{u.department ? ` (${u.department})` : ''}</option>
+          ))}
+        </select>
+        <select value={scope} onChange={(e) => setScope(e.target.value)}>
+          <option value="">★ All queues</option>
+          {(meta?.queues ?? []).map((q) => <option key={q.id} value={q.id}>{q.name} only</option>)}
+        </select>
+        <button className="btn primary" disabled={!userId || add.isPending} onClick={() => add.mutate()}>
+          Add VIP
+        </button>
+      </div>
+
+      <div className="uq-list">
+        {(vips ?? []).map((v: VipEntry) => (
+          <div key={v.userId} className="uq-row">
+            <span className="uq-user">
+              <strong>★ {v.name}</strong>
+              <em>{v.department ?? '—'}</em>
+            </span>
+            <span className="uq-queues">
+              {v.global && (
+                <span className="uq-chip uq-chip-lead">
+                  All queues
+                  <button title={`Remove ${v.name.split(' ')[0]}'s global VIP status`} onClick={() => remove.mutate({ id: v.userId })}>✕</button>
+                </span>
+              )}
+              {v.queues.map((q) => (
+                <span key={q.id} className="uq-chip">
+                  {q.name}
+                  <button title={`Remove VIP for ${q.name}`} onClick={() => remove.mutate({ id: v.userId, teamId: q.id })}>✕</button>
+                </span>
+              ))}
+            </span>
+          </div>
+        ))}
+        {(vips ?? []).length === 0 && <p className="admin-hint">No VIPs configured.</p>}
+      </div>
+    </div>
+  );
+}
+
 /** Public-API keys: mint (secret shown once), list, revoke. */
 function ApiKeysCard(_: { config: AdminConfig }) {
   const qc = useQueryClient();
@@ -1071,8 +1151,8 @@ const ADMIN_SECTIONS = [
   },
   {
     key: 'users', label: 'Users & Queues', icon: '👥',
-    hint: 'Queue membership and visibility',
-    cards: [UserQueuesCard],
+    hint: 'Queue membership, visibility, VIPs',
+    cards: [VipCard, UserQueuesCard],
   },
   {
     key: 'import', label: 'Import', icon: '📦',

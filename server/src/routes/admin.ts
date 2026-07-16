@@ -208,6 +208,71 @@ export async function adminRoutes(app: FastifyInstance) {
     return { ok: true };
   });
 
+  // VIP management: global (users.is_vip) and per-queue (queue_vips).
+  // Every change rescores the person's open tickets so the boost is live.
+  async function rescoreRequesterOpen(userId: number) {
+    const rows = (await db.execute(sql`
+      select t.id from tickets t join statuses s on s.id = t.status_id
+      where t.requester_id = ${userId} and s.category not in ('resolved','closed')
+    `)).rows as { id: number }[];
+    for (const r of rows) await recomputeScore(db, Number(r.id));
+    return rows.length;
+  }
+
+  app.get('/api/admin/vips', async (req) => {
+    requireAdmin(req);
+    const globals = await db
+      .select({ userId: users.id, name: users.name, department: users.department })
+      .from(users).where(sql`${users.isVip} and ${users.isActive}`);
+    const perQueue = (await db.execute(sql`
+      select qv.user_id, u.name, u.department, qv.team_id, tm.name as team_name
+      from queue_vips qv
+      join users u on u.id = qv.user_id
+      join teams tm on tm.id = qv.team_id
+      order by u.name, tm.name
+    `)).rows as { user_id: number; name: string; department: string | null; team_id: number; team_name: string }[];
+
+    const byUser = new Map<number, { userId: number; name: string; department: string | null; global: boolean; queues: { id: number; name: string }[] }>();
+    for (const g of globals) {
+      byUser.set(g.userId, { userId: g.userId, name: g.name, department: g.department, global: true, queues: [] });
+    }
+    for (const q of perQueue) {
+      const id = Number(q.user_id);
+      const entry = byUser.get(id) ?? { userId: id, name: q.name, department: q.department, global: false, queues: [] };
+      entry.queues.push({ id: Number(q.team_id), name: q.team_name });
+      byUser.set(id, entry);
+    }
+    return [...byUser.values()].sort((a, b) => a.name.localeCompare(b.name));
+  });
+
+  app.post('/api/admin/vips', async (req) => {
+    requireAdmin(req);
+    const body = z.object({
+      userId: z.number(),
+      teamId: z.number().nullable().default(null), // null = VIP everywhere
+    }).parse(req.body);
+    if (body.teamId == null) {
+      await db.update(users).set({ isVip: true }).where(eq(users.id, body.userId));
+    } else {
+      await db.insert(schema.queueVips).values({ userId: body.userId, teamId: body.teamId }).onConflictDoNothing();
+    }
+    const rescored = await rescoreRequesterOpen(body.userId);
+    return { ok: true, rescored };
+  });
+
+  app.delete('/api/admin/vips/:userId', async (req) => {
+    requireAdmin(req);
+    const userId = z.coerce.number().parse((req.params as any).userId);
+    const q = z.object({ teamId: z.coerce.number().optional() }).parse(req.query);
+    if (q.teamId == null) {
+      await db.update(users).set({ isVip: false }).where(eq(users.id, userId));
+    } else {
+      await db.execute(sql`delete from queue_vips where user_id = ${userId} and team_id = ${q.teamId}`);
+    }
+    const rescored = await rescoreRequesterOpen(userId);
+    return { ok: true, rescored };
+  });
+
   // Public-API keys: minted here, shown once, act as their bound user.
   app.get('/api/admin/api-keys', async (req) => {
     requireAdmin(req);

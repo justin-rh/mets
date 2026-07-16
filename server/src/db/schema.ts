@@ -505,6 +505,19 @@ export const mailOutbound = pgTable(
   (t) => [index('mail_outbound_to_idx').on(t.toEmail, t.id), index('mail_outbound_dedupe_idx').on(t.dedupeKey)],
 );
 
+// Per-queue VIP designation: the user counts as VIP only for tickets in
+// these queues (a sales director is VIP to Sales Support, not Facilities).
+// users.isVip remains "VIP everywhere"; scoring and the ★ marker read the
+// effective flag: global OR (requester, ticket queue) here.
+export const queueVips = pgTable(
+  'queue_vips',
+  {
+    userId: bigint('user_id', { mode: 'number' }).notNull().references(() => users.id),
+    teamId: bigint('team_id', { mode: 'number' }).notNull().references(() => teams.id),
+  },
+  (t) => [uniqueIndex('queue_vips_idx').on(t.userId, t.teamId)],
+);
+
 // Public-API keys: hashed secret, bound to a METS user so the key inherits
 // that user's role and queue visibility (a readonly user = read-only key).
 export const apiKeys = pgTable('api_keys', {

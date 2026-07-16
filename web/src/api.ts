@@ -314,6 +314,8 @@ export type KbArticle = {
 
 export const searchKb = (q: string) => api<KbIndex>(`/api/kb${q ? `?q=${encodeURIComponent(q)}` : ''}`);
 export const fetchArticle = (id: number) => api<KbArticle>(`/api/kb/${id}`);
+/** On-demand KB search seeded from the ticket's own text (agent-side). */
+export const searchKbForTicket = (ticketId: number) => api<KbHit[]>(`/api/tickets/${ticketId}/kb-search`);
 export const publishArticle = (id: number) =>
   api<KbArticle>(`/api/kb/${id}/publish`, { method: 'POST', body: '{}' });
 export const discardArticle = (id: number) =>
@@ -352,6 +354,21 @@ export const importRun = (importId: string, mapping: Record<string, string>, run
   api<ImportResult>('/api/admin/import/run', {
     method: 'POST', body: JSON.stringify({ importId, mapping, runTriage }),
   });
+
+export type VipEntry = {
+  userId: number; name: string; department: string | null;
+  global: boolean; queues: { id: number; name: string }[];
+};
+export const fetchVips = () => api<VipEntry[]>('/api/admin/vips');
+export const addVip = (userId: number, teamId: number | null) =>
+  api<{ ok: boolean; rescored: number }>('/api/admin/vips', {
+    method: 'POST', body: JSON.stringify({ userId, teamId }),
+  });
+export const removeVip = (userId: number, teamId?: number) =>
+  api<{ ok: boolean; rescored: number }>(
+    `/api/admin/vips/${userId}${teamId != null ? `?teamId=${teamId}` : ''}`,
+    { method: 'DELETE' },
+  );
 
 export type ApiKeyRow = {
   id: number; name: string; prefix: string;

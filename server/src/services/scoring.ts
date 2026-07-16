@@ -94,7 +94,12 @@ export async function recomputeScore(tx: typeof db, ticketId: number): Promise<n
       subject: schema.tickets.subject,
       description: schema.tickets.description,
       customFields: schema.tickets.customFields,
-      isVip: schema.users.isVip,
+      // Effective VIP: global, or designated VIP for THIS ticket's queue.
+      // Queue moves rescore, so the flag tracks the ticket automatically.
+      isVip: sql<boolean>`${schema.users.isVip} or exists (
+        select 1 from queue_vips qv
+        where qv.user_id = ${schema.tickets.requesterId} and qv.team_id = ${schema.tickets.queueId}
+      )`,
     })
     .from(schema.tickets)
     .innerJoin(schema.users, eq(schema.users.id, schema.tickets.requesterId))

@@ -121,7 +121,14 @@ export async function ticketRoutes(app: FastifyInstance) {
         snoozedUntil: tickets.snoozedUntil, snoozeReason: tickets.snoozeReason,
         status: { id: statuses.id, name: statuses.name, category: statuses.category },
         queue: { id: teams.id, name: teams.name },
-        requester: { id: requester.id, name: requester.name, isVip: requester.isVip },
+        requester: {
+          id: requester.id, name: requester.name,
+          // Effective VIP for THIS ticket's queue (global or per-queue).
+          isVip: sql<boolean>`${requester.isVip} or exists (
+            select 1 from queue_vips qv
+            where qv.user_id = ${requester.id} and qv.team_id = ${tickets.queueId}
+          )`,
+        },
         assignee: { id: assignee.id, name: assignee.name },
         submittedBy: { id: submitter.id, name: submitter.name },
         category: categories.name,
@@ -184,7 +191,13 @@ export async function ticketRoutes(app: FastifyInstance) {
         csatRating: tickets.csatRating, csatComment: tickets.csatComment,
         status: { id: statuses.id, name: statuses.name, category: statuses.category },
         queue: { id: teams.id, name: teams.name },
-        requester: { id: requester.id, name: requester.name, isVip: requester.isVip, department: requester.department, email: requester.email },
+        requester: {
+          id: requester.id, name: requester.name, department: requester.department, email: requester.email,
+          isVip: sql<boolean>`${requester.isVip} or exists (
+            select 1 from queue_vips qv
+            where qv.user_id = ${requester.id} and qv.team_id = ${tickets.queueId}
+          )`,
+        },
         assignee: { id: assignee.id, name: assignee.name },
         submittedBy: { id: submitter.id, name: submitter.name },
         category: categories.name,
