@@ -54,13 +54,7 @@ export function TicketRow({ ticket: t, selected, expanded, onToggleSelect, onTog
         />
         <span className={`type-chip type-${t.type}`}>{TYPE_LABEL[t.type]}</span>
         <span className="ticket-number">{t.number}</span>
-        <span
-          className="ticket-subject"
-          title={t.flags?.length
-            ? `${t.subject}\n🚩 ${t.flags.map((f) => `${f.term} (+${f.boost})`).join(', ')}`
-            : t.subject}
-        >
-          {t.flags?.length > 0 && <span className="flag-icon">🚩</span>}
+        <span className="sent-cell">
           {t.sentiment === 'frustrated' && (
             <span className="sent-icon" title="AI read the requester as frustrated — score boosted">😤</span>
           )}
@@ -70,6 +64,14 @@ export function TicketRow({ ticket: t, selected, expanded, onToggleSelect, onTog
           {t.shouting && (
             <span className="sent-icon" title="Written in ALL CAPS — score docked. Shouting does not make it more urgent.">🔇</span>
           )}
+        </span>
+        <span
+          className="ticket-subject"
+          title={t.flags?.length
+            ? `${t.subject}\n🚩 ${t.flags.map((f) => `${f.term} (+${f.boost})`).join(', ')}`
+            : t.subject}
+        >
+          {t.flags?.length > 0 && <span className="flag-icon">🚩</span>}
           {t.subject}
           {t.snoozedUntil && <span className="snooze-flag" title={`Snoozed: ${t.snoozeReason ?? ''}`}> ⏸</span>}
         </span>

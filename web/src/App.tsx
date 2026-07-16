@@ -595,6 +595,7 @@ export default function App() {
             />
             <span className="col-type">Type</span>
             <span>Ticket</span>
+            <span className="col-sent" title="Sentiment read by AI (boosts or docks the score)" />
             <span>Subject</span>
             <span className="col-tags">Tags</span>
             <span className="col-queue">Queue · Cat.</span>

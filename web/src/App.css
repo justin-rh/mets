@@ -182,10 +182,12 @@ select, textarea, input[type='text'], .modal input {
 .ticket-row,
 .list-header {
   display: grid;
-  grid-template-columns: 18px 18px 36px 88px minmax(100px, 1fr) minmax(0, 74px) 112px 120px 30px 34px 38px 102px 88px 28px;
+  grid-template-columns: 18px 18px 36px 88px 34px minmax(100px, 1fr) minmax(0, 74px) 112px 120px 30px 34px 38px 102px 88px 28px;
   align-items: center;
   gap: 7px;
 }
+.sent-cell { white-space: nowrap; }
+.sent-cell .sent-icon { margin-right: 2px; }
 .ticket-row {
   padding: 7px 10px;
   cursor: pointer;
@@ -1935,7 +1937,7 @@ select, textarea, input[type='text'], .modal input {
   .rail { width: 208px; }
   .mode-hint { display: none; }
   .ticket-row, .list-header {
-    grid-template-columns: 18px 18px 36px 80px minmax(90px, 1fr) minmax(0, 56px) 100px 102px 30px 32px 36px 90px 76px 28px;
+    grid-template-columns: 18px 18px 36px 80px 28px minmax(90px, 1fr) minmax(0, 56px) 100px 102px 30px 32px 36px 90px 76px 28px;
     gap: 6px;
   }
 }
@@ -1944,13 +1946,13 @@ select, textarea, input[type='text'], .modal input {
   .rail { width: 196px; }
   .ticket-tags, .col-tags { display: none; }
   .ticket-row, .list-header {
-    grid-template-columns: 18px 18px 36px 80px minmax(90px, 1fr) 98px 98px 30px 32px 36px 88px 74px 28px;
+    grid-template-columns: 18px 18px 36px 80px 28px minmax(90px, 1fr) 98px 98px 30px 32px 36px 88px 74px 28px;
   }
 }
 
 @media (max-width: 1300px) {
   .rail { width: 184px; }
-  .pri-badge, .col-pri, .ticket-age, .col-age { display: none; }
+  .pri-badge, .col-pri, .ticket-age, .col-age, .sent-cell, .col-sent { display: none; }
   .ticket-row, .list-header {
     grid-template-columns: 18px 18px 36px 80px minmax(90px, 1fr) 94px 94px 34px 86px 72px 28px;
   }
