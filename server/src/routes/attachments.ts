@@ -22,11 +22,21 @@ export async function attachmentRoutes(app: FastifyInstance) {
   // screenshots to their own tickets; agents to any.
   app.post('/api/tickets/:id/attachments', async (req, reply) => {
     const ticketId = z.coerce.number().parse((req.params as any).id);
-    const [t] = await db.select({ id: tickets.id }).from(tickets).where(eq(tickets.id, ticketId));
+    const [t] = await db.select({ id: tickets.id, number: tickets.number })
+      .from(tickets).where(eq(tickets.id, ticketId));
     if (!t) return reply.status(404).send({ error: 'ticket not found' });
     if (!(await canTouchTicket(req, ticketId))) {
       return reply.status(403).send({ error: 'not your ticket' });
     }
+
+    // Pasted screenshots arrive with generic names (the browser calls them
+    // all image.png; the client's paste counter resets per page load, so
+    // "pasted-screenshot-1.png" repeats across tickets). Rename them to the
+    // ticket: T-1000042-screenshot-2.png. Real filenames pass through.
+    const existing = await db.select({ id: attachments.id })
+      .from(attachments).where(eq(attachments.ticketId, ticketId));
+    let screenshotN = existing.length;
+    const GENERIC = /^(pasted-screenshot(-\d+)?|image|screenshot( \(\d+\))?|clipboard(-\d+)?)\.(png|jpe?g|gif|webp)$/i;
 
     const saved = [];
     for await (const part of req.files()) {
@@ -36,11 +46,14 @@ export async function attachmentRoutes(app: FastifyInstance) {
           error: `file type ${ext || '(none)'} not allowed — images, pdf, office docs, logs, zip`,
         });
       }
+      const filename = GENERIC.test(part.filename ?? '')
+        ? `${t.number}-screenshot-${++screenshotN}${ext}`
+        : part.filename!;
       const buffer = await part.toBuffer(); // throws if over the size limit
-      const { storageKey, sha256 } = await saveFile(buffer, part.filename!);
+      const { storageKey, sha256 } = await saveFile(buffer, filename);
       const [row] = await db.insert(attachments).values({
         ticketId,
-        filename: part.filename!.slice(0, 200),
+        filename: filename.slice(0, 200),
         contentType: part.mimetype || 'application/octet-stream',
         size: buffer.length,
         storageKey, sha256,
