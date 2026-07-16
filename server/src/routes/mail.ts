@@ -42,15 +42,15 @@ export async function mailRoutes(app: FastifyInstance) {
       .limit(20);
   });
 
-  // Sample senders for the simulator's From picker.
+  // All requesters for the simulator's From picker (the datalist filters
+  // as you type, so the full directory is fine).
   app.get('/api/mail/senders', async (req) => {
     requireStaffRead(req);
     const rows = await db
       .select({ name: schema.users.name, email: schema.users.email, department: schema.users.department })
       .from(schema.users)
       .where(eq(schema.users.role, 'requester'))
-      .orderBy(asc(schema.users.name))
-      .limit(12);
+      .orderBy(asc(schema.users.name));
     return rows;
   });
 }
