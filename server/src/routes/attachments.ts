@@ -77,14 +77,22 @@ export async function attachmentRoutes(app: FastifyInstance) {
     if (!(await canTouchTicket(req, a.ticketId))) {
       return reply.status(403).send({ error: 'not your ticket' });
     }
+    // Attachment ids are reused across reseeds, so the browser must
+    // revalidate every time — the content hash makes that a cheap 304.
+    const etag = `"${a.sha256}"`;
+    reply
+      .header('etag', etag)
+      .header('cache-control', 'private, no-cache')
+      .header('x-content-type-options', 'nosniff');
+    if (req.headers['if-none-match'] === etag) {
+      return reply.status(304).send();
+    }
     const bytes = await readFile(a.storageKey);
     const safeName = a.filename.replace(/[^\w.\- ()]/g, '_');
     reply
       .header('content-type', inlineContentType(a.contentType) ? a.contentType : 'application/octet-stream')
       .header('content-disposition',
-        `${inlineContentType(a.contentType) ? 'inline' : 'attachment'}; filename="${safeName}"`)
-      .header('x-content-type-options', 'nosniff')
-      .header('cache-control', 'private, max-age=3600');
+        `${inlineContentType(a.contentType) ? 'inline' : 'attachment'}; filename="${safeName}"`);
     return reply.send(bytes);
   });
 
