@@ -8,6 +8,7 @@ import {
 } from '../api';
 import { copyToClipboard, fmtDateTime, initials } from '../format';
 import { AttachmentStrip, usePasteAttach } from './Attachments';
+import { Md } from './Md';
 import { SnoozeDialog } from './SnoozeDialog';
 import { toast } from './Toasts';
 
@@ -296,7 +297,7 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
             )}
           </div>
         )}
-        <p className="description">{t.description}</p>
+        <div className="description"><Md>{t.description}</Md></div>
 
         <AttachmentStrip ticketId={ticketId} attachments={t.attachments ?? []} canDelete={me?.role === 'admin'} />
 
@@ -311,7 +312,7 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
                 {c.visibility === 'internal' && <span className="internal-badge">internal note</span>}
                 <span className="comment-time">{fmtDateTime(c.createdAt)}</span>
               </div>
-              <div>{c.bodyText}</div>
+              <Md>{c.bodyText}</Md>
             </div>
           ))}
         </div>
@@ -356,6 +357,7 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
             <button className="btn primary" disabled={!reply.trim() || comment.isPending} onClick={() => comment.mutate()}>
               {visibility === 'public' ? 'Send reply' : 'Add note'}
             </button>
+            <span className="md-hint" title="**bold**, `code`, numbered lists, links — rendered when sent">Markdown supported</span>
           </div>
 
           {(suggestions?.articles.length || suggestions?.similarTickets.length) ? (
@@ -398,7 +400,7 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
                     </button>
                     <span className="kb-result-snippet">{h.snippet.replace(/<\/?b>/g, '')}</span>
                     {kbOpenId === h.id && kbOpenArticle && (
-                      <div className="kb-result-body">{kbOpenArticle.bodyText}</div>
+                      <div className="kb-result-body"><Md>{kbOpenArticle.bodyText}</Md></div>
                     )}
                   </div>
                 ))}

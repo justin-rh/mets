@@ -146,7 +146,7 @@ export function NewTicketDialog({ onClose }: { onClose: () => void }) {
                 placeholder="Short description of the issue" />
             </label>
             <label>
-              Description
+              Description <span className="modal-optional">(Markdown supported)</span>
               <textarea rows={6} value={description} onChange={(e) => setDescription(e.target.value)}
                 placeholder="What happened? Who is affected? Any deadline?" />
             </label>

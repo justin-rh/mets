@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { discardArticle, fetchArticle, publishArticle, searchKb } from '../api';
+import { Md } from './Md';
 import { toast } from './Toasts';
 
 export function KnowledgeBase() {
@@ -97,7 +98,7 @@ export function KnowledgeBase() {
               </div>
             )}
             <h2>{article.title}</h2>
-            {article.bodyText.split(/\n\n+/).map((p, i) => <p key={i}>{p}</p>)}
+            <Md>{article.bodyText}</Md>
           </>
         ) : (
           <div className="kb-placeholder">

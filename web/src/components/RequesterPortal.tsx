@@ -7,6 +7,7 @@ import {
 import { age, fmtDateTime } from '../format';
 import { AttachmentStrip, usePasteAttach } from './Attachments';
 import { IncidentBanner } from './IncidentBanner';
+import { Md } from './Md';
 import { KnowledgeBase } from './KnowledgeBase';
 import { NewTicketDialog } from './NewTicketDialog';
 import { Toasts } from './Toasts';
@@ -97,7 +98,7 @@ function PortalTicket({ t, expanded, onToggle }: {
       </button>
       {expanded && detail && (
         <div className="portal-detail">
-          <p className="description">{detail.description}</p>
+          <div className="description"><Md>{detail.description}</Md></div>
           <AttachmentStrip ticketId={t.id} attachments={detail.attachments ?? []} />
           {pendingApproval && (
             <div className="approval-banner approval-pending">
@@ -114,7 +115,7 @@ function PortalTicket({ t, expanded, onToggle }: {
                   {c.author.name === 'SOTO Bot' && <span className="auto-badge">⚡ auto</span>}
                   <span className="comment-time">{fmtDateTime(c.createdAt)}</span>
                 </div>
-                <div>{c.bodyText}</div>
+                <Md>{c.bodyText}</Md>
               </div>
             ))}
             {detail.comments.length === 0 && (
