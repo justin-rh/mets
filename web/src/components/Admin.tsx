@@ -11,7 +11,7 @@ import {
   type ImportPreview, type ImportResult,
   saveAiThresholds, saveAutoClose, saveEscalation, saveQueueNotify,
   saveScoreKeywords, saveScoreWeights, saveSlaPolicy, setCategoryApproval,
-  syncSkills, toggleRecurring, toggleRoutingRule, updateTemplate,
+  runRecurring, syncSkills, toggleRecurring, toggleRoutingRule, updateTemplate,
   type AdminConfig,
 } from '../api';
 import { actingUserId } from '../board';
@@ -439,6 +439,14 @@ function RecurringCard({ config }: { config: AdminConfig }) {
     onSuccess: invalidate,
   });
   const remove = useMutation({ mutationFn: (id: number) => deleteRecurring(id), onSuccess: invalidate });
+  const [justFiled, setJustFiled] = useState<Record<number, string>>({});
+  const run = useMutation({
+    mutationFn: (id: number) => runRecurring(id),
+    onSuccess: (t, id) => {
+      setJustFiled((m) => ({ ...m, [id]: t.number }));
+      invalidate();
+    },
+  });
 
   return (
     <div className="admin-card admin-card-wide">
@@ -460,7 +468,16 @@ function RecurringCard({ config }: { config: AdminConfig }) {
             <span className="admin-rule-summary">
               {r.frequency} · next {new Date(r.nextRunAt).toLocaleDateString()}
               {r.lastRunAt ? ` · last ${new Date(r.lastRunAt).toLocaleDateString()}` : ''} — "{r.subject}"
+              {justFiled[r.id] && <strong> · filed {justFiled[r.id]} ✓</strong>}
             </span>
+            <button
+              className="btn ghost"
+              title="File this ticket now (schedule unchanged)"
+              disabled={run.isPending}
+              onClick={() => run.mutate(r.id)}
+            >
+              ▶
+            </button>
             <button className="btn ghost" onClick={() => remove.mutate(r.id)}>✕</button>
           </div>
         ))}

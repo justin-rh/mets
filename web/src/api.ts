@@ -462,6 +462,8 @@ export const toggleRecurring = (id: number, enabled: boolean) =>
   api(`/api/admin/recurring/${id}`, { method: 'PATCH', body: JSON.stringify({ enabled }) });
 export const deleteRecurring = (id: number) =>
   api(`/api/admin/recurring/${id}`, { method: 'DELETE' });
+export const runRecurring = (id: number) =>
+  api<{ id: number; number: string }>(`/api/admin/recurring/${id}/run`, { method: 'POST', body: '{}' });
 
 export type ResponseTemplate = {
   id: number; name: string; body: string; categoryId: number | null;

@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { db, schema } from '../db/index.js';
 import { requireAdmin } from './guards.js';
 import { invalidateScoreWeightsCache, recomputeScore } from '../services/scoring.js';
+import { runRecurringNow } from '../services/recurring.js';
 import { deriveSkillsFromHistory } from '../services/skills.js';
 
 const { appConfig, statuses, slaPolicies, routingRules, users, tickets, skills, agentSkills, responseTemplates, categories, teams, recurringTickets } = schema;
@@ -118,6 +119,19 @@ export async function adminRoutes(app: FastifyInstance) {
     const id = z.coerce.number().parse((req.params as any).id);
     await db.delete(recurringTickets).where(eq(recurringTickets.id, id));
     return { ok: true };
+  });
+
+  // Manual fire — file an instance right now; the schedule itself is untouched.
+  app.post('/api/admin/recurring/:id/run', async (req) => {
+    requireAdmin(req);
+    const id = z.coerce.number().parse((req.params as any).id);
+    const ticket = await runRecurringNow(id);
+    if (!ticket) {
+      const err: any = new Error('schedule not found');
+      err.statusCode = 404;
+      throw err;
+    }
+    return { id: ticket.id, number: ticket.number };
   });
 
   // Staff users with their queue memberships + visibility, for the admin

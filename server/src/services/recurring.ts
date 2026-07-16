@@ -51,6 +51,26 @@ export async function recurringSweep(log: (msg: string) => void) {
   return created;
 }
 
+/**
+ * Ad-hoc manual fire from the admin panel: file an instance immediately
+ * without touching next_run_at — the schedule keeps its own rhythm.
+ */
+export async function runRecurringNow(id: number) {
+  const [r] = await db.select().from(recurringTickets).where(eq(recurringTickets.id, id));
+  if (!r) return null;
+  const ticket = await createTicketCore({
+    subject: r.subject,
+    description: `${r.description}\n\n— Filed manually from the recurring schedule "${r.name}" (${r.frequency}).`,
+    type: r.type,
+    requesterId: r.requesterId,
+    source: 'api',
+  });
+  const { enrichTicket } = await import('./ai/enrichment.js');
+  enrichTicket(ticket.id, 'auto').catch(() => {});
+  await db.update(recurringTickets).set({ lastRunAt: new Date() }).where(eq(recurringTickets.id, id));
+  return ticket;
+}
+
 export function startRecurringSweep(log: (msg: string) => void, intervalMs = 5 * 60_000) {
   const run = () => recurringSweep(log).catch((err) => log(`recurring sweep failed: ${err.message}`));
   run();
