@@ -28,6 +28,7 @@ import { EmailSimulator } from './components/EmailSimulator';
 import { KnowledgeBase } from './components/KnowledgeBase';
 import { NewTicketDialog } from './components/NewTicketDialog';
 import { NotificationsBell } from './components/NotificationsBell';
+import { WelcomeCard } from './components/WelcomeCard';
 import { ActionRail, AgentRail } from './components/Rail';
 import { SnoozeDialog } from './components/SnoozeDialog';
 import { TicketRow } from './components/TicketRow';
@@ -547,6 +548,8 @@ export default function App() {
           Snoozed
         </label>
       </div>
+
+      <WelcomeCard />
 
       <div className="board">
         {leftCollapsed && !draggingId ? (
