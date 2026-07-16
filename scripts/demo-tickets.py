@@ -57,12 +57,13 @@ def note(name, number, beat):
 # ---------------------------------------------------------------------------
 
 def screenshot(image_path=None):
-    png = open(image_path, 'rb').read() if image_path else default_screenshot()
-    ext = 'png'
+    data = open(image_path, 'rb').read() if image_path else default_screenshot()
+    ext = (image_path.rsplit('.', 1)[-1].lower() if image_path and '.' in image_path else 'png')
+    mime = {'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'gif': 'image/gif', 'webp': 'image/webp'}.get(ext, 'image/png')
     t = req('POST', '/api/tickets', {
         'subject': '', 'description': 'Keeps happening, screenshot attached. Please help.',
         'type': 'incident', 'holdTriage': True}, user=requester(0))
-    upload(t['id'], f'error.{ext}', png, 'image/png', user=requester(0))
+    upload(t['id'], f'error.{ext}', data, mime, user=requester(0))
     req('POST', f"/api/tickets/{t['id']}/triage-now", {}, user=requester(0))
     note('screenshot-only ticket', t['number'],
          'VISION: open it — subject written by AI, routed to MERP via the OMS glossary, summary quotes Error 429 from the image')
@@ -137,11 +138,19 @@ SCENARIOS = {
     'databricks': databricks, 'spanish': spanish,
 }
 
-args = [a for a in sys.argv[1:] if not a.startswith('--')]
+argv = sys.argv[1:]
 img_path = None
-if '--screenshot' in sys.argv:
-    img_path = sys.argv[sys.argv.index('--screenshot') + 1]
-picked = args or list(SCENARIOS.keys())
+if '--screenshot' in argv:
+    i = argv.index('--screenshot')
+    if i + 1 >= len(argv):
+        print('--screenshot needs a file path'); sys.exit(1)
+    img_path = argv[i + 1]
+    del argv[i:i + 2]  # flag AND its value — neither is a scenario name
+    import os
+    if not os.path.isfile(img_path):
+        print(f'screenshot not found: {img_path}'); sys.exit(1)
+    print(f'using custom screenshot: {img_path}')
+picked = argv or list(SCENARIOS.keys())
 
 print('Filing demo tickets…')
 for name in picked:
