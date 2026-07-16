@@ -41,9 +41,9 @@
 ## Recording the video
 
 - Reset between takes; wait for the READY line.
-- `python scripts\demo-tickets.py` stages the seven scripted demo tickets
+- `python scripts\demo-tickets.py` stages the eight scripted demo tickets
   (screenshot-only vision, inbound email, August new-hire snooze, TMP-drive
-  KB, Derek mention, AutoStore keyword, Spanish) and prints a cheat sheet of
+  KB, Derek mention, AutoStore keyword, Databricks intake, Spanish) and prints a cheat sheet of
   which ticket demos which beat. Rerun it after every reset — numbers change
   each time. `--screenshot <path>` swaps in your own image for the vision
   ticket; a scenario name as an argument files just that one.

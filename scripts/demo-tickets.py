@@ -108,6 +108,19 @@ def autostore():
     note('AutoStore ticket', t['number'],
          "KEYWORD: Admin → Scoring → add keyword 'autostore' with a boost → watch this ticket's score jump on rescore")
 
+def databricks():
+    # Deliberately vague so SOTO has to ask its intake questions — the
+    # on-camera beat is answering them in the portal and watching it route.
+    t = req('POST', '/api/tickets', {
+        'subject': 'Databricks problem',
+        'description': "I'm having trouble in Databricks — there's a dataset I need for my weekly report and I can't get into it. Can someone help?",
+        'type': 'request'}, user=requester(6))
+    note('Databricks intake ticket', t['number'],
+         'INTAKE: act as the requester in the portal — SOTO has posted its questions. Paste this reply:\n'
+         '   "1. Yes, access issue. 2. No, never accessed it before. 3. Yes, it\'s new. 4. Yes — my team lead told me\n'
+         '   to start using the sales_orders_gold table. 5. Yes, first attempt."\n'
+         '   → routes to Data Team with the Question/Answer handoff table in the internal notes (agent view)')
+
 def spanish():
     t = req('POST', '/api/tickets', {
         'subject': 'La impresora de etiquetas no funciona',
@@ -120,7 +133,8 @@ def spanish():
 
 SCENARIOS = {
     'screenshot': screenshot, 'email': email, 'newhire': newhire,
-    'tmp': tmp, 'mention': mention, 'autostore': autostore, 'spanish': spanish,
+    'tmp': tmp, 'mention': mention, 'autostore': autostore,
+    'databricks': databricks, 'spanish': spanish,
 }
 
 args = [a for a in sys.argv[1:] if not a.startswith('--')]
