@@ -221,6 +221,22 @@ export async function enrichTicket(ticketId: number, mode: EnrichMode = 'suggest
       }
     }
 
+    // Non-English ticket: store the detection + English translation for the
+    // agent view (the original stays untouched — it's what the requester
+    // wrote and what the portal shows them).
+    if (r.language && r.language !== 'en') {
+      const [cur] = await db.select({ customFields: tickets.customFields })
+        .from(tickets).where(eq(tickets.id, ticketId));
+      await db.update(tickets).set({
+        customFields: {
+          ...(cur?.customFields as object ?? {}),
+          language: r.language,
+          translation: r.translation ?? null,
+        },
+        updatedAt: new Date(),
+      }).where(eq(tickets.id, ticketId));
+    }
+
     // On-behalf detection: the text said this ticket is really for someone
     // else. Swap before category/queue changes so downstream hooks (approval
     // chain, auto-responses) address the right person.

@@ -297,7 +297,23 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
             )}
           </div>
         )}
-        <div className="description"><Md>{t.description}</Md></div>
+        {(() => {
+          const cf = (t as any).customFields ?? {};
+          const trans = cf.translation as { subject: string; description: string } | undefined;
+          if (!trans) return <div className="description"><Md>{t.description}</Md></div>;
+          const langName = ({ es: 'Spanish', fr: 'French', de: 'German', pt: 'Portuguese', vi: 'Vietnamese', zh: 'Chinese' } as Record<string, string>)[cf.language] ?? cf.language;
+          return (
+            <div className="description translated">
+              <div className="translation-tag">🌐 Translated from {langName} — original below</div>
+              <p className="translation-subject">{trans.subject}</p>
+              <Md>{trans.description}</Md>
+              <details className="translation-original">
+                <summary>Original ({langName})</summary>
+                <Md>{t.description}</Md>
+              </details>
+            </div>
+          );
+        })()}
 
         <AttachmentStrip ticketId={ticketId} attachments={t.attachments ?? []} canDelete={me?.role === 'admin'} />
 

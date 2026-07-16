@@ -3,7 +3,7 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { z } from 'zod';
 import { env } from '../../config.js';
 
-export const PROMPT_VERSION = 'triage-v7'; // v5: reasoning; v6: Proofpoint; v7: subject generation
+export const PROMPT_VERSION = 'triage-v8'; // v6: Proofpoint; v7: subject generation; v8: language + translation
 
 // Company-specific terms the model won't know from ticket text alone. Shared
 // across the triage, search, and incident prompts so they route consistently.
@@ -27,6 +27,11 @@ export const TriageSchema = z.object({
   reasoning: z.string().describe('One short sentence for the reviewing agent: WHY this category/queue/priority — cite the decisive signal (a phrase in the ticket, an error code in a screenshot, company terminology, a correction pattern, the stated business impact)'),
   subjectIsVague: z.boolean().describe("true when the requester's subject is missing, generic ('help', 'problem', 'this error again'), or an agent scanning the queue couldn't tell what the ticket is about from it alone"),
   suggestedSubject: z.string().describe('A concise, specific subject line, max ~70 chars: the system plus the symptom (e.g. "Zebra ZT411 printing labels half an inch offset"). Always provided; only applied when the original is vague'),
+  language: z.string().describe("ISO 639-1 code of the language the ticket is written in ('en', 'es', …). The dominant language when mixed"),
+  translation: z.object({
+    subject: z.string(),
+    description: z.string(),
+  }).nullable().describe('Faithful English translation of the subject and description when language is not English; null for English tickets. Translate, never summarize'),
   onBehalfOf: z.string().nullable().describe('EXACT directory name of the person this ticket is actually for, when the text clearly says the submitter is filing for someone else; null otherwise'),
   confidence: z.object({
     category: z.number().describe('0-1'),
@@ -240,6 +245,19 @@ export type DigestOutcome = {
   outputTokens: number;
 };
 
+// Reply translation: agent writes English, the requester reads their own
+// language (the inbound direction rides the triage call).
+export const TranslateSchema = z.object({
+  translation: z.string().describe('The text translated faithfully into the target language. Technical terms, error codes, and ticket numbers stay verbatim'),
+});
+export type TranslateInput = { text: string; targetLanguage: string };
+export type TranslateOutcome = {
+  result: z.infer<typeof TranslateSchema>;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+};
+
 export interface AIProvider {
   triage(input: TriageInput, ctx: TriageContext): Promise<TriageOutcome>;
   draftReply(input: DraftInput): Promise<DraftOutcome>;
@@ -249,6 +267,7 @@ export interface AIProvider {
   parseIntake(input: IntakeInput): Promise<IntakeOutcome>;
   suggestFix(input: DeflectInput): Promise<DeflectOutcome>;
   writeDigest(input: DigestInput): Promise<DigestOutcome>;
+  translate(input: TranslateInput): Promise<TranslateOutcome>;
 }
 
 // ---------------------------------------------------------------------------
@@ -320,7 +339,15 @@ useless ('help', 'question', 'this again'). Mark subjectIsVague true only
 when an agent scanning the queue couldn't tell what the ticket is about
 from the subject alone — a decent subject stays untouched. Always provide
 suggestedSubject: concise and specific, the system plus the symptom, drawn
-from the description (and screenshots), max ~70 characters.`;
+from the description (and screenshots), max ~70 characters. Write it in
+the ticket's own language.
+
+Language: much of the warehouse workforce writes in Spanish. Report the
+ticket's language, and when it isn't English, provide a faithful English
+translation of the subject and description (translate everything —
+error messages, part numbers, and names stay verbatim). Classify and
+summarize from the MEANING regardless of language; the summary and
+reasoning are always in English for the agents.`;
 }
 
 class ClaudeProvider implements AIProvider {
@@ -716,6 +743,35 @@ Write the briefing.`,
       outputTokens: response.usage.output_tokens,
     };
   }
+
+  async translate(input: TranslateInput): Promise<TranslateOutcome> {
+    const response = await this.client.messages.parse({
+      model: env.aiModel,
+      max_tokens: 1500,
+      system: [{
+        type: 'text',
+        cache_control: { type: 'ephemeral' },
+        text: `You translate helpdesk replies for Master Electronics. Translate
+faithfully into the target language — plain, friendly register. Keep
+technical terms, application names, error codes, file paths, URLs, and
+ticket numbers (T-1000042) verbatim. Never summarize or add anything.`,
+      }],
+      messages: [{
+        role: 'user',
+        content: `Target language: ${input.targetLanguage}\n\nText:\n${input.text.slice(0, 6000)}`,
+      }],
+      output_config: { format: zodOutputFormat(TranslateSchema) },
+    });
+    if (!response.parsed_output) {
+      throw new Error(`translate parse failed (stop_reason: ${response.stop_reason})`);
+    }
+    return {
+      result: response.parsed_output,
+      model: response.model,
+      inputTokens: response.usage.input_tokens + (response.usage.cache_read_input_tokens ?? 0) + (response.usage.cache_creation_input_tokens ?? 0),
+      outputTokens: response.usage.output_tokens,
+    };
+  }
 }
 
 /** Keyword-based mock for offline dev and as a demo fallback. */
@@ -773,6 +829,8 @@ class MockProvider implements AIProvider {
         subjectIsVague: input.subject.trim().length < 8
           || /^(help|hi|hello|hey|issue|problem|question|urgent|error|broken|not working|it'?s broken)[!.?\s]*$/i.test(input.subject.trim()),
         suggestedSubject: (input.description.split(/[.!?\n]/)[0] ?? input.subject).trim().slice(0, 70),
+        language: /\b(el|la|los|las|una?|que|con|para|porque|está|estoy|puedo|impresora|ayuda|necesito)\b/i.test(raw) ? 'es' : 'en',
+        translation: null, // the mock can't translate — agents see the original
         onBehalfOf: onBehalf?.name ?? null,
         confidence: {
           category: hit ? 0.85 : 0.35, queue: hit ? 0.85 : 0.35, priority: 0.5,
@@ -890,6 +948,13 @@ class MockProvider implements AIProvider {
         reasoning: `Mock keyword heuristic (${verdict}).`,
         confidence: verdict === 'unclear' ? 0.4 : 0.75,
       },
+      model: 'mock', inputTokens: 0, outputTokens: 0,
+    };
+  }
+
+  async translate(input: TranslateInput): Promise<TranslateOutcome> {
+    return {
+      result: { translation: `[${input.targetLanguage}] ${input.text}` },
       model: 'mock', inputTokens: 0, outputTokens: 0,
     };
   }

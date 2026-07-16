@@ -466,6 +466,29 @@ export async function ticketRoutes(app: FastifyInstance) {
       // Replying on an incident parent fans out to every linked requester.
       const [author] = await db.select({ name: users.name }).from(users).where(eq(users.id, req.userId));
       broadcast = await broadcastIncidentUpdate(id, body.bodyText, author?.name ?? 'the response team');
+
+      // Bilingual requester: append a translation of the reply so they read
+      // the answer in their own language (async — lands within seconds).
+      const [tt] = await db.select({ customFields: tickets.customFields })
+        .from(tickets).where(eq(tickets.id, id));
+      const lang = (tt?.customFields as any)?.language;
+      if (lang && lang !== 'en') {
+        void (async () => {
+          try {
+            const { getAIProvider } = await import('../services/ai/provider.js');
+            const out = await getAIProvider().translate({ text: body.bodyText, targetLanguage: lang });
+            await db.insert(schema.aiUsage).values({
+              feature: 'translate', model: out.model, ticketId: id,
+              inputTokens: out.inputTokens, outputTokens: out.outputTokens,
+            });
+            await db.update(ticketComments)
+              .set({ bodyText: `${body.bodyText}\n\n---\n\n🌐 ${out.result.translation}` })
+              .where(eq(ticketComments.id, comment!.id));
+          } catch (e) {
+            console.error(`[translate] reply translation failed for ticket ${id}:`, e);
+          }
+        })();
+      }
     }
     return { ...comment, broadcast };
   });
