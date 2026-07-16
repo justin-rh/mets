@@ -456,7 +456,7 @@ export const REQUESTER_REPLIES = [
 export const KB_ARTICLES: { title: string; body: string }[] = [
   {
     title: 'How to connect to the VPN',
-    body: 'Open the GlobalProtect client from the system tray and enter portal.masterelectronics.com, then sign in with your Microsoft account and approve the MFA prompt.\n\nIf the client repeatedly disconnects, first test your home internet stability, then try switching the client from UDP to TCP mode under Settings. If issues persist across networks, open a ticket with the Network & VPN category and include the approximate times of the drops.',
+    body: 'Open the ZScaler client from the system tray and sign in with your Microsoft account, approving the MFA prompt.\n\nIf the client repeatedly disconnects, first test your home internet stability, then try switching the client to the TCP fallback profile under Settings. If issues persist across networks, open a ticket with the Network & VPN category and include the approximate times of the drops.',
   },
   {
     title: 'Resetting your password with self-service',

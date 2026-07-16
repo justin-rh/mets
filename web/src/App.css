@@ -1205,6 +1205,26 @@ select, textarea, input[type='text'], .modal input {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
   animation: toast-in 0.18s ease-out;
 }
+/* Search KB from a ticket — inline results at the bottom of the detail */
+.kb-search-block { margin-top: 10px; }
+.kb-search-empty { margin-left: 10px; font-size: 12.5px; color: var(--text-muted); font-style: italic; }
+.kb-results { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.kb-result {
+  border: 1px solid var(--line); border-radius: var(--r);
+  padding: 7px 10px; font-size: 12.5px;
+}
+.kb-result-title {
+  display: block; border: none; background: none; cursor: pointer;
+  font: inherit; font-weight: 700; color: var(--text);
+  padding: 0; text-align: left;
+}
+.kb-result-title:hover { color: var(--accent); }
+.kb-result-snippet { color: var(--text-muted); display: block; margin-top: 2px; }
+.kb-result-body {
+  margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line);
+  white-space: pre-wrap; line-height: 1.5;
+}
+
 /* SMTP delivery badges in the outbound mail list */
 .mail-delivery {
   font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em;

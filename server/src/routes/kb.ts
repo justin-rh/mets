@@ -32,6 +32,18 @@ export async function kbRoutes(app: FastifyInstance) {
     return { results: null, articles: all, drafts };
   });
 
+  // On-demand KB search seeded from a ticket's text — the agent-side
+  // "Search KB" button. Staff only (readonly viewers included).
+  app.get('/api/tickets/:id/kb-search', async (req, reply) => {
+    const { requireStaffRead } = await import('./guards.js');
+    requireStaffRead(req);
+    const id = z.coerce.number().parse((req.params as any).id);
+    const [t] = await db.select({ subject: tickets.subject, description: tickets.description })
+      .from(tickets).where(eq(tickets.id, id));
+    if (!t) return reply.status(404).send({ error: 'ticket not found' });
+    return hybridSearch(`${t.subject} ${t.description.slice(0, 300)}`, 5);
+  });
+
   app.get('/api/kb/:id', async (req, reply) => {
     const id = z.coerce.number().parse((req.params as any).id);
     const [article] = await db

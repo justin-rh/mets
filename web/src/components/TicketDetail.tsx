@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  actingUserId, decideApproval, draftReply, fetchBestFits, fetchMe,
+  actingUserId, decideApproval, draftReply, fetchArticle, fetchBestFits, fetchMe,
   fetchMergeCandidates, fetchMeta, fetchSuggestions, fetchTicket,
   fetchTicketTemplates, fetchUsers, flagTicket, mergeTicket, openChat, patchTicket,
-  postComment, watchTicket, type IdentifierCheck,
+  postComment, searchKbForTicket, watchTicket, type IdentifierCheck, type KbHit,
 } from '../api';
 import { copyToClipboard, fmtDateTime, initials } from '../format';
 import { AttachmentStrip, usePasteAttach } from './Attachments';
@@ -28,6 +28,16 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
   const [flagNote, setFlagNote] = useState('');
   const [mergeOpen, setMergeOpen] = useState(false);
   const [mergeTargetId, setMergeTargetId] = useState<number | null>(null);
+  // On-demand KB search: hits render inline, click a title to read it here.
+  const [kbHits, setKbHits] = useState<KbHit[] | null>(null);
+  const [kbOpenId, setKbOpenId] = useState<number | null>(null);
+  const kbSearch = useMutation({ mutationFn: () => searchKbForTicket(ticketId), onSuccess: setKbHits });
+  const { data: kbOpenArticle } = useQuery({
+    queryKey: ['kb-article', kbOpenId],
+    queryFn: () => fetchArticle(kbOpenId!),
+    enabled: kbOpenId != null,
+    staleTime: 300_000,
+  });
   const [mergeConflict, setMergeConflict] = useState<IdentifierCheck | null>(null);
 
   const copyLink = async (number: string) => {
@@ -368,6 +378,33 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
               )}
             </div>
           ) : null}
+
+          <div className="kb-search-block">
+            <button className="btn" disabled={kbSearch.isPending} onClick={() => kbSearch.mutate()}>
+              {kbSearch.isPending ? 'Searching…' : '📚 Search KB'}
+            </button>
+            {kbHits && kbHits.length === 0 && (
+              <span className="kb-search-empty">No knowledge-base articles match this ticket.</span>
+            )}
+            {kbHits && kbHits.length > 0 && (
+              <div className="kb-results">
+                {kbHits.map((h) => (
+                  <div key={h.id} className="kb-result">
+                    <button
+                      className="kb-result-title"
+                      onClick={() => setKbOpenId((cur) => (cur === h.id ? null : h.id))}
+                    >
+                      {kbOpenId === h.id ? '▾' : '▸'} {h.title}
+                    </button>
+                    <span className="kb-result-snippet">{h.snippet.replace(/<\/?b>/g, '')}</span>
+                    {kbOpenId === h.id && kbOpenArticle && (
+                      <div className="kb-result-body">{kbOpenArticle.bodyText}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         <button className="activity-toggle" onClick={() => setShowActivity((v) => !v)}>

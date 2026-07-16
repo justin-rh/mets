@@ -35,23 +35,36 @@ export type KbHit = {
 };
 
 /**
+ * Long queries (a whole ticket's text) must NOT require every term — build
+ * an any-term tsquery so ts_rank rewards the best partial match. Plain
+ * alphanumeric lexemes only, so the tsquery input is injection-safe.
+ */
+function orTsQuery(query: string): string {
+  const words = [...new Set(
+    query.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 3),
+  )].slice(0, 24);
+  return words.join(' | ');
+}
+
+/**
  * Hybrid search: Postgres FTS and pgvector cosine ranks merged with
  * reciprocal-rank fusion (k=60).
  */
 export async function hybridSearch(query: string, limit = 5): Promise<KbHit[]> {
-  const fts = await db.execute(sql`
+  const orQuery = orTsQuery(query);
+  const fts = orQuery.length === 0 ? { rows: [] } : await db.execute(sql`
     select a.id, a.title,
-           ts_headline('english', a.body_text, websearch_to_tsquery('english', ${query}),
+           ts_headline('english', a.body_text, to_tsquery('english', ${orQuery}),
                        'MaxWords=28, MinWords=12') as snippet,
            row_number() over (order by ts_rank(
              setweight(to_tsvector('english', a.title), 'A') ||
              setweight(to_tsvector('english', a.body_text), 'B'),
-             websearch_to_tsquery('english', ${query})) desc) as rank
+             to_tsquery('english', ${orQuery})) desc) as rank
     from kb_articles a
     where a.status = 'published'
       and (setweight(to_tsvector('english', a.title), 'A') ||
            setweight(to_tsvector('english', a.body_text), 'B'))
-          @@ websearch_to_tsquery('english', ${query})
+          @@ to_tsquery('english', ${orQuery})
     limit 12
   `);
 
