@@ -42,7 +42,7 @@ as any seeded user (Entra SSO is built and dormant — see `docs/SSO.md`).
 **Demo tooling** (Windows PowerShell):
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\start-demo.ps1   # boot everything, print URLs
+powershell -ExecutionPolicy Bypass -File scripts\start-demo.ps1   # boot everything (self-bootstraps a fresh machine), print URLs
 powershell -ExecutionPolicy Bypass -File scripts\reset-demo.ps1   # reseed to baseline (~2 min)
 python scripts\demo-tickets.py                                    # stage the scripted demo tickets
 ```
@@ -74,8 +74,8 @@ python scripts\demo-tickets.py                                    # stage the sc
   agent; the agent's English reply goes back with a Spanish translation.
 - **Self-auditing** — a dashboard scoreboard tracks routing accuracy
   against human judgment, cost per call by feature, and total AI spend
-  (a month of triage ≈ single-digit dollars). A weekly SOTO briefing
-  reports recurring problems, trends, and KB gaps.
+  (~$11/month all-in at demo volume, ~2¢ per triage). A weekly SOTO
+  briefing reports recurring problems, trends, and KB gaps.
 
 ### The board
 - Drag-and-drop everything: onto an agent to assign, onto a queue to
@@ -95,7 +95,7 @@ python scripts\demo-tickets.py                                    # stage the sc
 
 ### Operations & integration
 - **ServiceNow CSV import** — auto-mapped preview, idempotent runs, legacy
-  INC numbers stay searchable.
+  INC numbers stay searchable. 52 ServiceNow queues consolidated into 17.
 - **Public REST API** — admin-minted keys acting as bound users under full
   RBAC; OpenAPI docs at `/api/docs`.
 - **Recurring tickets** — scheduled maintenance files itself through the
