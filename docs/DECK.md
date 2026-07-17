@@ -53,8 +53,9 @@ New Ticket dialog (subject optional, no category picker).*
   requester says "solved"; ticket closes with **zero agent involvement**.
 - **Databricks access request** → SOTO asks only the questions the
   ticket didn't answer, then routes straight to the Data Team.
-- **The migration objection, killed**: ServiceNow CSV import — original
-  INC numbers preserved and searchable.
+- **A ticket arrives in Spanish** → the agent reads and replies in
+  English; the requester gets it back in Spanish — nobody translates
+  anything.
 
 *Visual: one screenshot per bullet from screenshots/ — this slide should
 be almost all images.*
