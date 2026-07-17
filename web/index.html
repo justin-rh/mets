@@ -11,6 +11,10 @@
       rel="stylesheet"
     />
     <title>METS — Master Electronics Ticketing System</title>
+    <!-- Set the theme before first paint so dark mode doesn't flash white. -->
+    <script>
+      document.documentElement.dataset.theme = localStorage.getItem('mets-theme') || 'dark';
+    </script>
   </head>
   <body>
     <div id="root"></div>

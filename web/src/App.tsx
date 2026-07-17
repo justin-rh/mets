@@ -70,7 +70,7 @@ export default function App() {
   const [newTicketOpen, setNewTicketOpen] = useState(false);
   const [page, setPage] = useState<'queue' | 'dashboards' | 'kb' | 'email' | 'admin'>('queue');
   const [userId, setUserId] = useState(actingUserId());
-  const [theme, setTheme] = useState(() => localStorage.getItem('mets-theme') ?? 'light');
+  const [theme, setTheme] = useState(() => localStorage.getItem('mets-theme') ?? 'dark');
   // Rails collapse to slim strips; a drag in flight temporarily expands
   // them so drop targets are always reachable.
   const [leftCollapsed, setLeftCollapsed] = useState(() => localStorage.getItem('mets-rail-left') === '1');
