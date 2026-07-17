@@ -41,12 +41,13 @@
 ## Recording the video
 
 - Reset between takes; wait for the READY line.
-- `python scripts\demo-tickets.py` stages the eight scripted demo tickets
-  (screenshot-only vision, inbound email, August new-hire snooze, TMP-drive
-  KB, Derek mention, AutoStore keyword, Databricks intake, Spanish) and prints a cheat sheet of
-  which ticket demos which beat. Rerun it after every reset — numbers change
-  each time. `--screenshot <path>` swaps in your own image for the vision
-  ticket; a scenario name as an argument files just that one.
+- `python scripts\demo-tickets.py` stages the five default demo tickets
+  (screenshot-only vision, August new-hire snooze, TMP-drive KB, AutoStore
+  keyword, Spanish) and prints a cheat sheet of which ticket demos which
+  beat. Rerun it after every reset — numbers change each time.
+  `--screenshot <path>` swaps in your own image for the vision ticket.
+  Cut for time but filed on demand by name:
+  `python scripts\demo-tickets.py email mention databricks`.
 - The incident declaration takes 1–6 minutes after the burst — film other
   segments while it brews, or pre-declare and reopen via SQL if takes are
   tight.

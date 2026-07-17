@@ -137,6 +137,10 @@ SCENARIOS = {
     'tmp': tmp, 'mention': mention, 'autostore': autostore,
     'databricks': databricks, 'spanish': spanish,
 }
+# Cut from the default set for time — file on demand by name:
+#   python scripts/demo-tickets.py email mention databricks
+EXTRAS = ['email', 'mention', 'databricks']
+DEFAULT = [k for k in SCENARIOS if k not in EXTRAS]
 
 argv = sys.argv[1:]
 img_path = None
@@ -150,7 +154,7 @@ if '--screenshot' in argv:
     if not os.path.isfile(img_path):
         print(f'screenshot not found: {img_path}'); sys.exit(1)
     print(f'using custom screenshot: {img_path}')
-picked = argv or list(SCENARIOS.keys())
+picked = argv or DEFAULT
 
 print('Filing demo tickets…')
 for name in picked:
@@ -166,4 +170,6 @@ for name, number, beat in filed:
     print(f'{number} — {beat}\n')
 print('BONUS (no ticket needed) — RECURRING: Admin → AI & Automation → Recurring tickets,')
 print('hit ▶ on "Monthly Zebra printer PM" to file a scheduled ticket live; it AI-triages like any other.')
+if not argv:
+    print(f'\nCut for time (file by name if wanted): python scripts/demo-tickets.py {" ".join(EXTRAS)}')
 print('\nTip: run this again after every reset-demo.ps1; numbers will differ per run.')
