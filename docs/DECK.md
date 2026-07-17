@@ -26,14 +26,15 @@ New Ticket dialog (subject optional, no category picker).*
 
 - **METS**: built in one week, solo, with Claude Code — AI-native, not
   AI-bolted-on.
-- One design rule: **AI does the toil, humans keep authority.** Every AI
-  decision is confidence-gated, logged, one click to revert — and
-  corrections become routing patterns it follows (dragging a ticket to
-  the right queue *is* training).
-- Seven AI workflows on one pipeline: triage (reads screenshots, writes
+- **Every new ticket is read by AI the moment it lands**: category,
+  queue, and priority assigned in seconds — applied automatically above
+  a confidence bar, held for a human below it, every decision logged and
+  one click to revert. Corrections become routing patterns it follows
+  (dragging a ticket to the right queue *is* training).
+- Nine AI workflows on one pipeline: triage (reads screenshots, writes
   subjects, spots "filed for someone else"), self-service deflection,
-  outage detection, KB drafting, guided intake, natural-language search,
-  draft replies.
+  outage detection, KB drafting, guided intake, bilingual tickets,
+  weekly problem briefing, natural-language search, draft replies.
 - Everything else a helpdesk needs is real too: SLAs, approvals,
   escalations, RBAC, public API, ServiceNow import.
 
@@ -41,13 +42,13 @@ New Ticket dialog (subject optional, no category picker).*
 
 ---
 
-## Slide 3 — Demo highlights (mirrors the video)
+## Slide 3 — Demo highlights (in the video and live to try)
 
 - **Paste a screenshot; no category, no subject** → routed at 97%
   confidence, subject written, the error code read *from the image*.
-- **Four "Zoom is down" reports** → one suspected incident, company-wide
+- **Three "Zoom is down" reports** → one suspected incident, company-wide
   banner, every requester told "you're not alone" — one status change
-  closes them all.
+  closes them all. Live in one click: the ⚠️ Incident Demo button.
 - **"VPN keeps dropping"** → SOTO Bot replies with the fix from the KB;
   requester says "solved"; ticket closes with **zero agent involvement**.
 - **Databricks access request** → SOTO asks only the questions the
@@ -64,9 +65,9 @@ be almost all images.*
 
 - **~$210k+/year saved** vs the ServiceNow renewal (3-yr TCO scenarios:
   ~$90k–$320k vs ~$950k — PROPOSAL.md).
-- AI routing: **87% accuracy · 76% fully automatic** — measured from the
+- AI routing: **88% accuracy · 80% fully automatic** — measured from the
   audited decision log, not projected.
-- AI cost: **~2¢ to triage a ticket; ~$6/month at demo volume** — a
+- AI cost: **~2¢ to triage a ticket; ~$11/month at demo volume** — a
   rounding error that scales linearly.
 - Self-service deflection + bot-stamped first responses = agent hours
   back on real work.
@@ -80,8 +81,9 @@ week-over-week / spend).*
 
 ## Slide 5 — What's next
 
-- **Pilot**: METS alongside ServiceNow for one queue (IT Support),
-  30 days, judged on deflection rate and time-to-resolution.
+- **On the roadmap**: routing that learns from every past resolution
+  (similar-ticket grounding), AI-suggested fixes surfaced to agents as
+  they work, and asset tracking tied to tickets.
 - **Two activations, not builds**: Entra SSO and the shared-mailbox
   email adapter are written and dormant — each needs one app
   registration (docs/SSO.md, docs/EMAIL.md).
@@ -91,6 +93,8 @@ week-over-week / spend).*
   retention policies (PROPOSAL.md keeps the full list).
 - **The learning loop compounds**: every correction and every published
   KB article makes next month's system better than this month's.
+- **Try it yourself during judging**: http://10.164.0.234 — file a
+  ticket, press ⚠️ Incident Demo.
 
 *Visual: the pilot timeline as a simple 3-step arrow: pilot queue →
 measure → migrate.*
