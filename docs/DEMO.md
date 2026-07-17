@@ -3,158 +3,148 @@
 Recorded, not live: every AI beat is guaranteed to land and dead air gets
 cut. Record segments separately; stitch in order.
 
-**Paced to the rubric** — Business Impact 40% / Technical Execution 30% /
-Usability & Clarity 30%. Impact owns the open, the zero-agent segment, the
-dashboard, and the close (~70s). Execution and usability ride every live
-beat in between.
-
 ## Recording prep
 
 1. `powershell -ExecutionPolicy Bypass -File scripts\start-demo.ps1`, then
    `scripts\reset-demo.ps1` (~2 min), then `python scripts\demo-tickets.py`
-   — stages the Spanish ticket, TMP ticket, and friends, and prints the
-   cheat sheet of ticket numbers.
-2. Browser 1920×1080, dark mode, acting user = Justin Rhoda. Decide on the
-   welcome card: leave it for the opening frame (it states the product in
-   one sentence), dismiss it for every later segment.
-3. **Incident b-roll first** (it brews 1–6 min): press **⚠️ Incident
-   Demo** on the mode bar, wait for the amber banner, capture 10s —
-   banner, parent ticket (note SOTO's handling note), one broadcast
-   toast, then resolve it for the cascade. Reseed + restage afterward.
-4. `.env`: `AI_PROVIDER=claude` + key (start-demo warns if not). Cut AI
+   (add `--screenshot your.png` to use your own image) — stages the five
+   demo tickets and prints the cheat sheet of ticket numbers.
+2. Browser 1920×1080, dark mode, acting user = Justin Rhoda. Leave the
+   welcome card visible for the opening frame; dismiss it for later
+   segments.
+3. `.env`: `AI_PROVIDER=claude` + key (start-demo warns if not). Cut AI
    wait time in editing but leave a beat of spinner — it reads as live.
-5. Voiceover after picture lock. Script business outcomes, not UI
+4. Voiceover after picture lock. Script business outcomes, not UI
    mechanics.
 
 ---
 
-## SEGMENT 1 — The problem (0:00–0:18) · *impact*
+## SEGMENT 1 — Welcome to METS (0:00–0:10)
 
-**Shots:** queue board, welcome card visible, slow pan down the scored,
-SLA-timed queue.
+**Shots:** the queue board with the welcome card visible. Hold one beat,
+then a slow pan starting down the scored, SLA-timed queue.
 
-**VO:** "Enterprise ticketing costs us about $300,000 a year, and nobody
-picks the right category anyway. This is METS — built in one week. Every
-ticket you're looking at was routed, prioritized, and summarized by SOTO,
-the AI triage engine inside it."
+**VO:** "This is METS — the Master Electronics Ticketing System. Built in
+one week by Claude Code and me."
 
-## SEGMENT 2 — Intake with zero fields (0:18–0:55) · *usability + execution*
+## SEGMENT 2 — Intro (0:10–0:35)
+
+**Shots:**
+1. Quick pan — score column, SLA meters, priority rails.
+2. **Drag a ticket onto an agent** in the left rail → status flips to
+   In Progress, assignee chip appears.
+3. **Drag another to a different queue** → it re-files instantly.
+4. **Drag one to the Holding Area** → the calendar pops → click a date,
+   type a reason → gone until that morning.
+
+**VO:** "ServiceNow costs us about $300,000 a year. This is our queue — scored, SLA-timed, and everything is drag and drop: drop a
+ticket on an agent to assign it, drop it on a queue to move it, drop it
+on the holding area and pick the day it comes back. Any mistakes can be undone with one click. But the board isn't
+why I built this — every ticket here was routed, prioritized, and
+summarized by SOTO, the AI triage engine built into it. Nobody has to
+pick a category. Watch."
+
+## SEGMENT 3 — Image-based categorization (0:35–1:05)
 
 **Shots:**
 1. **+ New Ticket.** Leave the subject blank. Description: "Keeps
-   happening, screenshot attached." **Paste the OMS error screenshot**
+   happening, screenshot attached." **Paste the error screenshot**
    (Ctrl+V). Create.
-2. Routing screen resolves on camera: **AI-written subject**, Queue
-   **MERP**, priority, the ✨ summary **quoting the error code and server
-   name from the image** — text that appears nowhere in the ticket.
-3. Point at the **"Wrong queue? Move it"** dropdown — flick it to another
-   queue → "✓ Moved — SOTO learns from this correction." *(One take: this
-   is the training loop and the safety valve in a single frame.)*
+2. The routing screen resolves on camera: **AI-written subject**, queue,
+   priority, and the ✨ summary **quoting the error code and server name
+   straight off the image** — text that appears nowhere in the ticket.
+3. One beat on the **"Wrong queue? Move it"** dropdown — flick it to
+   another queue → "✓ Moved — SOTO learns from this correction."
 
-**VO:** "No category picker, no queue picker — no subject, even. I pasted a
-screenshot and typed one sentence. SOTO read the image, wrote the subject,
-routed it, and set priority — and if it ever gets one wrong, the fix is one
-click, and it learns from the correction."
+**VO:** "No subject, no category picker — one sentence and a pasted
+screenshot. SOTO read the image, wrote the subject, routed it to the
+right team, and set priority from the described impact. And if it ever
+gets one wrong, the fix is one click and drag — and it learns from the
+correction."
 
-## SEGMENT 3 — Tickets that cost zero agent minutes (0:55–1:25) · *impact*
-
-**Shots:**
-1. Switch acting user to a requester → Support Portal. File: "I moved
-   desks this week — how do I set up the printer closest to my new desk?"
-2. SOTO replies in-thread with numbered steps from the printer-mapping
-   KB article (offer lands ~20–40s after filing; cut the wait).
-3. Requester answers "That solved it, thank you!" → ticket resolves
-   itself → rate ★★★★★.
-
-**VO:** "Watch what didn't happen: no agent. SOTO matched the ticket to a
-knowledge-base article, walked the user through the fix, and closed the
-loop when they confirmed. Every one of these is a ticket the team never
-touches — and the knowledge base writes itself: when an agent resolves
-something reusable, SOTO drafts the article."
-
-## SEGMENT 4 — When things break at scale (1:25–1:45) · *execution*
-
-**Shots:** the pre-recorded incident b-roll — three similar tickets hit,
-amber **SUSPECTED INCIDENT** banner appears app-wide, one update broadcasts
-to every linked ticket, resolving the parent cascades and clears the banner.
-
-**VO:** "Three people report the same failure within minutes — SOTO
-declares a suspected incident, banners the whole company so duplicates
-stop, and one resolution closes every linked ticket and tells every
-requester."
-
-## SEGMENT 5 — The receipts (1:45–2:15) · *impact*
-
-**Shots:** Dashboards tab. Hold on the **impact headline** ("Last 30 days:
-N tickets routed hands-free · total AI spend $X"), then the **AI routing
-accuracy** tile, the per-feature **cost-per-call** table, and the **weekly
-briefing** card (SOTO's detected recurring problem).
-
-**VO:** "It audits itself. Routing accuracy against human judgment, every
-AI call metered — a month of triage costs less than ten dollars. And once a
-week SOTO reads the whole queue and reports the problems worth
-root-causing, including the ones with no KB article."
-
-## SEGMENT 6 — Getting here is a CSV (2:15–2:40) · *impact + execution*
+## SEGMENT 4 — TMP drive (1:05–1:30)
 
 **Shots:**
-1. Admin → Import: upload the ServiceNow CSV → mapped automatically →
-   15 tickets in, legacy INC numbers searchable.
-2. Rapid cuts (~4s each): the Spanish ticket's 🌐 translated block +
-   English reply; `/api/docs` Swagger page; the Recurring tickets card.
+1. Expand the staged **"Can't get into the TMP drive"** ticket.
+2. Hit **📚 Search KB** — the TMP/M: drive registry-fix article is the
+   top hit; expand it inline, scroll a beat on the numbered steps.
+3. Flash the **📝 Draft KB article** button beside it.
 
-**VO:** "Migration is a CSV upload — legacy ticket numbers still resolve.
-Spanish tickets are translated both directions automatically. There's a
-keyed public API, and scheduled maintenance files its own tickets."
+**VO:** "The knowledge base is wired into the ticket itself. One click
+and the fix is on screen — this is a real issue with a real fix for our service desk built into the ticket itself. And the knowledge base writes itself: when an agent resolves
+something reusable, SOTO can draft the article automatically from the ticket thread."
 
-## SEGMENT 7 — Close (2:40–3:00) · *impact*
+## SEGMENT 5 — Spanish ticket (1:30–1:55)
 
-**Shots:** back to the board, one ticket expanding to show the AI panel's
-reasoning line.
+**Shots:**
+1. Expand the staged Spanish printer ticket — the 🌐 **"TRANSLATED FROM
+   SPANISH"** block sits above the original text.
+2. Type a short reply in English → send.
+3. Cut to the requester portal: the reply arrives **with the Spanish
+   translation appended**.
 
-**VO:** "One week, one web app, one database — running our real workflows
-with an AI teammate that routes, deflects, documents, and reports, for
-pennies a ticket. Next: single sign-on is one app registration away,
-Graph mail is an adapter swap, and the training loop keeps compounding.
-This is METS."
+**VO:** "A warehouse associate submits a ticket in Spanish. The agent reads it in
+English, answers in English — and the requester gets it back in Spanish.
+Nobody translates anything; the language barrier just isn't there."
+
+## SEGMENT 6 — Dashboards & cost (1:55–2:25)
+
+**Shots:** Dashboards tab. Hold on the **impact headline** ("Last 30
+days: N tickets routed hands-free · total AI spend $X"), then the **AI
+routing accuracy** tile, the **per-feature cost-per-call** table, and a
+beat on the **weekly briefing** card.
+
+**VO:** "And it audits itself. Routing accuracy measured against human
+judgment. Every AI call metered — about two or three cents a ticket. Once a week SOTO reads the whole
+queue and reports the recurring problems worth root-causing, including
+the ones with no knowledge-base article yet."
+
+## SEGMENT 7 — Admin & API (2:25–3:00)
+
+**Shots (~7s each):**
+1. Admin → **Scoring**: add keyword `autostore` with a boost → rescore →
+   the staged AutoStore ticket's score jumps on the board.
+2. Admin → **Users & Queues**: roles, per-queue leads, queue visibility.
+3. Admin → **AI & Automation**: Recurring tickets card — hit **▶** on the
+   Zebra printer PM → "filed T-… ✓".
+4. **`/api/docs`** — the OpenAPI page, one scroll.
+
+**VO:** "Every knob ServiceNow charges for is a click here —
+scoring weights, roles and queue access, scheduled maintenance that files
+its own tickets. And it's open: a keyed REST API with docs, so anything
+we run can create and work tickets. One week, one web app, one database —
+and an AI teammate, for pennies a ticket. This is METS."
 
 ---
 
-## Rubric coverage check
+## Cut from the video (exists — for Q&A)
 
-- **Business Impact (40%)** — segments 1, 3, 5, 6, 7: the cost problem,
-  zero-agent resolutions, metered AI economics, painless migration.
-- **Technical Execution (30%)** — live end-to-end intake with vision
-  (seg 2), incident correlation + cascade (seg 4), import idempotence,
-  API docs (seg 6).
-- **Usability & Clarity (30%)** — zero-field intake, one-click correction
-  (seg 2), requester self-service (seg 3), self-explaining dashboard
-  (seg 5), welcome card in the opening frame.
+**One-button extras:** ⚠️ Incident Demo on the mode bar (3 similar
+reports → amber suspected-incident banner → broadcast → resolve cascade);
+`python scripts\demo-tickets.py email mention databricks` stages the
+inbound-email ticket, the mentioned-agent gold-ring assign, and the
+Databricks guided intake.
 
-## Cut from the video (exists — one VO line covers it in Q&A)
-
-Mentioned-agent auto-assign, snooze calendar, natural-language queue
-search, manager approvals, VIP scoring, merge with part-number guard,
-agent chat, watchers, OOO handling, RBAC + queue visibility, KB manual
-authoring/editing, ticket→KB button, Markdown everywhere, paste-to-attach
-renaming, escalation sweep, TP leaderboard, CSAT analytics, templates,
-auto-close, recurring Run-now, away-site tag highlighting, email
-notifications, notification bell.
+**Everything else:** KB deflection (zero-agent resolutions), ServiceNow
+CSV import with legacy numbers, natural-language queue search, manager
+approvals, VIP scoring, snooze calendar, merge with part-number guard,
+agent chat, watchers, OOO handling, RBAC enforcement, Markdown
+everywhere, paste-to-attach renaming, escalation sweep, TP leaderboard,
+CSAT analytics, templates, auto-close, away-site tag highlighting,
+notifications.
 
 ## Retake / sanity notes
 
-- Data weird → `reset-demo.ps1` (~2 min, embeddings rebuild) then rerun
-  `demo-tickets.py`. Ticket numbers change every restage — reshoot a
-  segment end-to-end rather than splicing takes across reseeds.
-- Segment 2 works with any pasted error screenshot; the staged
-  T-…801 ticket is the fallback if the live take misbehaves
-  (`demo-tickets.py --screenshot your.png` to use your own image).
-- Segment 3: file as a **requester** in the portal — deflection only
-  offers on requester-filed tickets, and only for self-serve fixes (the
-  TMP registry article is deliberately NOT deflectable: admin rights).
-  The printer-mapping question is verified to deflect. Reply wording
-  must contain "solved" / "fixed" to auto-resolve.
-- Incident b-roll: 3 similar tickets in 20 min triggers it; declaration
-  takes 1–6 min after the third. `incident-demo.py` does the filing.
+- Data weird → `reset-demo.ps1` (~2 min) then rerun `demo-tickets.py`.
+  Ticket numbers change every restage — reshoot a segment end-to-end
+  rather than splicing takes across reseeds.
+- Segment 3 works with any pasted error screenshot; the staged
+  screenshot ticket is the fallback if a live take misbehaves. Routing
+  follows the image content (an OMS error → MERP; a Keeper error →
+  Security & Access) — glance before narrating.
+- Segment 5: the portal shot needs the acting user switched to the
+  Spanish ticket's requester (cheat sheet names them).
+- Segment 7: add the keyword, then use Run rescore so the jump is
+  on-camera; reseed afterward restores baseline weights.
 - AI latency: cut it, keep a spinner beat. Event timestamps corroborate
   that it's live.
