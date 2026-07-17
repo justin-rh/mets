@@ -6,8 +6,6 @@ prioritizes, and summarizes every ticket so nobody ever picks a category.
 
 - [`docs/DESIGN.md`](docs/DESIGN.md) — full design, architecture, phased plan
 - [`docs/PROPOSAL.md`](docs/PROPOSAL.md) — competition one-pager (cost, coverage)
-- [`docs/DEMO.md`](docs/DEMO.md) — 3-minute demo script + prep checklist
-- [`docs/DEMO-DAY.md`](docs/DEMO-DAY.md) — demo-machine preflight (LAN serving, firewall)
 - [`docs/EMAIL.md`](docs/EMAIL.md) / [`docs/SSO.md`](docs/SSO.md) — production integration notes
 - [`docs/research/`](docs/research) — market landscape and engineering research
 
