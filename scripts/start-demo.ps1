@@ -23,9 +23,20 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-Host 'Docker: up' -ForegroundColor Green
 
-# 2. Postgres container
+# 2. Postgres container. Fresh machine: the container doesn't exist yet —
+# docker compose creates it (docker start alone would fail with
+# "no such container").
 $state = cmd /c "docker inspect -f {{.State.Running}} mets-db 2>nul"
-if ($state -ne 'true') { docker start mets-db | Out-Null }
+if ($state -ne 'true') {
+    cmd /c "docker inspect mets-db >nul 2>&1"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host 'Creating the mets-db container (first run on this machine)...'
+        Push-Location $repo
+        try { docker compose up -d db | Out-Null } finally { Pop-Location }
+    } else {
+        docker start mets-db | Out-Null
+    }
+}
 $tries = 0
 while ($tries -lt 12) {
     cmd /c "docker exec mets-db pg_isready -U mets >nul 2>&1"
@@ -34,6 +45,32 @@ while ($tries -lt 12) {
 }
 if ($LASTEXITCODE -ne 0) { throw 'Postgres did not become ready.' }
 Write-Host 'Postgres: ready (mets-db, port 5433)' -ForegroundColor Green
+
+# 2b. First-run bootstrap: deps, .env, schema, seed.
+if (-not (Test-Path "$repo\node_modules")) {
+    Write-Host 'Installing npm dependencies (first run)...'
+    Push-Location $repo
+    try {
+        npm install
+        if ($LASTEXITCODE -ne 0) { throw 'npm install failed' }
+    } finally { Pop-Location }
+}
+if (-not (Test-Path "$repo\.env")) {
+    Copy-Item "$repo\.env.example" "$repo\.env"
+    Write-Host 'WARNING: created .env from .env.example — add your ANTHROPIC_API_KEY' -ForegroundColor Yellow
+    Write-Host '         or set AI_PROVIDER=mock. Without a key, triage will fail, not fall back.' -ForegroundColor Yellow
+}
+cmd /c "docker exec mets-db psql -U mets -d mets -c ""select 1 from tickets limit 1"" >nul 2>&1"
+if ($LASTEXITCODE -ne 0) {
+    Write-Host 'Empty database — creating schema and seeding demo data (~2 min)...'
+    Push-Location "$repo\server"
+    try {
+        npm run db:push
+        if ($LASTEXITCODE -ne 0) { throw 'db:push failed' }
+        npm run db:seed
+        if ($LASTEXITCODE -ne 0) { throw 'db:seed failed' }
+    } finally { Pop-Location }
+}
 
 # 3. API server (port 3001) - skip if already listening
 $apiUp = $null -ne (Get-NetTCPConnection -LocalPort 3001 -State Listen -ErrorAction SilentlyContinue)
