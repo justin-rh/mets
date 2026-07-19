@@ -536,9 +536,11 @@ export type AiEnvironment = {
   core: { profile: string; isDefault: boolean };
   expanded: { profile: string; isDefault: boolean };
   showWork: boolean;
+  /** The runtime kill switch — false = every AI feature runs on the keyword fallback. */
+  aiEnabled: boolean;
 };
 export const fetchAiEnvironment = () => api<AiEnvironment>('/api/admin/ai-environment');
-export const saveAiEnvironment = (patch: { core?: string; expanded?: string; showWork?: boolean }) =>
+export const saveAiEnvironment = (patch: { core?: string; expanded?: string; showWork?: boolean; aiEnabled?: boolean }) =>
   api<AiEnvironment & { ok: boolean }>('/api/admin/ai-environment', { method: 'PUT', body: JSON.stringify(patch) });
 export const saveAutoClose = (days: number) =>
   api('/api/admin/auto-close', { method: 'PUT', body: JSON.stringify({ days }) });

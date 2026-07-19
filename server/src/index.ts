@@ -99,10 +99,13 @@ app.setErrorHandler((err: any, _req, reply) => {
 
 app.get('/api/health', async () => {
   const [row] = (await db.execute(sql`select now() as now`)).rows;
+  const { getAiRuntimeEnabled } = await import('./services/ai/provider.js');
   return { ok: true, db: row?.now ?? null, adapters: {
     auth: env.authProvider,
     mail: env.mailProvider,
-    ai: env.aiProvider,
+    // The EFFECTIVE adapter: the admin kill switch downgrades to the
+    // keyword mock at runtime, and health should say so.
+    ai: getAiRuntimeEnabled() && env.aiProvider === 'claude' && env.anthropicApiKey ? 'claude' : 'mock',
     storage: env.storageProvider,
   } };
 });

@@ -10,6 +10,7 @@ import { db, schema } from '../../db/index.js';
 import {
   DEFAULT_CORE_ENVIRONMENT_PROFILE,
   DEFAULT_ENVIRONMENT_PROFILE,
+  setAiRuntimeEnabled,
   setCoreEnvironmentProfile,
   setEnvironmentProfile,
 } from './provider.js';
@@ -46,7 +47,9 @@ async function writeConfig(key: string, value: object) {
     .onConflictDoUpdate({ target: schema.appConfig.key, set: { value, updatedAt: new Date() } });
 }
 
-/** Restore saved profiles over the built-in defaults. Called once at boot. */
+const AI_ENABLED_KEY = 'ai_enabled';
+
+/** Restore saved profiles + the AI kill switch over defaults. Called at boot. */
 export async function loadEnvironmentProfiles(log?: (m: string) => void) {
   for (const [tier, cfg] of Object.entries(TIERS)) {
     const text = (await readConfig(cfg.key))?.text;
@@ -55,6 +58,18 @@ export async function loadEnvironmentProfiles(log?: (m: string) => void) {
       log?.(`ai: custom ${tier} environment profile loaded`);
     }
   }
+  const enabled = (await readConfig(AI_ENABLED_KEY))?.enabled;
+  if (enabled === false) {
+    setAiRuntimeEnabled(false);
+    log?.('ai: KILL SWITCH is OFF — all AI features running on the keyword fallback');
+  }
+}
+
+/** The admin kill switch: persists and applies immediately. */
+export async function setAiEnabled(enabled: boolean) {
+  await writeConfig(AI_ENABLED_KEY, { enabled });
+  setAiRuntimeEnabled(enabled);
+  return { enabled };
 }
 
 /** Persist an admin edit and apply it live. Empty text = reset to default. */

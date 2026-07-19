@@ -1231,6 +1231,7 @@ select, textarea, input[type='text'], .modal input {
 }
 .env-toggle input { margin-right: 6px; }
 .env-toggle em { color: var(--text-muted); font-size: 11.5px; }
+.env-toggle-off { color: var(--alarm); font-weight: 600; }
 .env-label {
   display: block;
   font-family: var(--font-data);

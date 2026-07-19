@@ -424,7 +424,7 @@ export async function adminRoutes(app: FastifyInstance) {
   // show-its-work toggle. Edits reach the very next triage call.
   const aiEnvironmentState = async () => {
     const {
-      getCoreEnvironmentProfile, getEnvironmentProfile,
+      getAiRuntimeEnabled, getCoreEnvironmentProfile, getEnvironmentProfile,
       DEFAULT_CORE_ENVIRONMENT_PROFILE, DEFAULT_ENVIRONMENT_PROFILE,
     } = await import('../services/ai/provider.js');
     const { getShowWork } = await import('../services/ai/environment.js');
@@ -438,6 +438,7 @@ export async function adminRoutes(app: FastifyInstance) {
         isDefault: getEnvironmentProfile() === DEFAULT_ENVIRONMENT_PROFILE,
       },
       showWork: await getShowWork(),
+      aiEnabled: getAiRuntimeEnabled(),
     };
   };
 
@@ -453,11 +454,13 @@ export async function adminRoutes(app: FastifyInstance) {
       core: z.string().max(20_000).optional(),
       expanded: z.string().max(20_000).optional(),
       showWork: z.boolean().optional(),
+      aiEnabled: z.boolean().optional(),
     }).parse(req.body);
-    const { saveEnvironmentProfile, setShowWork } = await import('../services/ai/environment.js');
+    const { saveEnvironmentProfile, setShowWork, setAiEnabled } = await import('../services/ai/environment.js');
     if (body.core !== undefined) await saveEnvironmentProfile('core', body.core);
     if (body.expanded !== undefined) await saveEnvironmentProfile('expanded', body.expanded);
     if (body.showWork !== undefined) await setShowWork(body.showWork);
+    if (body.aiEnabled !== undefined) await setAiEnabled(body.aiEnabled);
     return { ok: true, ...(await aiEnvironmentState()) };
   });
 

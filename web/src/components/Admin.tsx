@@ -329,9 +329,11 @@ function EnvironmentCard(_props: { config: AdminConfig }) {
   const save = useMutation({
     mutationFn: (patch: Parameters<typeof saveAiEnvironment>[0]) => saveAiEnvironment(patch),
     onSuccess: (_r, patch) => {
-      setSaved(patch.showWork !== undefined
-        ? (patch.showWork ? 'Show-its-work ON — signals return on the next triage' : 'Show-its-work OFF — leaner triage calls')
-        : 'Saved — the very next triage call knows this');
+      setSaved(patch.aiEnabled !== undefined
+        ? (patch.aiEnabled ? 'AI back ON — next ticket gets full triage' : 'AI OFF — keyword fallback active, zero model calls')
+        : patch.showWork !== undefined
+          ? (patch.showWork ? 'Show-its-work ON — signals return on the next triage' : 'Show-its-work OFF — leaner triage calls')
+          : 'Saved — the very next triage call knows this');
       setCore(null);
       setExpanded(null);
       qc.invalidateQueries({ queryKey: ['ai-environment'] });
@@ -348,6 +350,18 @@ function EnvironmentCard(_props: { config: AdminConfig }) {
         ground fix suggestions). Rolled out a new system? Add a line here and
         SOTO routes it on the <strong>next ticket</strong> — no consultant, no deployment.
       </p>
+      <label className={`env-toggle ${data?.aiEnabled === false ? 'env-toggle-off' : ''}`}>
+        <input
+          type="checkbox"
+          checked={data?.aiEnabled ?? true}
+          disabled={save.isPending}
+          onChange={(e) => { setSaved(null); save.mutate({ aiEnabled: e.target.checked }); }}
+        />
+        🔌 AI enabled — the master switch. Off = zero model calls anywhere;
+        triage, search, and deflection degrade to keyword rules and the
+        helpdesk keeps running. <em>No restart, reversible, takes effect on the
+        next ticket.</em>
+      </label>
       <label className="env-toggle">
         <input
           type="checkbox"

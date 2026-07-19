@@ -1271,7 +1271,17 @@ class MockProvider implements AIProvider {
   }
 }
 
+// Runtime AI kill switch: flipped from the admin panel (persisted in
+// app_config, loaded at boot by services/ai/environment.ts). When off, every
+// AI feature degrades to the keyword-based mock — the helpdesk keeps
+// running, no restart, no deploy. Also the honest answer to "what if the
+// AI vendor goes away": the entire provider dependency lives in this file
+// behind the AIProvider interface.
+let aiRuntimeEnabled = true;
+export function setAiRuntimeEnabled(enabled: boolean) { aiRuntimeEnabled = enabled; }
+export function getAiRuntimeEnabled() { return aiRuntimeEnabled; }
+
 export function getAIProvider(): AIProvider {
-  if (env.aiProvider === 'claude' && env.anthropicApiKey) return new ClaudeProvider();
+  if (aiRuntimeEnabled && env.aiProvider === 'claude' && env.anthropicApiKey) return new ClaudeProvider();
   return new MockProvider();
 }
