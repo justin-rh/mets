@@ -668,6 +668,77 @@ select, textarea, input[type='text'], .modal input {
   line-height: 1.4;
 }
 
+/* ===== SOTO show-its-work ===== */
+
+/* Create-dialog reveal: each signal fades in staggered, then the verdict. */
+@keyframes soto-reveal {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.soto-work {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--r);
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  font-size: 12.5px;
+}
+.soto-work-title {
+  font-family: var(--font-data);
+  font-size: 10px; font-weight: 700; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--text-muted);
+  margin-bottom: 5px;
+}
+.soto-signal {
+  opacity: 0;
+  animation: soto-reveal 0.45s ease forwards;
+  line-height: 1.5;
+  color: var(--ink);
+}
+.soto-signal-marker { color: var(--accent); font-weight: 700; margin-right: 4px; }
+.triage-verdict { opacity: 0; animation: soto-reveal 0.5s ease forwards; }
+
+/* Per-field confidence meters under the routing verdict. */
+.conf-row { display: flex; gap: 14px; flex-wrap: wrap; margin: 6px 0 2px; }
+.conf-meter { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; }
+.conf-label { color: var(--text-muted); font-family: var(--font-data); font-size: 10px; }
+.conf-bar {
+  width: 64px; height: 6px; border-radius: 3px;
+  background: var(--surface-sunken);
+  overflow: hidden;
+}
+.conf-fill { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
+.conf-pct { font-family: var(--font-data); font-size: 10.5px; color: var(--text-muted); }
+
+/* Suggested-fix panel: SOTO's proposal grounded in past resolutions. */
+.fix-panel {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--r);
+  padding: 10px 12px;
+  margin-top: 10px;
+  font-size: 13px;
+  animation: soto-reveal 0.4s ease;
+}
+.fix-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; }
+.fix-conf {
+  font-family: var(--font-data); font-size: 10.5px; font-weight: 700;
+  color: var(--ok);
+}
+.fix-when { margin-left: auto; font-size: 10.5px; color: var(--text-muted); font-family: var(--font-data); }
+.fix-body { line-height: 1.5; }
+.fix-body ol, .fix-body ul { margin: 6px 0; padding-left: 22px; }
+.fix-basis { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 8px 0 4px; }
+.fix-caveat { color: var(--accent-dark); font-size: 12px; margin: 6px 0; }
+.fix-decline { color: var(--text-muted); font-size: 12.5px; }
+.fix-panel > .btn { margin-top: 6px; }
+
+/* Ticket-detail collapsible: how SOTO read it. */
+.ai-signals { flex-basis: 100%; font-size: 12px; }
+.ai-signals summary { cursor: pointer; color: var(--text-muted); user-select: none; }
+.ai-signals ul { margin: 6px 0 4px; padding-left: 20px; line-height: 1.55; }
+.ai-signals-conf { color: var(--text-muted); font-size: 11px; font-family: var(--font-data); }
+
 .modal-wide { width: 480px; }
 .modal textarea { resize: vertical; }
 
@@ -1149,6 +1220,38 @@ select, textarea, input[type='text'], .modal input {
 .admin-card-wide { grid-column: 1 / -1; }
 .admin-card h3 { margin: 0 0 4px; font-size: 14px; color: var(--ink); }
 .admin-hint { margin: 0 0 10px; font-size: 12px; color: var(--text-muted); line-height: 1.45; }
+
+/* SOTO environment-knowledge editor: monospace so the profile reads like
+   the prompt text it becomes. */
+.env-toggle {
+  display: block;
+  font-size: 12.5px;
+  margin-bottom: 10px;
+  cursor: pointer;
+}
+.env-toggle input { margin-right: 6px; }
+.env-toggle em { color: var(--text-muted); font-size: 11.5px; }
+.env-label {
+  display: block;
+  font-family: var(--font-data);
+  font-size: 10px; font-weight: 700; letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--text-muted);
+  margin: 6px 0 4px;
+}
+.env-editor {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  background: var(--surface-inset, var(--surface-card));
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 10px 12px;
+  resize: vertical;
+  margin-bottom: 10px;
+}
 
 .admin-fields { display: flex; flex-wrap: wrap; gap: 10px; }
 .admin-field {

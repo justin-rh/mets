@@ -16,7 +16,8 @@ import { approvalRoutes } from './routes/approvals.js';
 import { chatRoutes } from './routes/chat.js';
 import { attachmentRoutes } from './routes/attachments.js';
 import { ticketRoutes } from './routes/tickets.js';
-import { ensureKbEmbeddings } from './services/kb/kbService.js';
+import { ensureKbEmbeddings, ensureTicketEmbeddings } from './services/kb/kbService.js';
+import { loadEnvironmentProfiles } from './services/ai/environment.js';
 import { startSkillsSync } from './services/skills.js';
 import { startSlaSweep } from './services/sla/slaService.js';
 import { startAutoCloseSweep } from './services/autoClose.js';
@@ -121,6 +122,10 @@ await app.register(docsRoutes);
 await app.register(demoRoutes);
 
 try {
+  // Admin-edited environment profiles override the built-in defaults —
+  // load them before serving so the first triage already knows the company.
+  await loadEnvironmentProfiles((msg) => app.log.info(msg)).catch((err) =>
+    app.log.warn({ err }, 'environment profile load failed — using built-in defaults'));
   await app.listen({ port: env.port, host: '0.0.0.0' });
   startSlaSweep((msg) => app.log.info(msg));
   startAutoCloseSweep((msg) => app.log.info(msg));
@@ -131,6 +136,10 @@ try {
   // Embed KB articles in the background (first run downloads the model).
   ensureKbEmbeddings((msg) => app.log.info(msg)).catch((err) =>
     app.log.warn({ err }, 'kb embedding failed — search degrades to FTS-only'),
+  );
+  // Semantic memory over resolved tickets — powers similar-ticket grounding.
+  ensureTicketEmbeddings((msg) => app.log.info(msg)).catch((err) =>
+    app.log.warn({ err }, 'ticket embedding failed — similar tickets degrade to FTS-only'),
   );
 } catch (err) {
   app.log.error(err);

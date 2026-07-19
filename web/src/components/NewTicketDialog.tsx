@@ -92,6 +92,20 @@ export function NewTicketDialog({ onClose }: { onClose: () => void }) {
               </p>
             ) : (
               <div className="triage-result">
+                {(ai.result?.signals?.length ?? 0) > 0 && (
+                  <div className="soto-work">
+                    <div className="soto-work-title">🧠 SOTO's work</div>
+                    {ai.result.signals.slice(0, 5).map((s: string, i: number) => (
+                      <div key={i} className="soto-signal" style={{ animationDelay: `${i * 0.55}s` }}>
+                        <span className="soto-signal-marker">→</span> {s}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div
+                  className="triage-verdict"
+                  style={{ animationDelay: `${Math.min(ai.result?.signals?.length ?? 0, 5) * 0.55 + 0.25}s` }}
+                >
                 <dl className="triage-routing">
                   {routed!.subject !== subject.trim() && (
                     <>
@@ -121,6 +135,19 @@ export function NewTicketDialog({ onClose }: { onClose: () => void }) {
                     </>
                   )}
                 </dl>
+                {ai.confidence && (
+                  <div className="conf-row" title="SOTO's honest per-field certainty — above the auto-apply gate it acts, below it asks a human">
+                    {(['category', 'queue', 'priority'] as const).map((k) => (
+                      <span key={k} className="conf-meter">
+                        <span className="conf-label">{k}</span>
+                        <span className="conf-bar">
+                          <span className="conf-fill" style={{ width: `${Math.round((ai.confidence[k] ?? 0) * 100)}%` }} />
+                        </span>
+                        <span className="conf-pct">{Math.round((ai.confidence[k] ?? 0) * 100)}%</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
                 {ai.result?.summary && (
                   <p className="triage-summary">✨ {ai.result.summary}</p>
                 )}
@@ -168,6 +195,7 @@ export function NewTicketDialog({ onClose }: { onClose: () => void }) {
                     </label>
                   )
                 )}
+                </div>
               </div>
             )}
             <div className="modal-actions">

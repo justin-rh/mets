@@ -140,6 +140,22 @@ export async function kbRoutes(app: FastifyInstance) {
     return suggestionsForTicket(id);
   });
 
+  // Similar-ticket grounding: a fix proposed from what actually resolved
+  // the lookalike tickets. GET = cached latest; POST = generate fresh.
+  app.get('/api/tickets/:id/suggest-fix', async (req) => {
+    requireStaff(req);
+    const id = z.coerce.number().parse((req.params as any).id);
+    const { latestSuggestedFix } = await import('../services/suggestedFix.js');
+    return { suggestion: await latestSuggestedFix(id) };
+  });
+
+  app.post('/api/tickets/:id/suggest-fix', async (req) => {
+    requireStaff(req);
+    const id = z.coerce.number().parse((req.params as any).id);
+    const { suggestFix } = await import('../services/suggestedFix.js');
+    return { suggestion: await suggestFix(id) };
+  });
+
   // Draft a grounded reply with Claude; the agent edits before sending.
   app.post('/api/tickets/:id/draft-reply', async (req, reply) => {
     requireStaff(req);

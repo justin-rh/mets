@@ -392,6 +392,16 @@ export const kbChunks = pgTable(
   (t) => [index('kb_chunks_article_idx').on(t.articleId)],
 );
 
+// Semantic memory over resolved tickets: one vector per ticket
+// (subject + description, same local MiniLM model as kb_chunks). Powers
+// similar-ticket grounding — "we fixed this before, here's what worked".
+// Backfilled at boot; refreshed when a ticket resolves.
+export const ticketEmbeddings = pgTable('ticket_embeddings', {
+  ticketId: bigint('ticket_id', { mode: 'number' }).primaryKey().references(() => tickets.id),
+  embedding: vector('embedding', { dimensions: 384 }).notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 // ---------------------------------------------------------------------------
 // AI
 // ---------------------------------------------------------------------------
@@ -424,8 +434,14 @@ export const aiUsage = pgTable('ai_usage', {
   id: bigserial('id', { mode: 'number' }).primaryKey(),
   feature: text('feature').notNull(), // classify | summarize | draft_reply | embed
   model: text('model').notNull(),
+  // inputTokens = total prompt tokens (uncached + cache reads + cache
+  // writes) — the budget guard sums it. The cache columns split it so the
+  // dashboard can price reads at ~0.1x and writes at their premium; null =
+  // recorded before cache accounting existed (priced as uncached).
   inputTokens: integer('input_tokens').notNull(),
   outputTokens: integer('output_tokens').notNull(),
+  cacheReadTokens: integer('cache_read_tokens'),
+  cacheCreationTokens: integer('cache_creation_tokens'),
   ticketId: bigint('ticket_id', { mode: 'number' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });

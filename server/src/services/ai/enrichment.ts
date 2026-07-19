@@ -180,23 +180,51 @@ export async function enrichTicket(ticketId: number, mode: EnrichMode = 'suggest
     } catch { /* unreadable file — triage proceeds on text alone */ }
   }
 
-  const outcome = await getAIProvider().triage(
-    {
-      subject: t.subject, description: t.description,
-      requesterName: t.requesterName,
-      requesterDepartment: t.department, requesterIsVip: t.isVip,
-      source: t.source, statedPriority: t.priority,
-      images: images.length ? images : undefined,
-    },
-    ctx,
-  );
+  const thresholds = await getThresholds();
+  const triageInput = {
+    subject: t.subject, description: t.description,
+    requesterName: t.requesterName,
+    requesterDepartment: t.department, requesterIsVip: t.isVip,
+    source: t.source, statedPriority: t.priority,
+    images: images.length ? images : undefined,
+  };
+  const { getShowWork } = await import('./environment.js');
+  ctx.showWork = await getShowWork();
 
+  // Cost-tiered prompting: every ticket pays for the tight CORE profile;
+  // only a pass that lands under the auto-apply gate re-runs with the full
+  // EXPANDED company knowledge. Most tickets route on the cheap pass.
+  ctx.profileTier = 'core';
+  let outcome = await getAIProvider().triage(triageInput, ctx);
   await db.insert(aiUsage).values({
     feature: 'triage', model: outcome.model, ticketId,
     inputTokens: outcome.inputTokens, outputTokens: outcome.outputTokens,
+    cacheReadTokens: outcome.cacheReadTokens, cacheCreationTokens: outcome.cacheCreationTokens,
   });
 
-  const thresholds = await getThresholds();
+  let profileTier: 'core' | 'expanded' = 'core';
+  const firstPass = outcome.result.confidence;
+  if (Math.min(firstPass.category, firstPass.queue) < thresholds.autoApply) {
+    ctx.profileTier = 'expanded';
+    // Escalation is best-effort — a failure here keeps the core-pass result.
+    const escalated = await getAIProvider().triage(triageInput, ctx).catch(() => null);
+    if (escalated) {
+      await db.insert(aiUsage).values({
+        feature: 'triage', model: escalated.model, ticketId,
+        inputTokens: escalated.inputTokens, outputTokens: escalated.outputTokens,
+        cacheReadTokens: escalated.cacheReadTokens, cacheCreationTokens: escalated.cacheCreationTokens,
+      });
+      outcome = escalated;
+      profileTier = 'expanded';
+      if (ctx.showWork && outcome.result.signals) {
+        outcome.result.signals = [
+          `First pass landed under the ${Math.round(thresholds.autoApply * 100)}% gate — re-read with the expanded company profile`,
+          ...outcome.result.signals,
+        ];
+      }
+    }
+  }
+
   const r = outcome.result;
   const category = await db.select().from(categories).where(eq(categories.name, r.category)).then((rows) => rows[0]);
   const queue = await db.select().from(teams).where(eq(teams.slug, r.queueSlug)).then((rows) => rows[0]);
@@ -270,7 +298,7 @@ export async function enrichTicket(ticketId: number, mode: EnrichMode = 'suggest
   const [enrichment] = await db.insert(aiEnrichments).values({
     ticketId, feature: 'triage', status,
     model: outcome.model, promptVersion: PROMPT_VERSION,
-    result: r, confidence: r.confidence,
+    result: { ...r, profileTier }, confidence: r.confidence,
   }).returning();
 
   // The score reads sentiment from the enrichment just inserted — rescore so

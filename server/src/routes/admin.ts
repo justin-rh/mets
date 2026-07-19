@@ -416,6 +416,49 @@ export async function adminRoutes(app: FastifyInstance) {
     return { ok: true, rescored };
   });
 
+  // SOTO's environment knowledge — two tiers: the CORE quick-reference every
+  // ticket pays for, and the EXPANDED profile used when routing confidence
+  // lands under the auto-apply gate (and by suggest-fix). Plus the
+  // show-its-work toggle. Edits reach the very next triage call.
+  const aiEnvironmentState = async () => {
+    const {
+      getCoreEnvironmentProfile, getEnvironmentProfile,
+      DEFAULT_CORE_ENVIRONMENT_PROFILE, DEFAULT_ENVIRONMENT_PROFILE,
+    } = await import('../services/ai/provider.js');
+    const { getShowWork } = await import('../services/ai/environment.js');
+    return {
+      core: {
+        profile: getCoreEnvironmentProfile(),
+        isDefault: getCoreEnvironmentProfile() === DEFAULT_CORE_ENVIRONMENT_PROFILE,
+      },
+      expanded: {
+        profile: getEnvironmentProfile(),
+        isDefault: getEnvironmentProfile() === DEFAULT_ENVIRONMENT_PROFILE,
+      },
+      showWork: await getShowWork(),
+    };
+  };
+
+  app.get('/api/admin/ai-environment', async (req) => {
+    requireAdmin(req);
+    return aiEnvironmentState();
+  });
+
+  app.put('/api/admin/ai-environment', async (req) => {
+    requireAdmin(req);
+    // Only provided fields change; empty profile string = reset to default.
+    const body = z.object({
+      core: z.string().max(20_000).optional(),
+      expanded: z.string().max(20_000).optional(),
+      showWork: z.boolean().optional(),
+    }).parse(req.body);
+    const { saveEnvironmentProfile, setShowWork } = await import('../services/ai/environment.js');
+    if (body.core !== undefined) await saveEnvironmentProfile('core', body.core);
+    if (body.expanded !== undefined) await saveEnvironmentProfile('expanded', body.expanded);
+    if (body.showWork !== undefined) await setShowWork(body.showWork);
+    return { ok: true, ...(await aiEnvironmentState()) };
+  });
+
   app.put('/api/admin/ai-thresholds', async (req) => {
     requireAdmin(req);
     const value = z.object({

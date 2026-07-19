@@ -2,7 +2,7 @@ import { eq, isNull, sql } from 'drizzle-orm';
 import { db, schema } from '../../db/index.js';
 import { embed } from './embeddings.js';
 
-const { kbArticles, kbChunks, tickets } = schema;
+const { kbArticles, kbChunks, tickets, ticketEmbeddings } = schema;
 
 /**
  * Chunk + embed any published article that has no chunks yet. Articles here
@@ -113,21 +113,119 @@ export async function hybridSearch(query: string, limit = 5): Promise<KbHit[]> {
   return [...fused.values()].sort((a, b) => b.score - a.score).slice(0, limit);
 }
 
-/** Resolved tickets similar to the given text — often more useful than KB. */
-export async function similarResolvedTickets(query: string, excludeId: number, limit = 3) {
-  const rows = await db.execute(sql`
+/**
+ * Semantic memory over resolved tickets: one vector per ticket, same local
+ * MiniLM model as the KB chunks. Backfills anything resolved without an
+ * embedding — runs at boot in the background; embedTicket() keeps it fresh
+ * as tickets resolve.
+ */
+export async function ensureTicketEmbeddings(log?: (m: string) => void) {
+  const missing = (await db.execute(sql`
+    select t.id, t.subject, t.description
+    from tickets t
+    left join ticket_embeddings e on e.ticket_id = t.id
+    where t.resolved_at is not null and e.ticket_id is null
+    order by t.resolved_at desc
+    limit 2000
+  `)).rows as { id: number; subject: string; description: string }[];
+  if (missing.length === 0) return 0;
+
+  const BATCH = 32;
+  for (let i = 0; i < missing.length; i += BATCH) {
+    const slice = missing.slice(i, i + BATCH);
+    const vectors = await embed(slice.map((t) => `${t.subject}\n${String(t.description).slice(0, 1000)}`));
+    await db.insert(ticketEmbeddings)
+      .values(slice.map((t, j) => ({ ticketId: Number(t.id), embedding: vectors[j]! })))
+      .onConflictDoNothing();
+  }
+  log?.(`tickets: embedded ${missing.length} resolved tickets for similar-ticket grounding`);
+  return missing.length;
+}
+
+/** Embed (or re-embed) one ticket — fired when a ticket resolves. */
+export async function embedTicket(ticketId: number) {
+  const [t] = await db.select({ subject: tickets.subject, description: tickets.description })
+    .from(tickets).where(eq(tickets.id, ticketId));
+  if (!t) return;
+  const [v] = await embed([`${t.subject}\n${t.description.slice(0, 1000)}`]);
+  await db.insert(ticketEmbeddings)
+    .values({ ticketId, embedding: v!, updatedAt: new Date() })
+    .onConflictDoUpdate({ target: ticketEmbeddings.ticketId, set: { embedding: v!, updatedAt: new Date() } });
+}
+
+export type SimilarTicket = {
+  id: number; number: string; subject: string; resolved_at: string;
+  /** Cosine similarity when the vector leg found it; absent for FTS-only hits. */
+  similarity?: number;
+};
+
+/**
+ * Resolved tickets similar to the given text — often more useful than KB.
+ * Hybrid like the KB search: any-term FTS (exact words) + vector cosine
+ * (meaning — catches "labels print crooked" ≈ "Zebra printing offset")
+ * fused with reciprocal-rank fusion.
+ */
+export async function similarResolvedTickets(query: string, excludeId: number, limit = 3): Promise<SimilarTicket[]> {
+  const orQuery = orTsQuery(query);
+  const fts = orQuery.length === 0 ? { rows: [] } : await db.execute(sql`
     select t.id, t.number, t.subject, t.resolved_at,
-           ts_rank(to_tsvector('english', t.subject || ' ' || t.description),
-                   websearch_to_tsquery('english', ${query})) as rank
+           row_number() over (order by ts_rank(
+             setweight(to_tsvector('english', t.subject), 'A') ||
+             setweight(to_tsvector('english', t.description), 'B'),
+             to_tsquery('english', ${orQuery})) desc) as rank
     from tickets t
     where t.resolved_at is not null
       and t.id <> ${excludeId}
-      and to_tsvector('english', t.subject || ' ' || t.description)
-          @@ websearch_to_tsquery('english', ${query})
-    order by rank desc
-    limit ${limit}
+      and (setweight(to_tsvector('english', t.subject), 'A') ||
+           setweight(to_tsvector('english', t.description), 'B'))
+          @@ to_tsquery('english', ${orQuery})
+    limit 10
   `);
-  return rows.rows;
+
+  let vecRows: any[] = [];
+  try {
+    const [qv] = await embed([query.slice(0, 1000)]);
+    const vec = await db.execute(sql`
+      select t.id, t.number, t.subject, t.resolved_at,
+             1 - (e.embedding <=> ${JSON.stringify(qv)}::vector) as similarity,
+             row_number() over (order by e.embedding <=> ${JSON.stringify(qv)}::vector) as rank
+      from ticket_embeddings e
+      join tickets t on t.id = e.ticket_id
+      where t.resolved_at is not null and t.id <> ${excludeId}
+      order by e.embedding <=> ${JSON.stringify(qv)}::vector
+      limit 10
+    `);
+    vecRows = vec.rows as any[];
+  } catch {
+    // embeddings unavailable (model still downloading) — FTS-only is fine
+  }
+
+  const K = 60;
+  const fused = new Map<number, SimilarTicket & { score: number }>();
+  const add = (rows: any[]) => {
+    for (const r of rows) {
+      const id = Number(r.id);
+      const score = 1 / (K + Number(r.rank));
+      const existing = fused.get(id);
+      if (existing) {
+        existing.score += score;
+        existing.similarity ??= r.similarity != null ? Number(r.similarity) : undefined;
+      } else {
+        fused.set(id, {
+          id, number: r.number, subject: r.subject, resolved_at: r.resolved_at,
+          similarity: r.similarity != null ? Number(r.similarity) : undefined,
+          score,
+        });
+      }
+    }
+  };
+  add(fts.rows as any[]);
+  add(vecRows);
+
+  return [...fused.values()]
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map(({ score: _score, ...rest }) => rest);
 }
 
 /** KB + similar-ticket suggestions for a ticket. */
@@ -138,7 +236,7 @@ export async function suggestionsForTicket(ticketId: number) {
   const query = `${t.subject} ${t.description.slice(0, 300)}`;
   const [articles, similar] = await Promise.all([
     hybridSearch(query, 3),
-    similarResolvedTickets(t.subject, ticketId, 3),
+    similarResolvedTickets(query, ticketId, 3),
   ]);
   return { articles, similarTickets: similar };
 }

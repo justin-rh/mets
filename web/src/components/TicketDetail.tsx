@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   actingUserId, decideApproval, draftArticleFromTicket, draftReply, fetchArticle, fetchBestFits, fetchMe,
-  fetchMergeCandidates, fetchMeta, fetchSuggestions, fetchTicket,
-  fetchTicketTemplates, fetchUsers, flagTicket, mergeTicket, openChat, patchTicket,
+  fetchMergeCandidates, fetchMeta, fetchSuggestedFix, fetchSuggestions, fetchTicket,
+  fetchTicketTemplates, fetchUsers, flagTicket, generateSuggestedFix, mergeTicket, openChat, patchTicket,
   postComment, searchKbForTicket, watchTicket, type IdentifierCheck, type KbHit,
 } from '../api';
 import { copyToClipboard, fmtDateTime, initials } from '../format';
@@ -92,6 +92,18 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
     queryFn: () => fetchSuggestions(ticketId),
     staleTime: 300_000,
   });
+  // Cached suggested fix loads free; the button spends one metered AI call.
+  const { data: fixData } = useQuery({
+    queryKey: ['suggest-fix', ticketId],
+    queryFn: () => fetchSuggestedFix(ticketId),
+    staleTime: 300_000,
+  });
+  const genFix = useMutation({
+    mutationFn: () => generateSuggestedFix(ticketId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['suggest-fix', ticketId] }),
+    onError: (e: any) => toast(e?.message ?? 'Could not suggest a fix', 'info'),
+  });
+  const fix = fixData?.suggestion ?? null;
   const { data: bestFits } = useQuery({
     queryKey: ['fit', ticketId],
     queryFn: () => fetchBestFits(ticketId),
@@ -302,6 +314,22 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
                 💡 {ai.result.reasoning}
               </span>
             )}
+            {(ai.result.signals?.length ?? 0) > 0 && (
+              <details className="ai-signals">
+                <summary>🧠 How SOTO read it</summary>
+                <ul>
+                  {ai.result.signals.map((s: string, i: number) => <li key={i}>{s}</li>)}
+                </ul>
+                {ai.confidence && (
+                  <span className="ai-signals-conf">
+                    confidence — category {Math.round((ai.confidence.category ?? 0) * 100)}% ·
+                    queue {Math.round((ai.confidence.queue ?? 0) * 100)}% ·
+                    priority {Math.round((ai.confidence.priority ?? 0) * 100)}%
+                    {ai.result.profileTier && ` · ${ai.result.profileTier === 'expanded' ? 'expanded profile (escalated)' : 'core profile'}`}
+                  </span>
+                )}
+              </details>
+            )}
           </div>
         )}
         {(() => {
@@ -405,7 +433,15 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
           ) : null}
 
           <div className="kb-search-block">
-            <button className="btn" disabled={kbSearch.isPending} onClick={() => kbSearch.mutate()}>
+            <button
+              className="btn"
+              disabled={genFix.isPending}
+              title="SOTO proposes a fix from what actually resolved the most similar past tickets"
+              onClick={() => genFix.mutate()}
+            >
+              {genFix.isPending ? 'Thinking…' : '💡 Suggest fix'}
+            </button>
+            <button className="btn" style={{ marginLeft: 8 }} disabled={kbSearch.isPending} onClick={() => kbSearch.mutate()}>
               {kbSearch.isPending ? 'Searching…' : '📚 Search KB'}
             </button>
             {me && me.role !== 'readonly' && (
@@ -421,6 +457,55 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
             )}
             {kbHits && kbHits.length === 0 && (
               <span className="kb-search-empty">No knowledge-base articles match this ticket.</span>
+            )}
+            {fix && (
+              <div className="fix-panel">
+                <div className="fix-head">
+                  <span className="suggestions-title">💡 Suggested fix</span>
+                  {fix.result.hasSuggestion && (
+                    <span className="fix-conf" title="SOTO's honest certainty this resolves the ticket">
+                      {Math.round((fix.result.confidence ?? 0) * 100)}% confident
+                    </span>
+                  )}
+                  <span className="fix-when">{fmtDateTime(fix.createdAt)}</span>
+                </div>
+                {fix.result.hasSuggestion ? (
+                  <>
+                    <div className="fix-body"><Md>{fix.result.suggestionMarkdown}</Md></div>
+                    {fix.result.basedOn.length > 0 && (
+                      <div className="fix-basis">
+                        <span className="suggestions-title">Worked before in</span>
+                        {fix.result.basedOn.map((n) => (
+                          <button
+                            key={n}
+                            className="kb-chip"
+                            title={`${fix.result.similar?.find((s) => s.number === n)?.subject ?? n} — open in new tab`}
+                            onClick={() => window.open(`/?ticket=${n}`, '_blank')}
+                          >
+                            {n}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {fix.result.caveat && <div className="fix-caveat">⚠ {fix.result.caveat}</div>}
+                    <button
+                      className="btn"
+                      title="Copy the suggestion into the reply box — edit before sending"
+                      onClick={() => {
+                        setVisibility('public');
+                        setReply((cur) => (cur.trim() ? `${cur}\n\n${fix.result.suggestionMarkdown}` : fix.result.suggestionMarkdown));
+                      }}
+                    >
+                      ↳ Insert into reply
+                    </button>
+                  </>
+                ) : (
+                  <span className="fix-decline">
+                    SOTO found no past resolution it trusts for this one
+                    {fix.result.caveat ? <> — {fix.result.caveat}</> : '.'}
+                  </span>
+                )}
+              </div>
             )}
             {kbHits && kbHits.length > 0 && (
               <div className="kb-results">

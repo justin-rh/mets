@@ -190,6 +190,13 @@ export async function applyTicketChanges(ticketId: number, actor: Actor, changes
         .then((m) => m.maybeDraftArticle(ticketId))
         .catch(() => {});
     }
+    // Resolved tickets join the semantic memory that similar-ticket
+    // grounding searches — every resolution makes the next suggestion better.
+    if (s?.category === 'resolved' || s?.category === 'closed') {
+      void import('./kb/kbService.js')
+        .then((m) => m.embedTicket(ticketId))
+        .catch(() => {});
+    }
   }
   return { ...result, trained };
 }

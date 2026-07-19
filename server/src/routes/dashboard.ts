@@ -106,12 +106,42 @@ export async function dashboardRoutes(app: FastifyInstance) {
       order by decisions desc limit 8
     `)).rows;
 
-    const aiUsage = (await db.execute(sql`
-      select feature, count(*) as calls,
-        sum(input_tokens) as input_tokens, sum(output_tokens) as output_tokens
+    // Spend is priced server-side per model (the tiers bill differently) and
+    // cache-aware: reads at 0.1x, writes at 1.25x, the uncached remainder at
+    // list. Rows from before cache accounting have null cache columns and
+    // price as fully uncached.
+    const aiUsageRaw = (await db.execute(sql`
+      select feature, model, count(*) as calls,
+        sum(input_tokens) as input_tokens, sum(output_tokens) as output_tokens,
+        sum(coalesce(cache_read_tokens, 0)) as cache_read,
+        sum(coalesce(cache_creation_tokens, 0)) as cache_creation
       from ai_usage where created_at > now() - interval '30 days'
-      group by feature order by sum(input_tokens) desc
-    `)).rows;
+      group by feature, model
+    `)).rows as any[];
+
+    // List $/MTok in/out; longest-prefix match tolerates dated model ids.
+    const MODEL_PRICING: [prefix: string, inPerM: number, outPerM: number][] = [
+      ['claude-opus', 5, 25],
+      ['claude-sonnet', 3, 15],
+      ['claude-haiku', 1, 5],
+      ['mock', 0, 0],
+      ['none', 0, 0],
+    ];
+    const byFeature = new Map<string, { feature: string; calls: number; input_tokens: number; output_tokens: number; cache_read: number; cost: number }>();
+    for (const r of aiUsageRaw) {
+      const [, inPerM, outPerM] = MODEL_PRICING.find(([p]) => String(r.model).startsWith(p)) ?? ['', 5, 25];
+      const read = Number(r.cache_read), write = Number(r.cache_creation);
+      const uncached = Number(r.input_tokens) - read - write;
+      const cost = (uncached * inPerM + read * inPerM * 0.1 + write * inPerM * 1.25 + Number(r.output_tokens) * outPerM) / 1e6;
+      const agg = byFeature.get(r.feature) ?? { feature: r.feature, calls: 0, input_tokens: 0, output_tokens: 0, cache_read: 0, cost: 0 };
+      agg.calls += Number(r.calls);
+      agg.input_tokens += Number(r.input_tokens);
+      agg.output_tokens += Number(r.output_tokens);
+      agg.cache_read += read;
+      agg.cost += cost;
+      byFeature.set(r.feature, agg);
+    }
+    const aiUsage = [...byFeature.values()].sort((a, b) => b.input_tokens - a.input_tokens);
 
     return { tiles, daily, backlogAge, openByQueue, csatDist, ai: { tiles: aiTiles, byCategory: aiByCategory, usage: aiUsage } };
   });

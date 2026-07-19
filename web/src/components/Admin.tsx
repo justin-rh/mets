@@ -9,6 +9,7 @@ import {
   renameStatus, runEscalationSweep,
   updateUserLead, updateUserQueues, updateUserRole,
   type ImportPreview, type ImportResult,
+  fetchAiEnvironment, saveAiEnvironment,
   saveAiThresholds, saveAutoClose, saveEscalation, saveQueueNotify,
   saveScoreKeywords, saveScoreWeights, saveSlaPolicy, setCategoryApproval,
   runRecurring, syncSkills, toggleRecurring, toggleRoutingRule, updateTemplate,
@@ -151,6 +152,89 @@ function AiCard({ config }: { config: AdminConfig }) {
       <div className="admin-actions">
         <button className="btn primary" disabled={save.isPending} onClick={() => { setSaved(false); save.mutate(); }}>Save gates</button>
         {saved && <span className="admin-saved">Saved</span>}
+      </div>
+    </div>
+  );
+}
+
+function EnvironmentCard(_props: { config: AdminConfig }) {
+  const qc = useQueryClient();
+  const { data } = useQuery({ queryKey: ['ai-environment'], queryFn: fetchAiEnvironment });
+  const [core, setCore] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [saved, setSaved] = useState<string | null>(null);
+  const coreValue = core ?? data?.core.profile ?? '';
+  const expandedValue = expanded ?? data?.expanded.profile ?? '';
+  const save = useMutation({
+    mutationFn: (patch: Parameters<typeof saveAiEnvironment>[0]) => saveAiEnvironment(patch),
+    onSuccess: (_r, patch) => {
+      setSaved(patch.showWork !== undefined
+        ? (patch.showWork ? 'Show-its-work ON — signals return on the next triage' : 'Show-its-work OFF — leaner triage calls')
+        : 'Saved — the very next triage call knows this');
+      setCore(null);
+      setExpanded(null);
+      qc.invalidateQueries({ queryKey: ['ai-environment'] });
+    },
+  });
+  return (
+    <div className="admin-card admin-card-wide">
+      <h3>SOTO's environment knowledge</h3>
+      <p className="admin-hint">
+        What SOTO knows about Master Electronics, in two tiers. The <strong>core
+        quick-reference</strong> rides on every AI call — keep it tight, every line
+        costs tokens on every ticket. The <strong>expanded profile</strong> is pulled in
+        only when routing confidence lands under the auto-apply gate (and to
+        ground fix suggestions). Rolled out a new system? Add a line here and
+        SOTO routes it on the <strong>next ticket</strong> — no consultant, no deployment.
+      </p>
+      <label className="env-toggle">
+        <input
+          type="checkbox"
+          checked={data?.showWork ?? true}
+          disabled={save.isPending}
+          onChange={(e) => { setSaved(null); save.mutate({ showWork: e.target.checked }); }}
+        />
+        🧠 Show SOTO's work — triage returns its signals for the create-dialog
+        reveal <em>(demo polish; costs a few hundred extra tokens per ticket)</em>
+      </label>
+      <label className="env-label">Core quick-reference — every ticket pays for this</label>
+      <textarea
+        className="env-editor"
+        rows={10}
+        spellCheck={false}
+        value={coreValue}
+        onChange={(e) => { setCore(e.target.value); setSaved(null); }}
+      />
+      <label className="env-label">Expanded profile — low-confidence fallback &amp; fix grounding</label>
+      <textarea
+        className="env-editor"
+        rows={12}
+        spellCheck={false}
+        value={expandedValue}
+        onChange={(e) => { setExpanded(e.target.value); setSaved(null); }}
+      />
+      <div className="admin-actions">
+        <button
+          className="btn primary"
+          disabled={save.isPending || (core == null && expanded == null)}
+          onClick={() => save.mutate({
+            ...(core != null ? { core } : {}),
+            ...(expanded != null ? { expanded } : {}),
+          })}
+        >
+          {save.isPending ? 'Saving…' : 'Save profiles'}
+        </button>
+        {(!data?.core.isDefault || !data?.expanded.isDefault) && (
+          <button
+            className="btn"
+            disabled={save.isPending}
+            title="Discard custom profiles and restore the built-in defaults"
+            onClick={() => { setCore(null); setExpanded(null); save.mutate({ core: '', expanded: '' }); }}
+          >
+            Reset to defaults
+          </button>
+        )}
+        {saved && <span className="admin-saved">{saved}</span>}
       </div>
     </div>
   );
@@ -1158,8 +1242,8 @@ const ADMIN_SECTIONS = [
   },
   {
     key: 'automation', label: 'AI & Automation', icon: '✨',
-    hint: 'Confidence gates, auto-responses, schedules',
-    cards: [AiCard, TemplatesCard, RecurringCard],
+    hint: 'Confidence gates, environment knowledge, auto-responses, schedules',
+    cards: [AiCard, EnvironmentCard, TemplatesCard, RecurringCard],
   },
   {
     key: 'agents', label: 'Agents', icon: '🎓',

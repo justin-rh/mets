@@ -147,12 +147,12 @@ function DigestCard() {
   );
 }
 
-// Opus 4.8 list pricing — the honest cost line under the accuracy numbers.
-const PRICE_IN_PER_M = 5, PRICE_OUT_PER_M = 25;
+// Spend arrives priced from the server — per-model list rates (the tiers
+// bill differently) with prompt-cache reads discounted.
 
 /** How AI triage is actually performing — from the audited decision log. */
 function AiScoreboard({ ai }: { ai: DashboardData['ai'] }) {
-  const n = (v: string | null | undefined) => Number(v ?? 0);
+  const n = (v: string | number | null | undefined) => Number(v ?? 0);
   const t = ai.tiles;
   const judged = n(t.auto_30) + n(t.accepted_30) + n(t.corrected_30) + n(t.dismissed_30);
   const agreed = n(t.auto_30) + n(t.accepted_30);
@@ -166,7 +166,8 @@ function AiScoreboard({ ai }: { ai: DashboardData['ai'] }) {
   const inputTok = ai.usage.reduce((s, u) => s + n(u.input_tokens), 0);
   const outputTok = ai.usage.reduce((s, u) => s + n(u.output_tokens), 0);
   const calls = ai.usage.reduce((s, u) => s + n(u.calls), 0);
-  const cost = (inputTok / 1e6) * PRICE_IN_PER_M + (outputTok / 1e6) * PRICE_OUT_PER_M;
+  const cacheRead = ai.usage.reduce((s, u) => s + n(u.cache_read), 0);
+  const cost = ai.usage.reduce((s, u) => s + n(u.cost), 0);
 
   if (n(t.total_30) === 0) return null;
   return (
@@ -195,7 +196,7 @@ function AiScoreboard({ ai }: { ai: DashboardData['ai'] }) {
         <Tile
           label="AI spend · 30d"
           value={`$${cost.toFixed(2)}`}
-          sub={`${calls} calls · ${((inputTok + outputTok) / 1000).toFixed(0)}k tokens · list pricing, no cache discounts`}
+          sub={`${calls} calls · ${((inputTok + outputTok) / 1000).toFixed(0)}k tokens · per-model list pricing${cacheRead > 0 ? ` · ${(cacheRead / 1000).toFixed(0)}k cache-read at 10%` : ''}`}
         />
       </div>
       <div className="chart-grid">
@@ -209,8 +210,7 @@ function AiScoreboard({ ai }: { ai: DashboardData['ai'] }) {
         <HBars
           title="AI usage by feature — 30d (tokens)"
           rows={ai.usage.map((u) => {
-            const featureCost = (n(u.input_tokens) / 1e6) * PRICE_IN_PER_M + (n(u.output_tokens) / 1e6) * PRICE_OUT_PER_M;
-            const perCall = n(u.calls) > 0 ? featureCost / n(u.calls) : 0;
+            const perCall = n(u.calls) > 0 ? n(u.cost) / n(u.calls) : 0;
             const perCallLabel = perCall < 0.095 ? `${(perCall * 100).toFixed(1)}¢` : `$${perCall.toFixed(2)}`;
             return {
               label: `${u.feature} (${u.calls} calls)`,
@@ -315,10 +315,7 @@ export function Dashboard() {
 
   // The business case in one line: what the AI did vs what it cost.
   const nn = (v: string | number | null | undefined) => Number(v ?? 0);
-  const aiCost = data.ai.usage.reduce(
-    (s, u) => s + (nn(u.input_tokens) / 1e6) * PRICE_IN_PER_M + (nn(u.output_tokens) / 1e6) * PRICE_OUT_PER_M,
-    0,
-  );
+  const aiCost = data.ai.usage.reduce((s, u) => s + nn(u.cost), 0);
   const autoRouted = nn(data.ai.tiles.auto_30);
 
   return (

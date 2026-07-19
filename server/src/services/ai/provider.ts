@@ -3,20 +3,141 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { z } from 'zod';
 import { env } from '../../config.js';
 
-export const PROMPT_VERSION = 'triage-v8'; // v6: Proofpoint; v7: subject generation; v8: language + translation
+export const PROMPT_VERSION = 'triage-v9'; // v7: subject generation; v8: language + translation; v9: environment profile + signals
 
-// Company-specific terms the model won't know from ticket text alone. Shared
-// across the triage, search, and incident prompts so they route consistently.
-const ORG_GLOSSARY = `Master Electronics terminology:
+// Everything company-specific the model won't know from ticket text alone —
+// systems, sites, terminology, and routing rules of thumb. Shared across the
+// triage, search, incident, and intake prompts so they route consistently.
+// This is the DEFAULT; admins edit the live copy (Admin → AI & Automation),
+// which is stored in app_config and loaded over this at boot
+// (services/ai/environment.ts). Teaching SOTO a new system is a form edit.
+export const DEFAULT_ENVIRONMENT_PROFILE = `Master Electronics environment — company systems and terminology:
+
+THE COMPANY
+- Master Electronics is an electronic components distributor: connectors,
+  switches, passives, and electromechanical parts from franchised
+  manufacturers, stocked and shipped worldwide.
+- Sites: Phoenix, AZ is HQ and the main distribution center. Warehouses:
+  Phoenix, Germantown WI, Toronto. Branch and sales offices include Chicago,
+  Miami, Ronkonkoma NY, Santa Clara and Santa Monica CA, Eden Prairie MN,
+  Tampa, Redmond WA, with international teams in Mexico, Hong Kong, Malaysia,
+  the Philippines, and Jordan; many corporate staff are remote. A ticket's
+  site appears as a location tag (phoenix-az, germantown-wi, …).
+- Much of the warehouse workforce writes in Spanish.
+- AMAT is the Applied Materials key-account program with a dedicated team and
+  queue — anything threatening AMAT orders or forecasts is high business impact.
+- Vendors you'll see by name: TTI, Arrow, Digi-Key (suppliers); UPS, FedEx,
+  and LTL carriers (freight).
+
+CORE BUSINESS SYSTEMS
+- MERP is the in-house ERP: order entry, inventory, pricing, EDI, patches.
+  OMS is the web version of MERP, used by most warehouse users — OMS issues
+  are MERP tickets, not a generic web problem. Order entry timing out or MERP
+  down for a team is business-stopping.
+- EDI (850 orders / 855 acks / 856 ASNs / 810 invoices) runs through MERP.
+  Failed transactions with a customer or supplier are MERP-queue tickets and
+  time-sensitive — unshipped EDI orders miss same-day cutoffs.
+- Salesforce is the CRM; quoting tools and SaaS integrations belong to the
+  Business Applications queue.
+- Databricks is the data platform (tables, schemas, notebooks). Access
+  requests get guided intake; broken reports and extracts → Data & Reporting.
+- Power BI is the reporting/dashboard tool → Data & Reporting.
+- UKG is the HR / payroll / timekeeping platform → People Operations.
+- Concur is expense reporting → Finance & Accounting.
+
+SECURITY & IDENTITY
+- Sign-in is Microsoft Entra ID: password resets, lockouts, and MFA prompts
+  are Access & Accounts unless an actual security incident is described.
 - ZScaler is the company VPN / secure-access client. ZScaler problems are
   Network & VPN tickets, not a third-party app issue.
-- MERP is the in-house ERP. OMS is the web version of MERP, used by most
-  warehouse users — OMS issues are MERP tickets, not a generic web problem.
 - Proofpoint is the spam / email-filtering platform, managed by the Security
   team. Quarantined or blocked email, spam getting through, and sender
   allow/block requests are Security tickets, not Email & Collaboration.
   This includes OUTBOUND mail: a user's outgoing emails being blocked or
-  bounced is likely Proofpoint filtering — route to Security too.`;
+  bounced is likely Proofpoint filtering — route to Security too.
+- CrowdStrike is the endpoint security (EDR) agent — quarantine pop-ups and
+  sensor alerts → Security.
+- Keeper is the password manager (vault, autofill, sharing) → Security.
+- Phishing here often imitates DocuSign signature requests or executive
+  names. A user who CLICKED or entered credentials is a P1–P2 Security
+  incident; merely receiving/reporting one is a normal Security report.
+
+WAREHOUSE & LOGISTICS
+- AutoStore is the automated storage & retrieval robot grid in the Phoenix
+  DC. Port stoppages, bin errors, or grid faults stall picking — high
+  impact, Warehouse Tech.
+- RF scanners (handhelds) and warehouse Wi-Fi dead zones → Warehouse Tech.
+  One flaky scanner is routine; a whole zone offline degrades the shift.
+- Zebra printers (ZT411 and similar) print shipping and product labels at
+  pack stations → Printing & Labels. Offset or misaligned labels usually
+  mean media-sensor recalibration. Label printing down at shipping ahead of
+  the carrier cutoff is urgent.
+- UPS WorldShip / FedEx Ship Manager run at shipping stations; manifest or
+  rating errors block shipping → Warehouse Operations.
+- Receiving discrepancies, cycle counts, LTL, and value-add jobs are
+  Warehouse Operations (a business process, not IT hardware).
+
+EVERYDAY IT
+- Standard stack: Windows laptops (Dell Latitude, Lenovo ThinkPad) with
+  docking stations; Microsoft 365 (Outlook, SharePoint, OneDrive); Zoom for
+  meetings and conference rooms; Slack for chat.
+- The TMP drive (mapped as M:) is the shared network drive; "can't get into
+  the TMP/M: drive" has a known registry fix in the knowledge base.
+- NinjaOne is the endpoint-management agent (installs, patching).
+  TungstenPDF is the standard PDF editor.
+- Office printers: HP LaserJet on the sales floor, Brother in Accounting.
+- ChatGPT / Claude access and automation requests → AI & Enablement.
+
+BUSINESS RHYTHMS (priority context)
+- Same-day shipping cutoffs are in the afternoon: anything blocking picking,
+  labels, manifests, or EDI order flow late in the day is urgent.
+- Month-end close: Finance issues near the end of the month carry deadlines.
+- New-hire start dates are hard dates — late onboarding means a person
+  sitting idle on day one.`;
+
+// The CORE profile rides on EVERY triage/search/incident/intake call — just
+// the decisive routing facts, kept tight because it's paid for per ticket
+// (~400 tokens vs ~2,000 for the expanded profile). Triage escalates to the
+// expanded profile only when routing confidence lands below the auto-apply
+// gate; suggest-fix always grounds against the expanded profile.
+export const DEFAULT_CORE_ENVIRONMENT_PROFILE = `Master Electronics quick reference (electronic components distributor; Phoenix AZ = HQ + main distribution center, warehouses in Germantown WI and Toronto, sales offices across North America; much of the warehouse workforce writes in Spanish; a ticket's site appears as a location tag like phoenix-az):
+- MERP is the in-house ERP; OMS is its web version used by most warehouse
+  users — OMS, order-entry, and EDI issues are MERP tickets, not generic web
+  problems. MERP down or order flow blocked is business-stopping.
+- ZScaler is the company VPN / secure-access client → Network & VPN.
+- Proofpoint is the email-filtering platform — quarantined/blocked mail,
+  inbound AND outbound → Security, not Email & Collaboration.
+- CrowdStrike is the endpoint security (EDR) agent; Keeper is the password
+  manager → Security. Phishing often imitates DocuSign; CLICKED or entered
+  credentials = P1–P2 incident, merely received = normal report.
+- Microsoft Entra ID sign-in: password resets, lockouts, MFA prompts →
+  Access & Accounts unless an actual incident is described.
+- AutoStore is the robotic storage grid in the Phoenix DC; faults stall
+  picking → Warehouse Tech, high impact.
+- Zebra printers print shipping/product labels at pack stations → Printing
+  & Labels; label printing down near the carrier cutoff is urgent.
+- RF scanners and warehouse Wi-Fi → Warehouse Tech. UPS WorldShip / FedEx
+  Ship Manager rating or manifest errors block shipping → Warehouse Operations.
+- The TMP drive (mapped as M:) is the shared network drive; known registry
+  fix in the KB.
+- Databricks is the data platform (access requests get guided intake);
+  Power BI → Data & Reporting. Salesforce and quoting tools → Business
+  Applications. UKG (payroll) → People Operations. Concur (expenses) →
+  Finance & Accounting.
+- AMAT is the Applied Materials key-account program — anything threatening
+  AMAT orders or forecasts is high business impact.
+- ChatGPT / Claude access and automation → AI & Enablement. NinjaOne is the
+  endpoint-management agent; TungstenPDF is the standard PDF editor.
+- Same-day shipping cutoffs are in the afternoon; month-end close and
+  new-hire start dates are hard deadlines.`;
+
+// Live copies — swapped at boot (and on admin save) by services/ai/environment.ts.
+let environmentProfile = DEFAULT_ENVIRONMENT_PROFILE;
+export function setEnvironmentProfile(text: string) { environmentProfile = text; }
+export function getEnvironmentProfile() { return environmentProfile; }
+let coreEnvironmentProfile = DEFAULT_CORE_ENVIRONMENT_PROFILE;
+export function setCoreEnvironmentProfile(text: string) { coreEnvironmentProfile = text; }
+export function getCoreEnvironmentProfile() { return coreEnvironmentProfile; }
 
 export const TriageSchema = z.object({
   category: z.string().describe('Exact name of the best-fitting category from the list'),
@@ -25,6 +146,7 @@ export const TriageSchema = z.object({
   sentiment: z.enum(['neutral', 'frustrated', 'urgent']),
   summary: z.string().describe('One or two sentences summarizing the issue for an agent'),
   reasoning: z.string().describe('One short sentence for the reviewing agent: WHY this category/queue/priority — cite the decisive signal (a phrase in the ticket, an error code in a screenshot, company terminology, a correction pattern, the stated business impact)'),
+  signals: z.array(z.string()).describe("2-5 observations, in the order you noticed them, that led to the routing — SOTO showing its work. Each one short (max ~90 chars) and citing CONCRETE evidence: a quoted phrase, an error code or app name read from a screenshot, a company-terminology fact that applies, the requester's department/site, a correction pattern that matched, the stated business impact. Never restate the verdict — these are the clues, not the conclusion"),
   subjectIsVague: z.boolean().describe("true when the requester's subject is missing, generic ('help', 'problem', 'this error again'), or an agent scanning the queue couldn't tell what the ticket is about from it alone"),
   suggestedSubject: z.string().describe('A concise, specific subject line, max ~70 chars: the system plus the symptom (e.g. "Zebra ZT411 printing labels half an inch offset"). Always provided; only applied when the original is vague'),
   language: z.string().describe("ISO 639-1 code of the language the ticket is written in ('en', 'es', …). The dominant language when mixed"),
@@ -67,6 +189,14 @@ export type TriageContext = {
   directory: { name: string; department: string | null; location: string | null }[];
   /** Recent agent corrections — injected as patterns to follow. */
   corrections: TriageCorrection[];
+  /**
+   * Which environment profile rides in the prompt. 'core' (default) is the
+   * tight quick-reference every ticket pays for; 'expanded' is the full
+   * company knowledge, used when the core pass lands under the confidence gate.
+   */
+  profileTier?: 'core' | 'expanded';
+  /** Include show-its-work signals (demo polish — costs extra output tokens). Default true. */
+  showWork?: boolean;
 };
 
 export type TriageOutcome = {
@@ -74,6 +204,9 @@ export type TriageOutcome = {
   model: string;
   inputTokens: number;
   outputTokens: number;
+  /** Prompt-cache split of inputTokens — reads bill at ~0.1x, writes at a premium. */
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
 };
 
 export type DraftInput = {
@@ -219,6 +352,32 @@ export type DeflectOutcome = {
   outputTokens: number;
 };
 
+// Similar-ticket grounding: the agent opens a ticket and SOTO proposes a
+// fix drawn from what actually resolved the lookalike tickets — the
+// institutional memory that used to live in a senior agent's head.
+export const ResolutionSchema = z.object({
+  hasSuggestion: z.boolean().describe('true only when at least one past resolution (or KB excerpt) genuinely addresses THIS ticket — a topical rhyme is not enough'),
+  suggestionMarkdown: z.string().describe("The proposed fix for the working agent: one orienting sentence, then 2-6 numbered steps drawn ONLY from the provided resolutions and KB excerpts, adapted to this ticket's specifics. Empty string when hasSuggestion is false"),
+  basedOn: z.array(z.string()).describe('Ticket numbers (e.g. T-1000042) of the past resolutions the suggestion actually draws from, most relevant first; empty when none were used'),
+  caveat: z.string().describe("One short sentence on what to verify before applying, or when this fix wouldn't apply; empty string if nothing to flag"),
+  confidence: z.number().describe('0-1 honest certainty that this suggestion resolves the ticket'),
+});
+export type ResolutionResult = z.infer<typeof ResolutionSchema>;
+
+export type ResolutionInput = {
+  subject: string;
+  description: string;
+  similar: { number: string; subject: string; resolvedAgo: string; resolution: string }[];
+  articles: { title: string; excerpt: string }[];
+};
+
+export type ResolutionOutcome = {
+  result: ResolutionResult;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+};
+
 // Weekly digest: deterministic aggregation happens in code; the AI turns
 // the facts into a briefing a queue lead would actually read.
 export const DigestSchema = z.object({
@@ -268,6 +427,7 @@ export interface AIProvider {
   parseSearch(query: string, ctx: SearchParseContext): Promise<SearchParseOutcome>;
   parseIntake(input: IntakeInput): Promise<IntakeOutcome>;
   suggestFix(input: DeflectInput): Promise<DeflectOutcome>;
+  suggestResolution(input: ResolutionInput): Promise<ResolutionOutcome>;
   writeDigest(input: DigestInput): Promise<DigestOutcome>;
   translate(input: TranslateInput): Promise<TranslateOutcome>;
 }
@@ -293,7 +453,7 @@ ${categoryList}
 Queues (use the exact slug):
 ${queueList}
 
-${ORG_GLOSSARY}
+${ctx.profileTier === 'expanded' ? environmentProfile : coreEnvironmentProfile}
 
 Priority rubric — judge by BUSINESS IMPACT described in the ticket text, not
 by how urgent the requester sounds; requesters routinely over- and under-state
@@ -336,6 +496,18 @@ that settled it ('OMS is the web front-end for MERP', 'Error 5003 is a
 Zoom connectivity code', 'matches the recent correction pattern for
 docking stations'). Not a restatement of the answer; say what tipped it.
 
+${ctx.showWork === false
+    ? `Signals: the transparency display is switched off — return signals as
+an empty array.`
+    : `The signals show your work to the person watching the routing land: 2-5
+short observations in the order you noticed them, each citing concrete
+evidence — a quoted phrase from the ticket, an error code or application
+name read off a screenshot, the company-terminology fact that applies
+('OMS is the web version of MERP'), the requester's department or site
+when it mattered, a correction pattern that matched, the business impact
+that set priority. Clues only, never the conclusion — the verdict has its
+own fields.`}
+
 Subject line: requesters often leave the subject blank or write something
 useless ('help', 'question', 'this again'). Mark subjectIsVague true only
 when an agent scanning the queue couldn't tell what the ticket is about
@@ -352,18 +524,39 @@ summarize from the MEANING regardless of language; the summary and
 reasoning are always in English for the agents.`;
 }
 
+// Sonnet 5 runs ADAPTIVE thinking when the `thinking` param is omitted —
+// for these single-shot structured classifications we want the fast, cheap
+// path, so disable it explicitly on models that default thinking-on.
+// (Opus 4.8 and Haiku 4.5 already run without thinking when omitted.)
+function thinkingOff(model: string) {
+  return model.startsWith('claude-sonnet-5')
+    ? { thinking: { type: 'disabled' as const } }
+    : {};
+}
+
 class ClaudeProvider implements AIProvider {
   private client = new Anthropic({ apiKey: env.anthropicApiKey });
 
   async triage(input: TriageInput, ctx: TriageContext): Promise<TriageOutcome> {
+    // Model tiering mirrors the profile tiering: the core pass runs on the
+    // mid-tier model; the low-confidence escalation re-runs on the
+    // heavyweight with the expanded profile.
+    const model = ctx.profileTier === 'expanded' ? env.aiModel : env.aiModelTriage;
     const response = await this.client.messages.parse({
-      model: env.aiModel,
+      model,
       max_tokens: 2000,
+      ...thinkingOff(model),
       system: [
         {
           type: 'text',
           text: buildSystemPrompt(ctx),
-          cache_control: { type: 'ephemeral' }, // static across tickets
+          // Static across tickets. The core pass uses the 1h TTL so the
+          // prefix survives gaps between tickets; the rare escalation pass
+          // keeps the default 5m (a 1h write costs 2x and would rarely be
+          // read at escalation volume).
+          cache_control: ctx.profileTier === 'expanded'
+            ? { type: 'ephemeral' }
+            : { type: 'ephemeral', ttl: '1h' },
         },
       ],
       messages: [
@@ -408,6 +601,8 @@ ${input.description.slice(0, 4000)}`,
       model: response.model,
       inputTokens: response.usage.input_tokens + (response.usage.cache_read_input_tokens ?? 0) + (response.usage.cache_creation_input_tokens ?? 0),
       outputTokens: response.usage.output_tokens,
+      cacheReadTokens: response.usage.cache_read_input_tokens ?? 0,
+      cacheCreationTokens: response.usage.cache_creation_input_tokens ?? 0,
     };
   }
 
@@ -467,8 +662,9 @@ Draft the reply.`,
 
   async assessIncident(input: IncidentInput): Promise<IncidentOutcome> {
     const response = await this.client.messages.parse({
-      model: env.aiModel,
+      model: env.aiModelLight, // confirms a heuristic-detected cluster — light tier
       max_tokens: 1000,
+      ...thinkingOff(env.aiModelLight),
       system: `You watch an IT helpdesk intake stream for Master Electronics.
 Given a burst of recently created tickets that look textually similar, decide
 whether they are symptoms of ONE underlying incident (an outage, a broken
@@ -477,7 +673,7 @@ unrelated password resets). Judge by whether one root cause plausibly explains
 all of them. Be conservative: separate people with separate problems is NOT an
 incident, even if the subjects rhyme.
 
-${ORG_GLOSSARY}`,
+${coreEnvironmentProfile}`,
       messages: [
         {
           role: 'user',
@@ -559,8 +755,9 @@ either way.`
 
   async parseSearch(query: string, ctx: SearchParseContext): Promise<SearchParseOutcome> {
     const response = await this.client.messages.parse({
-      model: env.aiModel,
+      model: env.aiModelLight, // simple structured mapping — light tier
       max_tokens: 800,
+      ...thinkingOff(env.aiModelLight),
       system: [{
         type: 'text',
         cache_control: { type: 'ephemeral' },
@@ -572,7 +769,7 @@ Don't invent filters the query doesn't ask for. Topics ("printer",
 "password") belong in categoryName — use tags only for places (location
 slugs) or when the query literally says "tagged X".
 
-${ORG_GLOSSARY}
+${coreEnvironmentProfile}
 
 Queues (slug: name):
 ${ctx.queues.map((q) => `- ${q.slug}: ${q.name}`).join('\n')}
@@ -630,7 +827,7 @@ Verdict:
 - not_access: the problem isn't about access at all.
 - unclear: the text doesn't support any of the above.
 
-${ORG_GLOSSARY}`,
+${coreEnvironmentProfile}`,
       }],
       messages: [{
         role: 'user',
@@ -657,8 +854,9 @@ ${input.thread.map((m) => `${m.author}: ${m.body.slice(0, 1000)}`).join('\n---\n
 
   async suggestFix(input: DeflectInput): Promise<DeflectOutcome> {
     const response = await this.client.messages.parse({
-      model: env.aiModel,
+      model: env.aiModelLight, // yes/no gate + steps distilled from one article — light tier
       max_tokens: 1200,
+      ...thinkingOff(env.aiModelLight),
       system: [{
         type: 'text',
         cache_control: { type: 'ephemeral' },
@@ -690,6 +888,61 @@ Can they self-serve this?`,
     });
     if (!response.parsed_output) {
       throw new Error(`deflection parse failed (stop_reason: ${response.stop_reason})`);
+    }
+    return {
+      result: response.parsed_output,
+      model: response.model,
+      inputTokens: response.usage.input_tokens + (response.usage.cache_read_input_tokens ?? 0) + (response.usage.cache_creation_input_tokens ?? 0),
+      outputTokens: response.usage.output_tokens,
+    };
+  }
+
+  async suggestResolution(input: ResolutionInput): Promise<ResolutionOutcome> {
+    const response = await this.client.messages.parse({
+      model: env.aiModel,
+      max_tokens: 1500,
+      system: [{
+        type: 'text',
+        cache_control: { type: 'ephemeral' },
+        text: `You suggest fixes to Master Electronics helpdesk agents from
+institutional memory: past resolved tickets similar to the one being
+worked, plus matching knowledge-base excerpts. Your suggestion appears
+beside the ticket; the agent decides what to do with it.
+
+Ground every step in what actually resolved a provided ticket or what a
+provided KB excerpt says — never invent procedures, menu paths, or
+settings. List the ticket numbers you actually drew from in basedOn, and
+adapt the steps to THIS ticket's specifics (their application, their
+error, their site). Admin-side steps are fine — the reader is an agent
+with admin tools, not the requester.
+
+Say hasSuggestion=false rather than guessing when the past resolutions
+don't genuinely address this ticket: a different root cause, threads that
+never say what fixed it, or only a topical rhyme. A wrong suggestion
+erodes trust faster than no suggestion.
+
+${environmentProfile}`,
+      }],
+      messages: [{
+        role: 'user',
+        content: `Ticket being worked:
+Subject: ${input.subject}
+Description:
+${input.description.slice(0, 2500)}
+
+Similar resolved tickets (institutional memory):
+${input.similar.map((s) => `${s.number} — ${s.subject} (resolved ${s.resolvedAgo})
+${s.resolution}`).join('\n\n') || '(none found)'}
+
+Knowledge-base excerpts:
+${input.articles.map((a) => `"${a.title}"\n${a.excerpt}`).join('\n\n') || '(none found)'}
+
+Suggest a fix, or decline.`,
+      }],
+      output_config: { format: zodOutputFormat(ResolutionSchema) },
+    });
+    if (!response.parsed_output) {
+      throw new Error(`resolution suggestion parse failed (stop_reason: ${response.stop_reason})`);
     }
     return {
       result: response.parsed_output,
@@ -756,8 +1009,9 @@ Write the briefing.`,
 
   async translate(input: TranslateInput): Promise<TranslateOutcome> {
     const response = await this.client.messages.parse({
-      model: env.aiModel,
+      model: env.aiModelLight, // faithful translation — light tier handles it well
       max_tokens: 1500,
+      ...thinkingOff(env.aiModelLight),
       system: [{
         type: 'text',
         cache_control: { type: 'ephemeral' },
@@ -836,6 +1090,12 @@ class MockProvider implements AIProvider {
         reasoning: hit
           ? `Matched the ${category.name} keyword pattern ${hit[0]} (mock provider).`
           : 'No keyword pattern matched — defaulted to the first category at low confidence (mock provider).',
+        signals: ctx.showWork === false ? [] : [
+          hit ? `Keyword pattern ${hit[0]} matched the ticket text` : 'No keyword pattern matched the ticket text',
+          ...(input.requesterDepartment ? [`Requester works in ${input.requesterDepartment}`] : []),
+          ...(urgent ? ['Impact language present ("down", "everyone", "blocked", …)'] : []),
+          ...(input.images?.length ? [`${input.images.length} screenshot(s) attached (mock provider cannot read them)`] : []),
+        ],
         subjectIsVague: input.subject.trim().length < 8
           || /^(help|hi|hello|hey|issue|problem|question|urgent|error|broken|not working|it'?s broken)[!.?\s]*$/i.test(input.subject.trim()),
         suggestedSubject: (input.description.split(/[.!?\n]/)[0] ?? input.subject).trim().slice(0, 70),
@@ -850,6 +1110,8 @@ class MockProvider implements AIProvider {
       model: 'mock',
       inputTokens: 0,
       outputTokens: 0,
+      cacheReadTokens: 0,
+      cacheCreationTokens: 0,
     };
   }
 
@@ -928,6 +1190,27 @@ class MockProvider implements AIProvider {
           ? input.article.body.split('\n').filter(Boolean).slice(0, 4).map((l, i) => `${i + 1}. ${l.slice(0, 160)}`).join('\n')
           : '',
         confidence: canDeflect ? 0.72 : 0.3,
+      },
+      model: 'mock', inputTokens: 0, outputTokens: 0,
+    };
+  }
+
+  async suggestResolution(input: ResolutionInput): Promise<ResolutionOutcome> {
+    // Mock gate: enough word overlap between this ticket and a past one.
+    const ticketWords = new Set(`${input.subject} ${input.description}`.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 3));
+    const best = input.similar
+      .map((s) => ({ s, overlap: s.subject.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 3 && ticketWords.has(w)).length }))
+      .sort((a, b) => b.overlap - a.overlap)[0];
+    const hasSuggestion = !!best && best.overlap >= 2 && best.s.resolution.length > 40;
+    return {
+      result: {
+        hasSuggestion,
+        suggestionMarkdown: hasSuggestion
+          ? `${best!.s.number} looks like the same issue. What worked there:\n\n${best!.s.resolution.split('\n').filter(Boolean).slice(0, 4).map((l, i) => `${i + 1}. ${l.slice(0, 160)}`).join('\n')}`
+          : '',
+        basedOn: hasSuggestion ? [best!.s.number] : [],
+        caveat: hasSuggestion ? 'Mock provider — verify against the cited ticket before applying.' : '',
+        confidence: hasSuggestion ? 0.6 : 0.2,
       },
       model: 'mock', inputTokens: 0, outputTokens: 0,
     };

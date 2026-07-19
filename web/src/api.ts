@@ -289,7 +289,8 @@ export type DashboardData = {
       agreed_wk: string; judged_wk: string; agreed_prev: string; judged_prev: string;
     };
     byCategory: { category: string; decisions: string; corrected: string }[];
-    usage: { feature: string; calls: string; input_tokens: string; output_tokens: string }[];
+    // Numbers (aggregated server-side, per-model cache-aware pricing).
+    usage: { feature: string; calls: number; input_tokens: number; output_tokens: number; cache_read: number; cost: number }[];
   };
 };
 
@@ -344,9 +345,28 @@ export const draftArticleFromTicket = (ticketId: number) =>
 
 export type Suggestions = {
   articles: KbHit[];
-  similarTickets: { id: number; number: string; subject: string; resolved_at: string }[];
+  similarTickets: { id: number; number: string; subject: string; resolved_at: string; similarity?: number }[];
 };
 export const fetchSuggestions = (ticketId: number) => api<Suggestions>(`/api/tickets/${ticketId}/suggestions`);
+
+// Similar-ticket grounding: SOTO's proposed fix drawn from what resolved
+// the lookalike tickets. GET = cached latest (free); POST = generate.
+export type SuggestedFix = {
+  id: number;
+  createdAt: string;
+  result: {
+    hasSuggestion: boolean;
+    suggestionMarkdown: string;
+    basedOn: string[];
+    caveat: string;
+    confidence: number;
+    similar?: { number: string; subject: string }[];
+  };
+};
+export const fetchSuggestedFix = (ticketId: number) =>
+  api<{ suggestion: SuggestedFix | null }>(`/api/tickets/${ticketId}/suggest-fix`);
+export const generateSuggestedFix = (ticketId: number) =>
+  api<{ suggestion: SuggestedFix }>(`/api/tickets/${ticketId}/suggest-fix`, { method: 'POST', body: '{}' });
 
 export type ImportPreview = {
   importId: string; headers: string[]; mapping: Record<string, string>;
@@ -485,6 +505,17 @@ export const saveScoreWeights = (weights: NonNullable<AdminConfig['scoreWeights'
   api('/api/admin/score-weights', { method: 'PUT', body: JSON.stringify(weights) });
 export const saveAiThresholds = (t: AdminConfig['aiThresholds']) =>
   api('/api/admin/ai-thresholds', { method: 'PUT', body: JSON.stringify(t) });
+// Two-tier environment knowledge: core rides on every AI call; expanded is
+// the low-confidence fallback (and suggest-fix grounding). showWork toggles
+// the triage signals reveal (demo polish).
+export type AiEnvironment = {
+  core: { profile: string; isDefault: boolean };
+  expanded: { profile: string; isDefault: boolean };
+  showWork: boolean;
+};
+export const fetchAiEnvironment = () => api<AiEnvironment>('/api/admin/ai-environment');
+export const saveAiEnvironment = (patch: { core?: string; expanded?: string; showWork?: boolean }) =>
+  api<AiEnvironment & { ok: boolean }>('/api/admin/ai-environment', { method: 'PUT', body: JSON.stringify(patch) });
 export const saveAutoClose = (days: number) =>
   api('/api/admin/auto-close', { method: 'PUT', body: JSON.stringify({ days }) });
 
