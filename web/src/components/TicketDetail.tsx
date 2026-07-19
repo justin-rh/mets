@@ -867,10 +867,16 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
           )}
           {(((t as any).customFields?.flaggedKeywords?.length ?? 0) > 0
             || (t as any).customFields?.sentimentFlag
-            || (t as any).customFields?.shouting) && (
+            || (t as any).customFields?.shouting
+            || (t as any).customFields?.aiBypassRule) && (
             <>
               <dt>Flags</dt>
               <dd className="detail-tags">
+                {(t as any).customFields?.aiBypassRule && (
+                  <span className="tag flag-tag" title={`Matched the admin bypass rule "${(t as any).customFields.aiBypassRule}" — routed deterministically, no AI call`}>
+                    ⚡ rule-routed · AI skipped
+                  </span>
+                )}
                 {((t as any).customFields?.flaggedKeywords ?? []).map((f: { term: string; boost: number }) => (
                   <span key={f.term} className="tag flag-tag" title={`Keyword match boosts score by ${f.boost}`}>
                     🚩 {f.term} +{f.boost}

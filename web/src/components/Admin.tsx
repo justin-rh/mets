@@ -9,7 +9,9 @@ import {
   renameStatus, runEscalationSweep,
   updateUserLead, updateUserQueues, updateUserRole,
   type ImportPreview, type ImportResult,
+  dismissAiBypassSuggestion, scanAiBypass, type AiBypassSuggestion,
   fetchAiEnvironment, saveAiEnvironment,
+  saveAiBypass, type AiBypassRule,
   saveAiThresholds, saveAutoClose, saveEscalation, saveQueueNotify,
   saveScoreKeywords, saveScoreWeights, saveSlaPolicy, setCategoryApproval,
   runRecurring, syncSkills, toggleRecurring, toggleRoutingRule, updateTemplate,
@@ -152,6 +154,165 @@ function AiCard({ config }: { config: AdminConfig }) {
       <div className="admin-actions">
         <button className="btn primary" disabled={save.isPending} onClick={() => { setSaved(false); save.mutate(); }}>Save gates</button>
         {saved && <span className="admin-saved">Saved</span>}
+      </div>
+    </div>
+  );
+}
+
+function BypassCard({ config }: { config: AdminConfig }) {
+  const invalidate = useInvalidate();
+  const { data: meta } = useQuery({ queryKey: ['meta'], queryFn: fetchMeta });
+  const [term, setTerm] = useState('');
+  const [where, setWhere] = useState<AiBypassRule['where']>('subject');
+  const [queueSlug, setQueueSlug] = useState('');
+  const [categoryName, setCategoryName] = useState('');
+  const [priority, setPriority] = useState('');
+  const [saved, setSaved] = useState<string | null>(null);
+
+  const rules = config.aiBypassRules ?? [];
+  const save = useMutation({
+    mutationFn: (next: AiBypassRule[]) => saveAiBypass(next),
+    onSuccess: (r) => { setSaved(`Saved — ${r.count} rule${r.count === 1 ? '' : 's'} active`); invalidate(); },
+  });
+  const add = () => {
+    setSaved(null);
+    save.mutate([...rules, {
+      term: term.trim(),
+      where,
+      queueSlug,
+      categoryName: categoryName || null,
+      priority: priority ? Number(priority) : null,
+    }]);
+    setTerm('');
+  };
+  const remove = (t: string) => { setSaved(null); save.mutate(rules.filter((r) => r.term !== t)); };
+  const whereLabel = { subject: 'subject', attachment: 'attachment name', either: 'subject or attachment' };
+
+  const suggestions = config.aiBypassSuggestions?.suggestions ?? [];
+  const scan = useMutation({
+    mutationFn: scanAiBypass,
+    onSuccess: (r) => {
+      setSaved(r.suggestions.length
+        ? `Scan complete — ${r.suggestions.length} pattern${r.suggestions.length === 1 ? '' : 's'} found`
+        : 'Scan complete — no repeated patterns worth a rule');
+      invalidate();
+    },
+  });
+  const dismiss = useMutation({
+    mutationFn: (term: string) => dismissAiBypassSuggestion(term),
+    onSuccess: invalidate,
+  });
+  const acceptSuggestion = (s: AiBypassSuggestion) => {
+    setSaved(null);
+    save.mutate([...rules, {
+      term: s.term, where: s.where, queueSlug: s.queueSlug,
+      categoryName: s.categoryName, priority: null,
+    }]);
+  };
+
+  return (
+    <div className="admin-card">
+      <h3>AI triage bypass</h3>
+      <p className="admin-hint">
+        Tickets that route the same way every time shouldn't pay for AI.
+        When the subject line or an attachment filename contains a term
+        below, the ticket routes straight to its queue — <strong>zero model
+        calls</strong>, logged in the activity trail as a rule. First match wins;
+        everything else still gets full AI triage.
+      </p>
+      <div className="admin-status-list">
+        {rules.map((r) => (
+          <span key={r.term} className="admin-status" title={`Matches ${whereLabel[r.where]} · ${r.categoryName ?? 'no category'} · ${r.priority ? `P${r.priority}` : 'priority untouched'}`}>
+            ⚡ “{r.term}” <em>→ {meta?.queues.find((q: any) => q.slug === r.queueSlug)?.name ?? r.queueSlug}</em>
+            <button className="skill-remove" title="Remove rule" onClick={() => remove(r.term)}>✕</button>
+          </span>
+        ))}
+        {rules.length === 0 && <span className="admin-hint">No bypass rules yet.</span>}
+      </div>
+      <div className="admin-inline-form">
+        <input
+          placeholder={'Match text (e.g. "Daily cycle count report")'}
+          value={term}
+          onChange={(e) => setTerm(e.target.value)}
+          style={{ minWidth: 220 }}
+        />
+        <select value={where} onChange={(e) => setWhere(e.target.value as AiBypassRule['where'])} title="Where to look for the match">
+          <option value="subject">in subject</option>
+          <option value="attachment">in attachment name</option>
+          <option value="either">in either</option>
+        </select>
+        <select value={queueSlug} onChange={(e) => setQueueSlug(e.target.value)} title="Queue the ticket routes to">
+          <option value="">Queue…</option>
+          {[...(meta?.queues ?? [])].sort((a: any, b: any) => a.name.localeCompare(b.name)).map((q: any) => (
+            <option key={q.slug} value={q.slug}>{q.name}</option>
+          ))}
+        </select>
+        <select value={categoryName} onChange={(e) => setCategoryName(e.target.value)} title="Optional category">
+          <option value="">Category (optional)</option>
+          {config.categories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+        </select>
+        <select value={priority} onChange={(e) => setPriority(e.target.value)} title="Optional priority override">
+          <option value="">Priority (keep)</option>
+          {[1, 2, 3, 4].map((p) => <option key={p} value={p}>P{p}</option>)}
+        </select>
+        <button
+          className="btn"
+          disabled={term.trim().length < 3 || !queueSlug || save.isPending
+            || rules.some((r) => r.term.toLowerCase() === term.trim().toLowerCase())}
+          onClick={add}
+        >
+          Add rule
+        </button>
+        {saved && <span className="admin-saved">{saved}</span>}
+      </div>
+
+      <div className="bypass-suggestions">
+        <div className="bypass-suggestions-head">
+          <span className="suggestions-title">✨ SOTO suggests</span>
+          <button
+            className="btn"
+            disabled={scan.isPending}
+            title="Scan the last 30 days of AI-triaged tickets for repeated patterns that always routed the same way — also refreshes automatically with the weekly briefing"
+            onClick={() => { setSaved(null); scan.mutate(); }}
+          >
+            {scan.isPending ? 'Scanning…' : '🔍 Scan now'}
+          </button>
+          {config.aiBypassSuggestions?.computedAt && (
+            <span className="bypass-scanned-at">
+              last scanned {new Date(config.aiBypassSuggestions.computedAt).toLocaleDateString()}
+            </span>
+          )}
+        </div>
+        {suggestions.length === 0 ? (
+          <span className="admin-hint">
+            Nothing yet — when the same kind of ticket keeps routing to the
+            same place with no corrections, it shows up here with the weekly
+            briefing.
+          </span>
+        ) : (
+          suggestions.map((s) => (
+            <div key={s.term} className="bypass-suggestion" title={`e.g. ${s.sampleSubjects.join(' · ')}`}>
+              <span className="bypass-suggestion-text">
+                “{s.term}” → <strong>{s.queueName}</strong>
+                {s.categoryName ? ` · ${s.categoryName}` : ''}
+                <em> — {s.count} tickets in 30d, every one routed the same way</em>
+              </span>
+              <span className="bypass-suggestion-actions">
+                <button className="btn accent" disabled={save.isPending} onClick={() => acceptSuggestion(s)}>
+                  Add rule
+                </button>
+                <button
+                  className="btn"
+                  disabled={dismiss.isPending}
+                  title="Don't suggest this pattern again"
+                  onClick={() => dismiss.mutate(s.term)}
+                >
+                  ✕
+                </button>
+              </span>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );
@@ -1243,7 +1404,7 @@ const ADMIN_SECTIONS = [
   {
     key: 'automation', label: 'AI & Automation', icon: '✨',
     hint: 'Confidence gates, environment knowledge, auto-responses, schedules',
-    cards: [AiCard, EnvironmentCard, TemplatesCard, RecurringCard],
+    cards: [AiCard, BypassCard, EnvironmentCard, TemplatesCard, RecurringCard],
   },
   {
     key: 'agents', label: 'Agents', icon: '🎓',

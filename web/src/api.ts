@@ -468,6 +468,8 @@ export type AdminConfig = {
   autoClose: { days: number };
   escalation: EscalationConfig;
   aiThresholds: { autoApply: number; suggest: number };
+  aiBypassRules: AiBypassRule[];
+  aiBypassSuggestions: { suggestions: AiBypassSuggestion[]; dismissed: string[]; computedAt: string | null };
   businessHours: unknown;
   statuses: StatusInfo[];
   skills: { id: number; name: string }[];
@@ -478,6 +480,28 @@ export type AdminConfig = {
   queueNotifications: { id: number; name: string; notifyEmails: string | null }[];
   recurring: RecurringTicket[];
 };
+
+// Deterministic routing that skips AI triage (and its cost) entirely.
+export type AiBypassRule = {
+  term: string;
+  where: 'subject' | 'attachment' | 'either';
+  queueSlug: string;
+  categoryName: string | null;
+  priority: number | null;
+};
+export const saveAiBypass = (rules: AiBypassRule[]) =>
+  api<{ ok: boolean; count: number }>('/api/admin/ai-bypass', { method: 'PUT', body: JSON.stringify(rules) });
+
+// SOTO's bypass suggestions: repeated subject patterns that always routed
+// the same way — refreshed with the weekly briefing or on demand.
+export type AiBypassSuggestion = {
+  term: string; where: 'subject'; queueSlug: string; queueName: string;
+  categoryName: string | null; count: number; sampleSubjects: string[];
+};
+export const scanAiBypass = () =>
+  api<{ suggestions: AiBypassSuggestion[] }>('/api/admin/ai-bypass/scan', { method: 'POST', body: '{}' });
+export const dismissAiBypassSuggestion = (term: string) =>
+  api<{ ok: boolean }>('/api/admin/ai-bypass/dismiss', { method: 'POST', body: JSON.stringify({ term }) });
 
 export type RecurringTicket = {
   id: number; name: string; subject: string; type: string;

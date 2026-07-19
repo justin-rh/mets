@@ -130,6 +130,12 @@ export type StoredDigest = {
 };
 
 export async function generateDigest(): Promise<StoredDigest> {
+  // Same cadence, different question: while the briefing hunts problems,
+  // the bypass scan hunts tickets that never needed AI routing at all.
+  // Deterministic and cheap — a failure never blocks the briefing.
+  const { computeBypassSuggestions } = await import('./ai/bypass.js');
+  await computeBypassSuggestions().catch(() => {});
+
   const input = await aggregate();
   const outcome = await getAIProvider().writeDigest(input);
   await db.insert(aiUsage).values({

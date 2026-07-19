@@ -135,6 +135,13 @@ export type EnrichMode = 'auto' | 'suggest';
  * callers fire-and-forget; failures leave the ticket untouched.
  */
 export async function enrichTicket(ticketId: number, mode: EnrichMode = 'suggest') {
+  // Deterministic tickets first: a matching bypass rule routes without any
+  // model call — checked before the budget guard so rule-routed tickets
+  // keep flowing even when the AI budget is exhausted.
+  const { applyAiBypass } = await import('./bypass.js');
+  const bypassRule = await applyAiBypass(ticketId);
+  if (bypassRule) return { bypassed: true as const, rule: bypassRule.term };
+
   if (await overDailyBudget()) throw Object.assign(new Error('AI daily token budget exhausted'), { statusCode: 429 });
 
   const [t] = await db
@@ -343,6 +350,7 @@ export async function batchTriage(limit: number, ticketIds?: number[]) {
       join statuses s on s.id = t.status_id
       where s.category in ('new','open','pending')
         and (t.snoozed_until is null or t.snoozed_until <= now())
+        and not (t.custom_fields ? 'aiBypassRule')
         and not exists (
           select 1 from ai_enrichments e
           where e.ticket_id = t.id and e.feature = 'triage'

@@ -69,8 +69,12 @@ async function main() {
     let outcome = 'ai failed (kept as-is)';
     try {
       const enrichment = await enrichTicket(created.id, 'auto');
-      const r = enrichment.result as any;
-      outcome = `${r.category} → ${r.queueSlug} · P${r.priority} (${enrichment.status})`;
+      if ('bypassed' in enrichment) {
+        outcome = `rule-routed without AI ("${enrichment.rule}")`;
+      } else {
+        const r = enrichment.result as any;
+        outcome = `${r.category} → ${r.queueSlug} · P${r.priority} (${enrichment.status})`;
+      }
     } catch { /* AI is off the critical path */ }
     console.log(`${created.number}  ${sample.subject.slice(0, 52).padEnd(52)}  ${outcome}`);
   }

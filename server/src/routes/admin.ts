@@ -35,6 +35,8 @@ export async function adminRoutes(app: FastifyInstance) {
         expertiseScoreThreshold: 70,
       },
       aiThresholds: byKey['ai_thresholds'] ?? { autoApply: 0.8, suggest: 0.35 },
+      aiBypassRules: byKey['ai_bypass_rules'] ?? [],
+      aiBypassSuggestions: byKey['ai_bypass_suggestions'] ?? { suggestions: [], dismissed: [], computedAt: null },
       businessHours: byKey['business_hours'] ?? null,
       statuses: await db.select().from(statuses).orderBy(asc(statuses.position)),
       skills: await db.select().from(skills).orderBy(asc(skills.name)),
@@ -457,6 +459,43 @@ export async function adminRoutes(app: FastifyInstance) {
     if (body.expanded !== undefined) await saveEnvironmentProfile('expanded', body.expanded);
     if (body.showWork !== undefined) await setShowWork(body.showWork);
     return { ok: true, ...(await aiEnvironmentState()) };
+  });
+
+  // AI triage bypass rules: tickets matching a subject/attachment substring
+  // route deterministically (queue + optional category/priority) with zero
+  // model calls. First match wins; queue is referenced by slug so rules
+  // survive reseeds.
+  app.put('/api/admin/ai-bypass', async (req) => {
+    requireAdmin(req);
+    const rules = z.array(z.object({
+      term: z.string().trim().min(3).max(120),
+      where: z.enum(['subject', 'attachment', 'either']),
+      queueSlug: z.string().min(1).max(60),
+      categoryName: z.string().max(80).nullable().default(null),
+      priority: z.number().int().min(1).max(4).nullable().default(null),
+    })).max(50).parse(req.body);
+    await db.insert(appConfig)
+      .values({ key: 'ai_bypass_rules', value: rules, updatedAt: new Date() })
+      .onConflictDoUpdate({ target: appConfig.key, set: { value: rules, updatedAt: new Date() } });
+    // A new rule may cover a pending suggestion — clear it from the list.
+    const { pruneCoveredSuggestions } = await import('../services/ai/bypass.js');
+    await pruneCoveredSuggestions(rules).catch(() => {});
+    return { ok: true, count: rules.length };
+  });
+
+  // On-demand pattern scan — the same analysis the weekly briefing runs.
+  app.post('/api/admin/ai-bypass/scan', async (req) => {
+    requireAdmin(req);
+    const { computeBypassSuggestions } = await import('../services/ai/bypass.js');
+    return { suggestions: await computeBypassSuggestions() };
+  });
+
+  app.post('/api/admin/ai-bypass/dismiss', async (req) => {
+    requireAdmin(req);
+    const { term } = z.object({ term: z.string().min(1).max(200) }).parse(req.body);
+    const { dismissBypassSuggestion } = await import('../services/ai/bypass.js');
+    await dismissBypassSuggestion(term);
+    return { ok: true };
   });
 
   app.put('/api/admin/ai-thresholds', async (req) => {

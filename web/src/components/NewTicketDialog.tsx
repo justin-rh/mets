@@ -57,10 +57,13 @@ export function NewTicketDialog({ onClose }: { onClose: () => void }) {
     queryKey: ['ticket', created?.id],
     queryFn: () => fetchTicket(created!.id),
     enabled: !!created,
+    // Stop polling once AI triage lands OR a bypass rule routed it (no AI).
     refetchInterval: (q) =>
-      (q.state.data as any)?.ai || q.state.dataUpdateCount > 20 ? false : 1500,
+      (q.state.data as any)?.ai || (q.state.data as any)?.customFields?.aiBypassRule
+        || q.state.dataUpdateCount > 20 ? false : 1500,
   });
   const ai = (routed as any)?.ai;
+  const bypassRule = (routed as any)?.customFields?.aiBypassRule as string | undefined;
   const pendingApproval = routed?.approvals?.find((a) => a.state === 'pending');
 
   const finish = () => {
@@ -85,7 +88,24 @@ export function NewTicketDialog({ onClose }: { onClose: () => void }) {
         {created ? (
           <>
             <h3>{created.number} created</h3>
-            {!ai ? (
+            {bypassRule ? (
+              <div className="triage-result">
+                <div className="triage-verdict" style={{ animationDelay: '0s' }}>
+                  <dl className="triage-routing">
+                    <dt>Queue</dt>
+                    <dd><strong>{routed!.queue.name}</strong></dd>
+                    <dt>Category</dt>
+                    <dd><strong>{routed!.category ?? 'Uncategorized'}</strong></dd>
+                    <dt>Priority</dt>
+                    <dd><strong>P{routed!.priority}</strong></dd>
+                  </dl>
+                  <p className="modal-hint">
+                    ⚡ Routed instantly by the admin rule “{bypassRule}” — tickets
+                    like this always go the same place, so no AI was spent.
+                  </p>
+                </div>
+              </div>
+            ) : !ai ? (
               <p className="modal-hint triage-wait">
                 <span className="triage-spinner">✨</span> AI triage is reading it now —
                 routing lands in a few seconds…
