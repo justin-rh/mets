@@ -24,7 +24,7 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
   const [snoozeOpen, setSnoozeOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [flagOpen, setFlagOpen] = useState(false);
-  const [flagKind, setFlagKind] = useState<'wrong_category' | 'needs_approval' | 'misrouted' | 'wrong_user'>('wrong_category');
+  const [flagKind, setFlagKind] = useState<'wrong_category' | 'needs_approval' | 'misrouted' | 'wrong_user' | 'incident'>('wrong_category');
   const [flagCategoryId, setFlagCategoryId] = useState('');
   const [flagUserId, setFlagUserId] = useState('');
   const [flagNote, setFlagNote] = useState('');
@@ -161,6 +161,8 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
       setFlagCategoryId('');
       setFlagUserId('');
       invalidate();
+      // Declaring an incident raises the app-wide banner immediately.
+      qc.invalidateQueries({ queryKey: ['active-incidents'] });
     },
     onError: (e: any) => toast(e?.message ?? 'Could not flag', 'info'),
   });
@@ -199,10 +201,12 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
   return (
     <div className="ticket-detail" onClick={(e) => e.stopPropagation()}>
       <div className="detail-main">
-        {t.incident?.children.length > 0 && (
+        {(t.incident?.children.length > 0 || (t as any).customFields?.incident) && (
           <div className="incident-banner incident-parent">
             <span className="incident-title">
-              ⚡ <strong>Suspected incident</strong> — {t.incident.children.length} linked ticket{t.incident.children.length === 1 ? '' : 's'}
+              ⚡ <strong>Suspected incident</strong> — {t.incident.children.length > 0
+                ? `${t.incident.children.length} linked ticket${t.incident.children.length === 1 ? '' : 's'}`
+                : 'no linked reports yet'}
             </span>
             <span className="incident-children">
               {t.incident.children.map((c) => (
@@ -216,7 +220,11 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
                 </button>
               ))}
             </span>
-            <span className="incident-hint">Public replies here broadcast to every linked requester.</span>
+            <span className="incident-hint">
+              {t.incident.children.length > 0
+                ? 'Public replies here broadcast to every linked requester.'
+                : 'New similar reports will link here automatically; public replies broadcast to them.'}
+            </span>
           </div>
         )}
         {t.incident?.parent && (
@@ -787,6 +795,20 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
                   ))}
               </select>
             )}
+            <label className="flag-option">
+              <input
+                type="radio"
+                name={`flag-${ticketId}`}
+                checked={flagKind === 'incident'}
+                onChange={() => setFlagKind('incident')}
+              />
+              <span>
+                ⚡ Escalate to incident
+                <em>this ticket becomes the parent — bumps to P1, similar open
+                tickets link under it, the company-wide banner goes up, and new
+                matching reports absorb automatically</em>
+              </span>
+            </label>
             <textarea
               className="flag-note"
               rows={2}

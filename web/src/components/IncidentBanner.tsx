@@ -25,7 +25,7 @@ export function IncidentBanner({ onOpen }: { onOpen?: (i: ActiveIncident) => voi
         const prev = seen.current.get(i.id);
         const open = onOpen ? () => onOpen(i) : undefined;
         if (prev === undefined) {
-          toast(`⚠️ Suspected incident declared: ${i.title} — ${i.childCount} reports linked`, 'new', undefined, open);
+          toast(`⚠️ Suspected incident declared: ${i.title}${i.childCount > 0 ? ` — ${i.childCount} reports linked` : ''}`, 'new', undefined, open);
         } else if (i.childCount > prev) {
           toast(`⚠️ ${i.number} absorbed another report (${i.childCount} linked)`, 'info', undefined, open);
         }
@@ -49,7 +49,7 @@ export function IncidentBanner({ onOpen }: { onOpen?: (i: ActiveIncident) => voi
           <strong className="incident-label">Suspected incident</strong>
           <span className="incident-title">{i.title}</span>
           <span className="incident-meta">
-            {i.number} · {i.childCount} linked report{i.childCount === 1 ? '' : 's'} · started {age(i.createdAt)} ago
+            {i.number} · {i.childCount > 0 ? `${i.childCount} linked report${i.childCount === 1 ? '' : 's'}` : 'watching for similar reports'} · started {age(i.createdAt)} ago
           </span>
           {onOpen && <span className="incident-open">Open →</span>}
         </button>

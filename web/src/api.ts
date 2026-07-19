@@ -71,7 +71,7 @@ export const mergeTicket = (id: number, targetId: number, force = false) =>
   );
 
 export const flagTicket = (id: number, flag: {
-  kind: 'wrong_category' | 'needs_approval' | 'misrouted' | 'wrong_user';
+  kind: 'wrong_category' | 'needs_approval' | 'misrouted' | 'wrong_user' | 'incident';
   categoryId?: number; userId?: number; note?: string;
 }) =>
   api<{ ok: boolean; message: string }>(`/api/tickets/${id}/flag`, {

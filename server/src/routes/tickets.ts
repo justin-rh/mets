@@ -571,7 +571,7 @@ export async function ticketRoutes(app: FastifyInstance) {
     requireStaff(req);
     const id = z.coerce.number().parse((req.params as any).id);
     const body = z.object({
-      kind: z.enum(['wrong_category', 'needs_approval', 'misrouted', 'wrong_user']),
+      kind: z.enum(['wrong_category', 'needs_approval', 'misrouted', 'wrong_user', 'incident']),
       categoryId: z.number().optional(),
       userId: z.number().optional(),
       note: z.string().trim().max(500).optional(),
@@ -628,6 +628,15 @@ export async function ticketRoutes(app: FastifyInstance) {
       } else {
         message = 'Flagged for requester review';
       }
+    } else if (body.kind === 'incident') {
+      // The human confidence gate: this ticket becomes the incident parent —
+      // similar open tickets link under it, the company-wide banner goes up,
+      // and new matching reports absorb automatically.
+      const { declareIncidentManually } = await import('../services/incidents.js');
+      const r = await declareIncidentManually(id, req.userId);
+      message = r.children > 0
+        ? `Incident declared — ${r.children} similar ticket${r.children === 1 ? '' : 's'} linked, company-wide banner is up`
+        : 'Incident declared — banner is up; similar new reports will link automatically';
     } else if (body.kind === 'needs_approval') {
       const { maybeRequestApproval } = await import('../services/approvalService.js');
       const approval = await maybeRequestApproval(id, { force: true });

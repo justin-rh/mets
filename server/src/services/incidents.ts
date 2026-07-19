@@ -9,6 +9,9 @@ const { tickets, ticketLinks, ticketComments, ticketEvents, statuses, users, aiU
 // WINDOW_MINUTES triggers an AI assessment; a confirmed burst gets a P1
 // "Suspected incident" parent ticket and the burst is linked under it.
 const WINDOW_MINUTES = 20;
+// Manual flag-as-incident sweeps slightly wider than the auto-burst — the
+// agent noticed a pattern the 20-minute detector may have just missed.
+const MANUAL_WINDOW_MINUTES = 30;
 const MIN_CLUSTER = 3;
 const MIN_CONFIDENCE = 0.6;
 
@@ -67,6 +70,84 @@ async function linkChild(childId: number, parent: { id: number; number: string; 
 }
 
 /**
+ * An agent flags a ticket as an incident (Flag menu). The flagged ticket
+ * itself becomes the parent: it's marked (customFields.incident), bumped to
+ * P1, similar recent open tickets link under it, and the company-wide
+ * banner goes up. No AI involved — the human IS the confidence gate. New
+ * matching reports absorb automatically via detectMajorIncident step 1.
+ */
+export async function declareIncidentManually(ticketId: number, actorId: number) {
+  const [t] = await db
+    .select({
+      id: tickets.id, number: tickets.number, subject: tickets.subject,
+      categoryId: tickets.categoryId, queueId: tickets.queueId,
+      priority: tickets.priority, customFields: tickets.customFields,
+    })
+    .from(tickets).where(eq(tickets.id, ticketId));
+  if (!t) throw Object.assign(new Error('ticket not found'), { statusCode: 404 });
+
+  if ((t.customFields as any)?.incident) {
+    throw Object.assign(new Error(`${t.number} is already an incident parent`), { statusCode: 409 });
+  }
+  const [linkedOut] = await db.select({ id: ticketLinks.linkedTicketId, type: ticketLinks.type })
+    .from(ticketLinks).where(eq(ticketLinks.ticketId, ticketId));
+  if (linkedOut) {
+    throw Object.assign(new Error(`${t.number} is already linked to another ticket — open the parent instead`), { statusCode: 409 });
+  }
+
+  // Promote: mark as incident parent, bump to P1 (audited as the agent).
+  await db.execute(sql`
+    update tickets set custom_fields = custom_fields || '{"incident": true}'::jsonb
+    where id = ${ticketId}
+  `);
+  if (t.priority > 1) {
+    const { applyTicketChanges } = await import('./ticketService.js');
+    await applyTicketChanges(ticketId, { id: actorId }, { priority: 1 });
+  }
+
+  // Sweep for similar open tickets and link them as children. Same order of
+  // window as the auto-burst — an incident is a burst, and a wider net risks
+  // dragging in older lookalikes (or an unrelated earlier incident). Anything
+  // arriving after the declaration absorbs via the normal intake path.
+  // Matching stays conservative: same category needs 1 shared significant
+  // token, otherwise 2.
+  const myTokens = tokens(t.subject);
+  const candidates = (await db.execute(sql`
+    select t2.id, t2.number, t2.subject, t2.description, t2.category_id as "categoryId"
+    from tickets t2
+    join statuses s on s.id = t2.status_id
+    where s.category not in ('resolved','closed')
+      and t2.id != ${ticketId}
+      and t2.created_at > now() - make_interval(mins => ${MANUAL_WINDOW_MINUTES})
+      and not (t2.custom_fields ? 'incident')
+      and not exists (select 1 from ticket_links l where l.ticket_id = t2.id or l.linked_ticket_id = t2.id)
+  `)).rows as (Candidate & { categoryId: number | null })[];
+
+  const children = candidates.filter((c) => {
+    const shared = sharedTokens(myTokens, tokens(c.subject));
+    return t.categoryId != null && c.categoryId === t.categoryId ? shared >= 1 : shared >= 2;
+  }).slice(0, 20);
+
+  for (const c of children) {
+    await linkChild(Number(c.id), { id: t.id, number: t.number, title: t.subject });
+  }
+
+  await db.insert(ticketEvents).values({
+    ticketId, actorId, actorType: 'user', eventType: 'incident_declared',
+    field: 'incident', newValue: `declared by agent — ${children.length} linked report${children.length === 1 ? '' : 's'}`,
+  });
+  const bot = await getBotUser();
+  await db.insert(ticketComments).values({
+    ticketId, authorId: bot.id, visibility: 'internal', source: 'api',
+    bodyText: 'This ticket was flagged as an incident. Public replies here propagate to all children tickets, and new similar reports will link automatically. Resolve or close this ticket to resolve the incident and every child with it.\n\n*— SOTO Bot*',
+  });
+
+  const { recomputeScore } = await import('./scoring.js');
+  await recomputeScore(db, ticketId);
+  return { number: t.number, children: children.length };
+}
+
+/**
  * Run after AI triage lands a category. Looks for a burst of textually
  * similar open tickets in the same category; a confirmed burst becomes a P1
  * "Suspected incident" parent with the burst linked as children (existing open
@@ -95,7 +176,8 @@ export async function detectMajorIncident(ticketId: number) {
     where s.category not in ('resolved','closed')
       and p.category_id = ${t.categoryId}
       and p.created_at > now() - interval '24 hours'
-      and exists (select 1 from ticket_links l where l.linked_ticket_id = p.id and l.type = 'child_of')
+      and (p.custom_fields ? 'incident'
+        or exists (select 1 from ticket_links l where l.linked_ticket_id = p.id and l.type = 'child_of'))
   `)).rows as { id: number; number: string; subject: string }[];
   for (const p of openParents) {
     const title = p.subject.replace(/^(?:major|suspected) incident:\s*/i, '');
@@ -113,6 +195,7 @@ export async function detectMajorIncident(ticketId: number) {
       and t2.category_id = ${t.categoryId}
       and t2.id != ${ticketId}
       and t2.created_at > now() - make_interval(mins => ${WINDOW_MINUTES})
+      and not (t2.custom_fields ? 'incident')
       and not exists (select 1 from ticket_links l where l.ticket_id = t2.id or l.linked_ticket_id = t2.id)
   `)).rows as Candidate[];
 
@@ -159,7 +242,8 @@ export async function detectMajorIncident(ticketId: number) {
       join statuses s on s.id = p.status_id
       where s.category not in ('resolved','closed') and p.category_id = ${t.categoryId}
         and p.created_at > now() - interval '24 hours'
-        and exists (select 1 from ticket_links l where l.linked_ticket_id = p.id and l.type = 'child_of')
+        and (p.custom_fields ? 'incident'
+          or exists (select 1 from ticket_links l where l.linked_ticket_id = p.id and l.type = 'child_of'))
     `)).rows as { id: number }[];
     if (existing) return null; // someone beat us to it; newcomers absorb next pass
 
@@ -172,6 +256,7 @@ export async function detectMajorIncident(ticketId: number) {
       type: 'incident', priority: 1,
       statusId: defaultStatus!.id, queueId: t.queueId, categoryId: t.categoryId,
       requesterId: bot.id, source: 'api',
+      customFields: { incident: true }, // same parent marker as manual declarations
     }).returning();
     await tx.insert(ticketEvents).values({
       ticketId: created!.id, actorId: null, actorType: 'ai', eventType: 'incident_declared',
@@ -244,9 +329,10 @@ export async function broadcastIncidentUpdate(parentId: number, body: string, au
 }
 
 /**
- * Open incident parents, for the app-wide banner. Any ticket with child_of
- * links pointing at it is an incident parent; safe for requesters (no
- * requester names, just the outage itself).
+ * Open incident parents, for the app-wide banner: any ticket with child_of
+ * links pointing at it, or one an agent flagged as an incident (which may
+ * not have children yet). Safe for requesters (no requester names, just
+ * the outage itself).
  */
 export async function activeIncidents() {
   const rows = (await db.execute(sql`
@@ -256,8 +342,10 @@ export async function activeIncidents() {
     from tickets p
     join statuses s on s.id = p.status_id
     join teams tm on tm.id = p.queue_id
-    join ticket_links l on l.linked_ticket_id = p.id and l.type = 'child_of'
+    left join ticket_links l on l.linked_ticket_id = p.id and l.type = 'child_of'
     where s.category not in ('resolved', 'closed')
+      and (p.custom_fields ? 'incident'
+        or exists (select 1 from ticket_links l2 where l2.linked_ticket_id = p.id and l2.type = 'child_of'))
     group by p.id, p.number, p.subject, p.created_at, s.name, tm.name
     order by p.created_at desc
   `)).rows as { id: number; number: string; subject: string; createdAt: string; status: string; queue: string; childCount: number }[];
