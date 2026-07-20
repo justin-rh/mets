@@ -144,9 +144,9 @@ SCENARIOS = {
     'tmp': tmp, 'mention': mention, 'autostore': autostore,
     'databricks': databricks, 'spanish': spanish,
 }
-# Cut from the default set for time — file on demand by name:
-#   python scripts/demo-tickets.py email mention databricks
-EXTRAS = ['email', 'mention', 'databricks']
+# The 15-minute live slot has room for every beat — stage all eight.
+# (To cut for a shorter take, list names: python scripts/demo-tickets.py spanish tmp)
+EXTRAS: list = []
 DEFAULT = [k for k in SCENARIOS if k not in EXTRAS]
 
 argv = sys.argv[1:]
@@ -180,6 +180,6 @@ for name, number, beat in filed:
     print(f'{number} — {beat}\n')
 print('BONUS (no ticket needed) — RECURRING: Admin → AI & Automation → Recurring tickets,')
 print('hit ▶ on "Monthly Zebra printer PM" to file a scheduled ticket live; it AI-triages like any other.')
-if not argv:
+if not argv and EXTRAS:
     print(f'\nCut for time (file by name if wanted): python scripts/demo-tickets.py {" ".join(EXTRAS)}')
 print('\nTip: run this again after every reset-demo.ps1; numbers will differ per run.')
