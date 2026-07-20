@@ -113,6 +113,37 @@
 
 .mode-hint { color: var(--text-muted); font-size: 12px; margin-left: 12px; }
 
+/* Pin bar: drop a ticket on the toolbar to keep it one click away. */
+.pin-bar {
+  display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  min-width: 120px; min-height: 24px;
+  margin-left: 8px; padding: 1px 6px;
+  border: 1px dashed transparent; border-radius: var(--r);
+  transition: border-color .12s ease, background .12s ease;
+}
+.pin-bar.ready { border-color: var(--accent); }
+.pin-bar.over { background: var(--surface-sunken); border-style: solid; }
+.pin-cue { color: var(--accent); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.pin-tab {
+  display: inline-flex; align-items: center;
+  background: var(--surface-sunken);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r);
+  overflow: hidden;
+}
+.pin-tab-open {
+  background: none; border: 0; cursor: pointer;
+  color: var(--ink);
+  font-family: var(--font-data); font-size: 12px; font-weight: 600;
+  padding: 2px 4px 2px 8px;
+}
+.pin-tab-open:hover { color: var(--accent); }
+.pin-tab-close {
+  background: none; border: 0; cursor: pointer;
+  color: var(--text-muted); font-size: 10px; padding: 2px 7px 2px 3px;
+}
+.pin-tab-close:hover { color: var(--alarm); }
+
 .toolbar-field {
   display: flex; align-items: center; gap: 6px;
   font-size: 12px; color: var(--text-muted);

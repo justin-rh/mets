@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   DndContext, DragOverlay, PointerSensor, pointerWithin, rectIntersection,
-  useSensor, useSensors,
+  useDroppable, useSensor, useSensors,
   type CollisionDetection, type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core';
 import { snapCenterToCursor } from '@dnd-kit/modifiers';
@@ -40,6 +40,19 @@ import './App.css';
 
 const SORTS = ['date', 'score', 'priority', 'requester', 'description', 'random'] as const;
 
+/** Pinned ticket persisted across sessions. */
+type PinnedTab = { id: number; number: string; subject: string };
+
+/** The toolbar drop zone: drag a ticket here to pin it as a tab. */
+function PinDropZone({ dragging, children }: { dragging: boolean; children: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id: 'pin-bar' });
+  return (
+    <span ref={setNodeRef} className={`pin-bar ${dragging ? 'ready' : ''} ${isOver ? 'over' : ''}`}>
+      {children}
+    </span>
+  );
+}
+
 export default function App() {
   const qc = useQueryClient();
   const [mode, setMode] = useState<Mode>('All Tickets');
@@ -71,6 +84,11 @@ export default function App() {
   const [draggingId, setDraggingId] = useState<number | null>(null);
   // Natural-language search: AI-parsed filters override the view while active.
   const [nlFilter, setNlFilter] = useState<{ interpretation: string; filters: NlFilters } | null>(null);
+  // Tickets pinned to the toolbar (drag a row up here) — survive refreshes.
+  const [pinnedTabs, setPinnedTabs] = useState<PinnedTab[]>(() => {
+    try { return JSON.parse(localStorage.getItem('mets-pinned') ?? '[]'); } catch { return []; }
+  });
+  useEffect(() => { localStorage.setItem('mets-pinned', JSON.stringify(pinnedTabs)); }, [pinnedTabs]);
   const [snoozeIds, setSnoozeIds] = useState<number[] | null>(null);
   const [newTicketOpen, setNewTicketOpen] = useState(false);
   const [page, setPage] = useState<'queue' | 'dashboards' | 'kb' | 'email' | 'admin'>('queue');
@@ -307,7 +325,17 @@ export default function App() {
     else if (target === 'assign-auto') bulk.mutate({ ids, action: 'auto_assign', undo: buildUndo(ids, { assigneeId: null }) });
     else if (target === 'assign-expertise') bulk.mutate({ ids, action: 'expertise_assign', undo: buildUndo(ids, { assigneeId: null }) });
     else if (target === 'assign-mentioned') bulk.mutate({ ids, action: 'mentioned_assign', undo: buildUndo(ids, { assigneeId: null }) });
-    else if (target === 'snooze-zone') setSnoozeIds(ids);
+    else if (target === 'pin-bar') {
+      // Pin, don't mutate: the drop bookmarks the ticket(s) as toolbar tabs.
+      const add = ids
+        .map((id) => ticketRows.find((r) => r.id === id))
+        .filter((t): t is TicketListItem => !!t)
+        .map((t) => ({ id: t.id, number: t.number, subject: t.subject }));
+      setPinnedTabs((cur) => {
+        const merged = [...cur, ...add.filter((a) => !cur.some((p) => p.id === a.id))];
+        return merged.slice(-8); // oldest pins roll off
+      });
+    }
     else if (target.startsWith('agent-')) {
       const agentId = Number(target.slice(6));
       const agent = meta?.agents.find((a) => a.id === agentId);
@@ -534,15 +562,32 @@ export default function App() {
             <button onClick={() => setNlFilter(null)} title="Clear AI search">✕</button>
           </span>
         )}
-        <span className="mode-hint">
-          {mode === 'All Tickets' && 'Drag tickets onto an agent (left) or a queue (right)'}
-          {mode === 'Unassigned' && (queueSel === 'mine'
-            ? 'Open tickets with no assignee in your queues'
-            : 'Open tickets with no assignee')}
-          {mode === 'Assigned Tickets' && 'Your assigned tickets'}
-          {mode === 'Closed' && 'Resolved and closed tickets — reopen by changing status'}
-          {mode === 'AI Triage' && 'AI categorization, routing, and priority checks — accept or dismiss'}
-        </span>
+        <PinDropZone dragging={draggingId != null}>
+          {pinnedTabs.map((p) => (
+            <span key={p.id} className="pin-tab" title={p.subject}>
+              <button className="pin-tab-open" onClick={() => jumpToTicket(p.id, p.number)}>
+                {p.number}
+              </button>
+              <button
+                className="pin-tab-close"
+                title="Unpin"
+                onClick={() => setPinnedTabs((cur) => cur.filter((x) => x.id !== p.id))}
+              >✕</button>
+            </span>
+          ))}
+          {draggingId != null && <span className="pin-cue">📌 drop here to pin</span>}
+          {draggingId == null && pinnedTabs.length === 0 && (
+            <span className="mode-hint">
+              {mode === 'All Tickets' && 'Drag tickets onto an agent (left), a queue (right), or up here to pin'}
+              {mode === 'Unassigned' && (queueSel === 'mine'
+                ? 'Open tickets with no assignee in your queues'
+                : 'Open tickets with no assignee')}
+              {mode === 'Assigned Tickets' && 'Your assigned tickets'}
+              {mode === 'Closed' && 'Resolved and closed tickets — reopen by changing status'}
+              {mode === 'AI Triage' && 'AI categorization, routing, and priority checks — accept or dismiss'}
+            </span>
+          )}
+        </PinDropZone>
         <span className="spacer" />
         <label className="toolbar-field">
           Queue
