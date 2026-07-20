@@ -31,10 +31,16 @@ New Ticket dialog (subject optional, no category picker).*
   a confidence bar, held for a human below it, every decision logged and
   one click to revert. Corrections become routing patterns it follows
   (dragging a ticket to the right queue *is* training).
-- Nine AI workflows on one pipeline: triage (reads screenshots, writes
-  subjects, spots "filed for someone else"), self-service deflection,
-  outage detection, KB drafting, guided intake, bilingual tickets,
-  weekly problem briefing, natural-language search, draft replies.
+- Ten AI workflows on one pipeline: triage (reads screenshots, writes
+  subjects, shows its work, spots "filed for someone else"), self-service
+  deflection, outage detection, KB drafting, fix suggestions grounded in
+  past resolutions, guided intake, bilingual tickets, weekly problem
+  briefing, natural-language search, draft replies.
+- **It spends like an engineer**: admin rules route deterministic tickets
+  for free (and SOTO suggests those rules itself), a mid-tier model
+  handles routine triage, the big model is pulled in only below the
+  confidence gate — plus a one-click AI kill switch that degrades
+  everything to keyword rules.
 - Everything else a helpdesk needs is real too: SLAs, approvals,
   escalations, RBAC, public API, ServiceNow import.
 
@@ -42,20 +48,23 @@ New Ticket dialog (subject optional, no category picker).*
 
 ---
 
-## Slide 3 — Demo highlights (in the video and live to try)
+## Slide 3 — Demo highlights (all live — see docs/RUN-OF-SHOW.md)
 
-- **Paste a screenshot; no category, no subject** → routed at 97%
-  confidence, subject written, the error code read *from the image*.
+- **Paste a screenshot; no category, no subject** → SOTO shows its work
+  signal by signal, routes with per-field confidence, writes the subject
+  with the error code read *from the image*.
 - **Three "Zoom is down" reports** → one suspected incident, company-wide
   banner, every requester told "you're not alone" — one status change
-  closes them all. Live in one click: the ⚠️ Incident Demo button.
-- **"VPN keeps dropping"** → SOTO Bot replies with the fix from the KB;
-  requester says "solved"; ticket closes with **zero agent involvement**.
-- **Databricks access request** → SOTO asks only the questions the
-  ticket didn't answer, then routes straight to the Data Team.
+  closes them all. And agents don't wait for the detector: **Flag →
+  Escalate to incident** does it instantly, no AI needed.
+- **💡 Suggest fix** → SOTO proposes the resolution *cited from the past
+  tickets that fixed it* — 665 resolutions embedded locally as searchable
+  institutional memory.
 - **A ticket arrives in Spanish** → the agent reads and replies in
   English; the requester gets it back in Spanish — nobody translates
   anything.
+- **"SOTO suggests"** → it notices ticket patterns it keeps routing the
+  same way and proposes bypass rules to stop paying for its own calls.
 
 *Visual: one screenshot per bullet from screenshots/ — this slide should
 be almost all images.*
@@ -68,8 +77,10 @@ be almost all images.*
   ~$90k–$320k vs ~$950k — PROPOSAL.md).
 - AI routing: **88% accuracy · 80% fully automatic** — measured from the
   audited decision log, not projected.
-- AI cost: **~2¢ to triage a ticket; ~$11/month at demo volume** — a
-  rounding error that scales linearly.
+- AI cost: **~1¢ for a typical ticket, $0 for rule-routed ones** — tiered
+  models (cheap first, big only under the confidence gate), prompt
+  caching, and self-suggested bypass rules bend the curve down as
+  patterns accumulate. Every call metered per model on the dashboard.
 - Self-service deflection + bot-stamped first responses = agent hours
   back on real work.
 - **No consultant tax**: keywords, SLAs, approvals, VIPs, queues — all
@@ -82,9 +93,11 @@ week-over-week / spend).*
 
 ## Slide 5 — What's next
 
-- **On the roadmap**: routing that learns from every past resolution
-  (similar-ticket grounding), AI-suggested fixes surfaced to agents as
-  they work, and asset tracking tied to tickets.
+- **Last round's roadmap, shipped**: similar-ticket grounding and
+  AI-suggested fixes went live this weekend — you just saw them.
+- **On the roadmap now**: asset tracking tied to tickets, problem
+  management on top of the weekly briefing, per-feature provider mix
+  (docs/AI-PORTABILITY.md — the vendor is a plug-in, not a foundation).
 - **Two activations, not builds**: Entra SSO and the shared-mailbox
   email adapter are written and dormant — each needs one app
   registration (docs/SSO.md, docs/EMAIL.md).
@@ -111,3 +124,6 @@ measure → migrate.*
   answer it before it's asked.
 - If asked about risk: every AI action is audited and revertible; the
   mock adapters mean the system degrades gracefully, never hard-fails.
+- If asked about vendor lock-in: flip the AI kill switch live (Admin →
+  AI & Automation), file a ticket, it still routes — then flip it back.
+  Rehearsed 30-second Q&A moves for this and more: docs/RUN-OF-SHOW.md.
