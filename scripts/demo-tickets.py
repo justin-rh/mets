@@ -4,10 +4,12 @@
     python scripts/demo-tickets.py spanish tmp # just these
     python scripts/demo-tickets.py screenshot --screenshot my_error.png
 
-Each ticket is bait for one demo beat (cheat sheet prints at the end).
-Requires the API on :3001 and a live AI provider.
+The vision ticket uses scripts/QCerror.png (the real OMS QC error) by
+default; --screenshot overrides, and a drawn placeholder covers a
+missing file. Each ticket is bait for one demo beat (cheat sheet prints
+at the end). Requires the API on :3001 and a live AI provider.
 """
-import io, json, sys, time, urllib.request
+import io, json, os, sys, time, urllib.request
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 BASE = 'http://localhost:3001'
@@ -26,6 +28,11 @@ def upload(ticket_id, filename, data, mime, user='1'):
     r = urllib.request.Request(BASE + f'/api/tickets/{ticket_id}/attachments', method='POST', data=body,
         headers={'x-user-id': user, 'content-type': f'multipart/form-data; boundary={boundary}'})
     return json.loads(urllib.request.urlopen(r).read())
+
+def repo_screenshot():
+    """The real QC error screenshot that ships next to this script."""
+    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'QCerror.png')
+    return p if os.path.isfile(p) else None
 
 def default_screenshot() -> bytes:
     from PIL import Image, ImageDraw
@@ -66,7 +73,7 @@ def screenshot(image_path=None):
     upload(t['id'], f'error.{ext}', data, mime, user=requester(0))
     req('POST', f"/api/tickets/{t['id']}/triage-now", {}, user=requester(0))
     note('screenshot-only ticket', t['number'],
-         'VISION: open it — subject written by AI, routed to MERP via the OMS glossary, summary quotes Error 429 from the image')
+         'VISION: open it — subject written by AI, routed to MERP via the OMS glossary, summary quotes the QC error straight off the image')
 
 def email():
     r = req('POST', '/api/mail/inbound', {
@@ -150,10 +157,13 @@ if '--screenshot' in argv:
         print('--screenshot needs a file path'); sys.exit(1)
     img_path = argv[i + 1]
     del argv[i:i + 2]  # flag AND its value — neither is a scenario name
-    import os
     if not os.path.isfile(img_path):
         print(f'screenshot not found: {img_path}'); sys.exit(1)
     print(f'using custom screenshot: {img_path}')
+else:
+    img_path = repo_screenshot()
+    if img_path:
+        print(f'using the repo QC error screenshot: {img_path}')
 picked = argv or DEFAULT
 
 print('Filing demo tickets…')
