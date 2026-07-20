@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useDndContext, useDroppable } from '@dnd-kit/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchMe, openChat, setAvailability, type AgentInfo, type Meta } from '../api';
@@ -13,6 +13,74 @@ function DropCard({ id, className, onClick, children }: {
   return (
     <div ref={setNodeRef} className={`drop-card ${className ?? ''} ${isOver ? 'over' : ''}`} onClick={onClick}>
       {children}
+    </div>
+  );
+}
+
+// How far from the rail's visible top/bottom edge the cursor counts as
+// "in the scroll zone" — deliberately larger than the visual bar so hitting
+// it mid-drag is forgiving.
+const SCROLL_BAND_PX = 64;
+
+/**
+ * Drag-edge scrolling for a rail. dnd-kit captures the pointer during a
+ * drag, so instead of relying on hover targets we track the cursor at the
+ * window level: while a drag is in flight and the cursor sits in the top or
+ * bottom band of this rail, the rail scrolls that direction. Returns which
+ * band the cursor is in (for lighting up the arrow bars).
+ */
+function useDragEdgeScroll(railRef: React.RefObject<HTMLElement | null>) {
+  const { active } = useDndContext();
+  const [zone, setZone] = useState<'up' | 'down' | null>(null);
+  useEffect(() => {
+    if (!active) { setZone(null); return; }
+    let current: 'up' | 'down' | null = null;
+    const onMove = (e: PointerEvent) => {
+      const el = railRef.current;
+      let next: 'up' | 'down' | null = null;
+      if (el) {
+        const r = el.getBoundingClientRect();
+        if (e.clientX >= r.left && e.clientX <= r.right) {
+          if (e.clientY >= r.top && e.clientY <= r.top + SCROLL_BAND_PX) next = 'up';
+          else if (e.clientY <= r.bottom && e.clientY >= r.bottom - SCROLL_BAND_PX) next = 'down';
+        }
+      }
+      if (next !== current) { current = next; setZone(next); }
+    };
+    const t = window.setInterval(() => {
+      if (current) railRef.current?.scrollBy({ top: current === 'up' ? -16 : 16 });
+    }, 16);
+    window.addEventListener('pointermove', onMove);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.clearInterval(t);
+      setZone(null);
+    };
+  }, [active, railRef]);
+  return zone;
+}
+
+/**
+ * The visible arrow bars pinned to the rail's edges during a drag. Purely
+ * indicators — the cursor band above does the scrolling — but registered as
+ * droppables so releasing a ticket on one is a deliberate no-op instead of
+ * hitting whatever card sits underneath.
+ */
+function RailScrollZone({ dir, hot, id }: {
+  dir: 'up' | 'down';
+  hot: boolean;
+  id: string;
+}) {
+  const { active } = useDndContext();
+  const { setNodeRef } = useDroppable({ id });
+  if (!active) return null;
+  return (
+    <div
+      ref={setNodeRef}
+      className={`rail-scroll rail-scroll-${dir} ${hot ? 'over' : ''}`}
+      title="Drag toward this edge to scroll"
+    >
+      {dir === 'up' ? '▲' : '▼'}
     </div>
   );
 }
@@ -105,6 +173,8 @@ export function AgentRail({ meta, queueId, assigneeFilter, onSelectAssignee, onC
   const [othersOpen, setOthersOpen] = useState(() => localStorage.getItem('mets-agents-others') === '1');
   const { active: dragActive } = useDndContext();
   const { data: meUser } = useQuery({ queryKey: ['me', actingUserId()], queryFn: fetchMe });
+  const railRef = useRef<HTMLElement>(null);
+  const scrollZone = useDragEdgeScroll(railRef);
   if (!meta) return <aside className="rail rail-left" />;
   const me = actingUserId();
   const isAdmin = meUser?.role === 'admin';
@@ -145,7 +215,8 @@ export function AgentRail({ meta, queueId, assigneeFilter, onSelectAssignee, onC
   );
 
   return (
-    <aside className="rail rail-left">
+    <aside className="rail rail-left" ref={railRef}>
+      <RailScrollZone dir="up" hot={scrollZone === 'up'} id="scroll-agents-up" />
       <div className="rail-title rail-title-row">
         Agents — drop to assign, click for options
         {onCollapse && (
@@ -168,6 +239,7 @@ export function AgentRail({ meta, queueId, assigneeFilter, onSelectAssignee, onC
         )}
         {showOthers && rest.map((a) => card(a, false))}
       </div>
+      <RailScrollZone dir="down" hot={scrollZone === 'down'} id="scroll-agents-down" />
     </aside>
   );
 }
@@ -180,6 +252,8 @@ export function ActionRail({ mode, meta, queueId, onSelectQueue, onCollapse }: {
   onSelectQueue: (id: number | undefined) => void;
   onCollapse?: () => void;
 }) {
+  const railRef = useRef<HTMLElement>(null);
+  const scrollZone = useDragEdgeScroll(railRef);
   if (!meta) return <aside className="rail rail-right" />;
   const myTeamIds = new Set(meta.agents.find((a) => a.id === actingUserId())?.teamIds ?? []);
   const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name);
@@ -199,7 +273,8 @@ export function ActionRail({ mode, meta, queueId, onSelectQueue, onCollapse }: {
   );
 
   return (
-    <aside className="rail rail-right">
+    <aside className="rail rail-right" ref={railRef}>
+      <RailScrollZone dir="up" hot={scrollZone === 'up'} id="scroll-queues-up" />
       <div className="rail-title rail-title-row">
         Quick actions
         {onCollapse && (
@@ -243,6 +318,7 @@ export function ActionRail({ mode, meta, queueId, onSelectQueue, onCollapse }: {
         </div>
       )}
 
+      <RailScrollZone dir="down" hot={scrollZone === 'down'} id="scroll-queues-down" />
     </aside>
   );
 }
