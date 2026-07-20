@@ -3,10 +3,10 @@
 //
 // SLA target times here are wall-clock approximations; the real business-hours
 // math arrives with the SLA engine and recomputes on live tickets.
-import { eq, sql } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import { db, pool } from './index.js';
 import {
-  agentSkills, aiUsage, appConfig, approvals, attachments, categories,
+  agentSkills, aiUsage, apiKeys, appConfig, approvals, attachments, categories,
   kbArticles, kbChunks, routingRules, skills, slaInstances, slaPolicies,
   statuses, tags, teamMemberships, teams, ticketComments, ticketEvents,
   ticketLinks, ticketStatusDurations, ticketTags, tickets, users,
@@ -126,11 +126,26 @@ async function main() {
     from ai_usage where not seeded
   `)).rows as { feature: string; model: string; input_tokens: number; output_tokens: number; created_at: string }[];
 
-  // The weekly briefing survives too — the seed is deterministic, so the
-  // clusters it describes regenerate essentially unchanged.
-  const [preservedDigest] = (await db.execute(sql`
-    select value from app_config where key = 'weekly_digest'
-  `)).rows as { value: unknown }[];
+  // Admin-authored AI configuration survives too: the weekly briefing (the
+  // seed is deterministic, so its clusters regenerate essentially unchanged),
+  // bypass rules + suggestion dismissals, custom environment profiles, and
+  // the show-work / kill-switch toggles.
+  const PRESERVED_CONFIG_KEYS = [
+    'weekly_digest', 'ai_bypass_rules', 'ai_bypass_suggestions',
+    'ai_environment_profile', 'ai_environment_core', 'ai_show_work', 'ai_enabled',
+  ];
+  const preservedConfig = await db
+    .select({ key: appConfig.key, value: appConfig.value })
+    .from(appConfig)
+    .where(inArray(appConfig.key, PRESERVED_CONFIG_KEYS));
+
+  // API keys survive as promised in the docs — TRUNCATE users CASCADE would
+  // otherwise silently take them. User ids are deterministic across reseeds,
+  // so the key-to-user binding still points at the same person.
+  const preservedApiKeys = (await db.execute(sql`
+    select name, key_hash, prefix, user_id, created_by, created_at, last_used_at, revoked_at
+    from api_keys
+  `)).rows as any[];
 
   console.log('Truncating…');
   await db.execute(sql`
@@ -746,9 +761,37 @@ async function main() {
     console.warn('KB embedding skipped (regenerates at server start):', e?.message ?? e);
   }
 
-  if (preservedDigest) {
-    await db.insert(appConfig).values({ key: 'weekly_digest', value: preservedDigest.value });
-    console.log('Restored the weekly digest…');
+  // Same for the resolved-ticket semantic memory (similar-ticket grounding).
+  try {
+    const { ensureTicketEmbeddings } = await import('../services/kb/kbService.js');
+    const embedded = await ensureTicketEmbeddings();
+    console.log(`Embedded ${embedded} resolved tickets…`);
+  } catch (e: any) {
+    console.warn('Ticket embedding skipped (regenerates at server start):', e?.message ?? e);
+  }
+
+  for (const row of preservedConfig) {
+    await db.insert(appConfig)
+      .values({ key: row.key, value: row.value as object })
+      .onConflictDoUpdate({ target: appConfig.key, set: { value: row.value as object } });
+  }
+  if (preservedConfig.length) {
+    console.log(`Restored ${preservedConfig.length} preserved config entr${preservedConfig.length === 1 ? 'y' : 'ies'}…`);
+  }
+
+  if (preservedApiKeys.length) {
+    try {
+      await db.insert(apiKeys).values(preservedApiKeys.map((k) => ({
+        name: k.name, keyHash: k.key_hash, prefix: k.prefix,
+        userId: Number(k.user_id), createdBy: Number(k.created_by),
+        createdAt: new Date(k.created_at),
+        lastUsedAt: k.last_used_at ? new Date(k.last_used_at) : null,
+        revokedAt: k.revoked_at ? new Date(k.revoked_at) : null,
+      })));
+      console.log(`Restored ${preservedApiKeys.length} API key${preservedApiKeys.length === 1 ? '' : 's'}…`);
+    } catch (e: any) {
+      console.warn('API key restore skipped (mint fresh keys in Admin):', e?.message ?? e);
+    }
   }
 
   // Restore the real usage history captured before the truncate.
