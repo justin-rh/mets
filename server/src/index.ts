@@ -5,6 +5,7 @@ import { env } from './config.js';
 import { db, schema } from './db/index.js';
 import { adminRoutes } from './routes/admin.js';
 import { docsRoutes } from './routes/docs.js';
+import { playgroundRoutes } from './routes/playground.js';
 import { demoRoutes } from './routes/demo.js';
 import { aiRoutes } from './routes/ai.js';
 import { dashboardRoutes } from './routes/dashboard.js';
@@ -50,8 +51,10 @@ app.decorateRequest('userId', 0);
 app.decorateRequest('userRole', 'requester');
 app.decorateRequest('userQueueVisibility', 'all');
 app.addHook('onRequest', async (req, reply) => {
-  // API docs are public; health stays open for probes.
-  if (req.url === '/api/health' || req.url === '/api/docs' || req.url === '/api/openapi.json') return;
+  // API docs + playground pages are public (the playground's own requests
+  // carry an API key); health stays open for probes.
+  if (req.url === '/api/health' || req.url === '/api/docs' || req.url === '/api/openapi.json'
+    || req.url === '/api/playground') return;
 
   // Public-API keys work identically in both auth modes: the key acts as
   // its bound METS user, so RBAC and queue visibility apply unchanged.
@@ -122,6 +125,7 @@ await app.register(approvalRoutes);
 await app.register(chatRoutes);
 await app.register(attachmentRoutes);
 await app.register(docsRoutes);
+await app.register(playgroundRoutes);
 await app.register(demoRoutes);
 
 try {
