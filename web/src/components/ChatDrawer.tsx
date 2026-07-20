@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  actingUserId, fetchChatThread, fetchConversations, fetchMeta,
+  actingUserId, chatToTicket, fetchChatThread, fetchConversations, fetchMeta,
   sendChatMessage, type ChatConversation,
 } from '../api';
 import { initials } from '../format';
@@ -49,6 +49,7 @@ export function ChatDrawer() {
   const [open, setOpen] = useState(false);
   const [partnerId, setPartnerId] = useState<number | null>(null);
   const [draft, setDraft] = useState('');
+  const [personFilter, setPersonFilter] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastToastedId = useRef<number | null>(null);
 
@@ -72,6 +73,19 @@ export function ChatDrawer() {
       qc.invalidateQueries({ queryKey: ['chat-thread', me, partnerId] });
       qc.invalidateQueries({ queryKey: ['chat-conversations', me] });
     },
+  });
+
+  const toTicket = useMutation({
+    mutationFn: () => chatToTicket(partnerId!),
+    onSuccess: (t) => {
+      toast(`📎 ${t.number} created from this chat — AI is routing it now`, 'success', {
+        label: 'Open',
+        onClick: () => window.open(`/?ticket=${t.number}`, '_blank'),
+      });
+      qc.invalidateQueries({ queryKey: ['chat-thread', me, partnerId] });
+      qc.invalidateQueries({ queryKey: ['tickets'] });
+    },
+    onError: (e: any) => toast(e?.message ?? 'Could not create a ticket from this chat', 'info'),
   });
 
   const totalUnread = (conversations ?? []).reduce((n, c) => n + c.unread, 0);
@@ -140,6 +154,13 @@ export function ChatDrawer() {
     return [...known, ...rest];
   }, [conversations, meta, me]);
 
+  // Filter only what the list renders — the open thread's partner lookup
+  // must not disappear behind a stale search.
+  const filteredDirectory = useMemo(() => {
+    const q = personFilter.trim().toLowerCase();
+    return q ? directory.filter((d) => d.name.toLowerCase().includes(q)) : directory;
+  }, [directory, personFilter]);
+
   const partner = directory.find((d) => d.id === partnerId);
 
   return (
@@ -164,9 +185,26 @@ export function ChatDrawer() {
               {draft.trim() && (
                 <div className="chat-prefill-note">Sending: “{draft.slice(0, 48)}…” — pick a person</div>
               )}
+              <input
+                className="chat-search"
+                placeholder="🔎 Find a person…"
+                value={personFilter}
+                autoFocus
+                onChange={(e) => setPersonFilter(e.target.value)}
+                onKeyDown={(e) => {
+                  // Enter opens the single (or top) match — type-and-go.
+                  if (e.key === 'Enter' && filteredDirectory.length > 0) {
+                    setPartnerId(filteredDirectory[0]!.id);
+                    setPersonFilter('');
+                  }
+                }}
+              />
               <div className="chat-list">
-                {directory.map((d) => (
-                  <button key={d.id} className="chat-list-item" onClick={() => setPartnerId(d.id)}>
+                {filteredDirectory.length === 0 && (
+                  <div className="chat-empty">Nobody matches “{personFilter}”.</div>
+                )}
+                {filteredDirectory.map((d) => (
+                  <button key={d.id} className="chat-list-item" onClick={() => { setPartnerId(d.id); setPersonFilter(''); }}>
                     <span className={`avatar ${d.isAvailable ? '' : 'avatar-ooo'}`}>{initials(d.name)}</span>
                     <span className="chat-list-main">
                       <span className="chat-list-name">
@@ -194,6 +232,16 @@ export function ChatDrawer() {
                 <span className={`avatar ${partner.isAvailable ? '' : 'avatar-ooo'}`}>{initials(partner.name)}</span>
                 <strong>{partner.name}</strong>
                 {!partner.isAvailable && <span className="ooo-badge">OOO</span>}
+                {(thread ?? []).length > 0 && (
+                  <button
+                    className="chat-to-ticket"
+                    disabled={toTicket.isPending}
+                    title={`Turn the recent messages into a ticket — ${partner.name.split(' ')[0]} becomes the requester, the transcript rides as the description, and AI routes it like any other ticket`}
+                    onClick={() => toTicket.mutate()}
+                  >
+                    {toTicket.isPending ? '…' : '📎 → ticket'}
+                  </button>
+                )}
                 <button className="chat-close" onClick={() => setOpen(false)}>✕</button>
               </div>
               <div className="chat-thread" ref={scrollRef}>

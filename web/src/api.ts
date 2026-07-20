@@ -262,6 +262,9 @@ export const fetchChatThread = (partnerId: number, markRead: boolean) =>
   api<ChatMessage[]>(`/api/chat/with/${partnerId}${markRead ? '?markRead=1' : ''}`);
 export const sendChatMessage = (partnerId: number, body: string) =>
   api<ChatMessage>(`/api/chat/with/${partnerId}`, { method: 'POST', body: JSON.stringify({ body }) });
+/** Turn the tail of this conversation into a ticket (partner = requester). */
+export const chatToTicket = (partnerId: number) =>
+  api<{ id: number; number: string }>(`/api/chat/with/${partnerId}/to-ticket`, { method: 'POST', body: '{}' });
 
 /** Open the chat drawer from anywhere (agent menu, ticket detail). */
 export function openChat(detail: { partnerId?: number; prefill?: string }) {
