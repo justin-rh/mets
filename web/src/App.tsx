@@ -56,6 +56,11 @@ export default function App() {
   // Deep link: /?ticket=T-1000042 seeds the search and auto-expands the match.
   const [linkedTicket] = useState(() => new URLSearchParams(window.location.search).get('ticket'));
   const [linkPending, setLinkPending] = useState(() => !!linkedTicket);
+  // Last ticket jumped to via the incident banner / new-ticket toasts. Gets
+  // the same view widening as permalinks: resolving the jumped ticket keeps
+  // it on screen as Resolved instead of leaving an empty "open" list behind
+  // a stale number search.
+  const [jumpedTicket, setJumpedTicket] = useState<string | null>(null);
   // Agent filters: assigned queue (from clicking an agent card) and
   // submitted-by (from /?requester=<id>, opened in a new tab).
   const [assigneeFilter, setAssigneeFilter] = useState<number | undefined>();
@@ -92,6 +97,7 @@ export default function App() {
 
   const view: ListParams['view'] =
     linkedTicket && debouncedSearch === linkedTicket ? 'all' // permalinks resolve closed tickets too
+    : jumpedTicket && debouncedSearch === jumpedTicket ? 'all' // banner/toast jumps likewise
     : requesterFilter ? 'all' // submitted-by view spans open and closed
     : showSnoozed ? 'snoozed'
     : mode === 'Assigned Tickets' ? 'mine'
@@ -188,6 +194,7 @@ export default function App() {
     setShowSnoozed(false);
     setQueueSel(undefined); // the ticket may live outside your queues
     setSearch(number);
+    setJumpedTicket(number);
     setExpandedId(id);
   };
 
@@ -392,6 +399,7 @@ export default function App() {
             setRequesterFilter(undefined);
             setNlFilter(null);
             setSearch('');
+            setJumpedTicket(null);
             setShowSnoozed(false);
             // Deep-link params (?ticket=, ?requester=) would re-apply on
             // refresh — going home clears them from the address bar too.
