@@ -135,7 +135,7 @@ function AiCard({ config }: { config: AdminConfig }) {
   useEffect(() => setT(config.aiThresholds), [config.aiThresholds]);
   const save = useMutation({ mutationFn: () => saveAiThresholds(t), onSuccess: () => { setSaved(true); invalidate(); } });
   return (
-    <div className="admin-card">
+    <div className="admin-card admin-card-wide">
       <h3>AI confidence gates</h3>
       <p className="admin-hint">
         At or above <strong>auto-apply</strong>, AI changes apply (audited, revertible).
@@ -155,11 +155,14 @@ function AiCard({ config }: { config: AdminConfig }) {
         <button className="btn primary" disabled={save.isPending} onClick={() => { setSaved(false); save.mutate(); }}>Save gates</button>
         {saved && <span className="admin-saved">Saved</span>}
       </div>
+      <BypassSection config={config} />
     </div>
   );
 }
 
-function BypassCard({ config }: { config: AdminConfig }) {
+// Nested under the confidence gates — bypass rules are the third gate:
+// certainty so total the AI never runs at all.
+function BypassSection({ config }: { config: AdminConfig }) {
   const invalidate = useInvalidate();
   const { data: meta } = useQuery({ queryKey: ['meta'], queryFn: fetchMeta });
   const [term, setTerm] = useState('');
@@ -211,8 +214,8 @@ function BypassCard({ config }: { config: AdminConfig }) {
   };
 
   return (
-    <div className="admin-card">
-      <h3>AI triage bypass</h3>
+    <div className="bypass-section">
+      <h4>AI triage bypass</h4>
       <p className="admin-hint">
         Tickets that route the same way every time shouldn't pay for AI.
         When the subject line or an attachment filename contains a term
@@ -350,18 +353,34 @@ function EnvironmentCard(_props: { config: AdminConfig }) {
         ground fix suggestions). Rolled out a new system? Add a line here and
         SOTO routes it on the <strong>next ticket</strong> — no consultant, no deployment.
       </p>
-      <label className={`env-toggle ${data?.aiEnabled === false ? 'env-toggle-off' : ''}`}>
-        <input
-          type="checkbox"
-          checked={data?.aiEnabled ?? true}
+      <div className={`env-toggle env-master ${data?.aiEnabled === false ? 'env-toggle-off' : ''}`}>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={data?.aiEnabled ?? true}
+          className={`switch ${(data?.aiEnabled ?? true) ? 'switch-on' : ''}`}
           disabled={save.isPending}
-          onChange={(e) => { setSaved(null); save.mutate({ aiEnabled: e.target.checked }); }}
-        />
-        🔌 AI enabled — the master switch. Off = zero model calls anywhere;
-        triage, search, and deflection degrade to keyword rules and the
-        helpdesk keeps running. <em>No restart, reversible, takes effect on the
-        next ticket.</em>
-      </label>
+          title={(data?.aiEnabled ?? true) ? 'AI is ON — click to switch the whole helpdesk to keyword rules' : 'AI is OFF — click to resume model calls'}
+          onClick={() => {
+            const next = !(data?.aiEnabled ?? true);
+            // The master switch affects every user instantly — confirm both ways.
+            const msg = next
+              ? 'Turn AI back ON?\n\nModel calls resume on the next ticket — triage, search, deflection, and translation go back to Claude.'
+              : 'Turn AI OFF for the whole helpdesk?\n\nZero model calls will be made. Triage, search, deflection, and translation drop to keyword rules for EVERYONE until switched back on.';
+            if (!window.confirm(msg)) return;
+            setSaved(null);
+            save.mutate({ aiEnabled: next });
+          }}
+        >
+          <span className="switch-knob" />
+        </button>
+        <span>
+          🔌 AI enabled — the master switch. Off = zero model calls anywhere;
+          triage, search, and deflection degrade to keyword rules and the
+          helpdesk keeps running. <em>No restart, reversible, takes effect on the
+          next ticket.</em>
+        </span>
+      </div>
       <label className="env-toggle">
         <input
           type="checkbox"
@@ -1418,7 +1437,7 @@ const ADMIN_SECTIONS = [
   {
     key: 'automation', label: 'AI & Automation', icon: '✨',
     hint: 'Confidence gates, environment knowledge, auto-responses, schedules',
-    cards: [AiCard, BypassCard, EnvironmentCard, TemplatesCard, RecurringCard],
+    cards: [AiCard, EnvironmentCard, TemplatesCard, RecurringCard],
   },
   {
     key: 'agents', label: 'Agents', icon: '🎓',

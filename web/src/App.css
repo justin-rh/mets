@@ -1246,6 +1246,31 @@ select, textarea, input[type='text'], .modal input {
 .env-toggle input { margin-right: 6px; }
 .env-toggle em { color: var(--text-muted); font-size: 11.5px; }
 .env-toggle-off { color: var(--alarm); font-weight: 600; }
+
+/* Master-switch toggle: deliberate control, confirmed both directions. */
+.env-master { display: flex; align-items: flex-start; gap: 10px; }
+.switch {
+  flex-shrink: 0;
+  width: 40px; height: 22px;
+  border-radius: 11px;
+  border: 1px solid var(--line);
+  background: var(--alarm);
+  position: relative;
+  cursor: pointer;
+  padding: 0;
+  transition: background .15s ease;
+  margin-top: 1px;
+}
+.switch-on { background: var(--ok); }
+.switch:disabled { opacity: .5; cursor: default; }
+.switch-knob {
+  position: absolute; top: 2px; left: 2px;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: left .15s ease;
+}
+.switch-on .switch-knob { left: 20px; }
 .env-label {
   display: block;
   font-family: var(--font-data);
@@ -1266,6 +1291,18 @@ select, textarea, input[type='text'], .modal input {
   padding: 10px 12px;
   resize: vertical;
   margin-bottom: 10px;
+}
+
+/* Bypass rules nest under the confidence gates — the third gate. */
+.bypass-section {
+  border-top: 1px solid var(--line);
+  margin-top: 14px;
+  padding-top: 12px;
+}
+.bypass-section h4 {
+  margin: 0 0 4px;
+  font-size: 13px;
+  color: var(--ink);
 }
 
 /* Bypass-rule suggestions: SOTO's "stop paying me to route these" list. */
