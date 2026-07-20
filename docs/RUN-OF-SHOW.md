@@ -1,7 +1,17 @@
 # Top-8 presentation — 15-minute run-of-show (live demo)
 
-15 minutes **inclusive of Q&A**: ~10:15 of content, protect ~4:45 for
-questions. The narrative spine is an **escalation ladder of judgment** —
+15 minutes **inclusive of Q&A**: ~10:45 of content, protect ~4:15 for
+questions.
+
+## Judging rubric → where it's covered (say their words back to them)
+
+| Judges asked for | Covered at |
+|---|---|
+| The problem / opportunity | Cold open + slide 1 |
+| How the solution works | Slide 2 + every demo beat |
+| Business value & expected ROI | Money beat (8:45) + slide 4 — say the ROI sentence |
+| User experience & usability | Named out loud in beat 1 (see the line) + the portal beats |
+| Technical approach, key learnings, future | The close (9:45) + slide 5 + Q&A back pocket | The narrative spine is an **escalation ladder of judgment** —
 say it in the open, land every beat on it, repeat it in the close:
 
 > Rules route the deterministic tickets for free → a mid-tier model routes
@@ -71,6 +81,11 @@ same AI."* Then the **mention ticket**: gold ring on Derek in Suggested
 (*"the requester named him"*) → drag to **Auto-assign (Mentioned)** →
 assigned. Undo exists; don't dwell.
 
+**Name the usability** (rubric): *"Notice what's absent — no 12-dropdown
+intake form, no category picker, no training manual. Requesters describe
+a problem in their own words and language; agents drag things. The
+usability IS the design: every hard decision moved into the system."*
+
 - *Fallback:* none needed — no AI runs live in this beat.
 
 ### 2:30–4:15 · Screenshot triage + SOTO's work (centerpiece, ~1:45)
@@ -131,7 +146,12 @@ barrier just isn't there."*
 
 - *Watch:* the acting-as switch is part of the demo, not a bug — say so.
 
-### 8:45–9:45 · The money, live (~60s)
+### 8:45–9:45 · The money, live (~60s) — say the ROI sentence
+**The ROI sentence** (rubric): *"The ROI math doesn't need a spreadsheet:
+this runs for roughly the price of one lunch a month in AI spend against
+a six-figure annual license — payback is measured in days, and the
+deflected tickets and un-routed hours are on top."*
+
 **Dashboard**: impact headline (N routed hands-free · spend $X),
 **routing accuracy measured against agent corrections** — not projected —
 per-feature cost table (cache discounts included). Then **Admin → AI
@@ -140,11 +160,28 @@ camera**. Line: *"Deterministic tickets route for free, routine ones cost
 about a penny on the mid-tier model, only uncertainty pays for the big
 model — and the system just asked me to cut its own bill."*
 
-### 9:45–10:15 · Close
-The ladder in one breath. Everything else exists too (SLAs, approvals,
-RBAC, API, ServiceNow CSV import — one slide, no demo). Pilot ask.
-*"Questions — and if you want, file a ticket at the URL on screen while
-we talk; watch the queue."*
+### 9:45–10:45 · Close — how it's built, what I learned, what's next (~60s)
+
+**Technical approach, 20s** (rubric): *"Under the hood it's deliberately
+boring: one React app, one API, one Postgres — vectors included, no
+extra infrastructure. Everything risky is behind a swappable adapter:
+auth, mail, storage, and the AI itself, which lives in one file behind
+one interface — that's why the kill switch works. And the whole thing
+was built end-to-end with Claude Code: I described behavior, reviewed
+code, and tested — a one-person team with an AI pair."*
+
+**Three learnings, 25s** (rubric): *"Three things I learned building
+it: One — confidence beats confidence tricks: making the AI report
+honest uncertainty and escalate on it is what makes automation safe to
+trust. Two — AI cost is an architecture decision, not a bill you get:
+rules first, cheap models second, the big model only for uncertainty
+cut our cost per ticket to about a fifth in one weekend. Three — the
+best training data is the work itself: every agent correction becomes a
+pattern the next ticket benefits from, no fine-tuning required."*
+
+**Future + ask, 15s**: slide 5 — the ladder in one breath, the pilot
+ask. *"Questions — and if you want, file a ticket at the URL on screen
+while we talk; watch the queue."*
 
 ---
 
@@ -160,6 +197,7 @@ we talk; watch the queue."*
 | "How would our other systems integrate?" | **/api/playground**: one vanilla-HTML file against the public API. Paste a ticket number → the actual HTTP calls with latency → parsed ticket + raw JSON. Toggle Live, reply in METS, watch it update. Legacy trick: paste an old SNOW number (INC0010081) — imported tickets answer to their old names. Full spec at /api/docs. |
 | "People report problems in chat, not tickets" | Agent chat (💬): exchange two messages, hit **📎 → ticket** — the transcript becomes the description, the person you're chatting with becomes the requester, AI titles and routes it, and a linkified confirmation lands back in the thread. Work stops hiding in chat. |
 | One-person bus factor? | Boring stack (one web app, one Postgres), typed end to end, every AI behavior is config not code, docs/ folder; honest-debt list in PROPOSAL.md. |
+| "Walk me through the architecture" (deep version) | React + Fastify + Postgres w/ pgvector; embeddings run locally (MiniLM — search costs nothing and works offline); AI behind a 9-operation interface with Claude + keyword-mock implementations; structured outputs everywhere (no JSON parsing roulette); every AI action is an audited event in the same trail as human actions; adapters for auth (dev/Entra), mail, storage. Built with Claude Code — ~30 hours of wall-clock work, docs/DESIGN.md has the full write-up. |
 | "Can the app itself be in Spanish?" | The content pipeline already is — tickets translate inbound, replies translate back, triage classifies from meaning. The portal *chrome* is a scoped ~2-day roadmap item (the requester surface is ~3 components / ~100 strings), done portal-first because that's where our Spanish speakers live. Agent UI stays English. |
 | Weekly briefing / problem management | Dashboard briefing card — SOTO reads the whole queue weekly and names the recurring problems worth root-causing, including ones with no KB article. |
 
