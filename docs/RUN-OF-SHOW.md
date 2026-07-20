@@ -86,9 +86,9 @@ The banner + toast should have landed by now. Ride it: click the banner →
 parent ticket, linked children, every requester already commented
 "you're not alone." **Reply once on the parent** → show it broadcast to a
 child. Then open any ticket's **Flag menu** → point at **⚡ Escalate to
-incident**: *"agents don't wait for the detector — this does the same
-thing instantly, no AI call; the human is the confidence gate."* (Point,
-don't submit — one banner on screen is enough.) **Resolve the parent** →
+incident** (admin-only): *"and we don't wait for the detector — an admin
+can declare this instantly, no AI call; the human is the confidence
+gate."* (Point, don't submit — one banner on screen is enough.) **Resolve the parent** →
 children cascade closed, banner clears.
 
 - *Fallback:* if the burst hasn't declared yet, invert the beat: flag one

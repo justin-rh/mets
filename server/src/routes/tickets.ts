@@ -8,7 +8,7 @@ import { enrichTicket } from '../services/ai/enrichment.js';
 import { completeFirstResponse } from '../services/sla/slaService.js';
 import { templatesForTicket } from '../services/templates.js';
 import { activeIncidents, broadcastIncidentUpdate, incidentInfo, resolveIncidentCascade } from '../services/incidents.js';
-import { requireStaff, requireStaffRead } from './guards.js';
+import { requireAdmin, requireStaff, requireStaffRead } from './guards.js';
 
 const { tickets, statuses, teams, users, ticketTags, tags, slaInstances, ticketComments, ticketEvents, categories } = schema;
 
@@ -629,6 +629,9 @@ export async function ticketRoutes(app: FastifyInstance) {
         message = 'Flagged for requester review';
       }
     } else if (body.kind === 'incident') {
+      // Declaring an incident raises a company-wide banner and cascades on
+      // resolve — admin judgment only, not every agent.
+      requireAdmin(req);
       // The human confidence gate: this ticket becomes the incident parent —
       // similar open tickets link under it, the company-wide banner goes up,
       // and new matching reports absorb automatically.

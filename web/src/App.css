@@ -240,6 +240,14 @@ select, textarea, input[type='text'], .modal input {
   white-space: nowrap;
 }
 
+.flag-admin-only {
+  font-style: normal; font-family: var(--font-data);
+  font-size: 9px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .05em; color: var(--accent);
+  border: 1px solid var(--accent); border-radius: 4px;
+  padding: 0 4px; margin-left: 6px; vertical-align: 1px;
+}
+
 /* Click-to-copy number chip (drag listeners make text selection impossible). */
 .ticket-number.copyable { cursor: copy; border-radius: 4px; padding: 0 3px; margin: 0 -3px; }
 .ticket-number.copyable:hover { background: var(--surface-sunken); outline: 1px solid var(--line); }

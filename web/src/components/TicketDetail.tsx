@@ -810,20 +810,22 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
                   ))}
               </select>
             )}
-            <label className="flag-option">
-              <input
-                type="radio"
-                name={`flag-${ticketId}`}
-                checked={flagKind === 'incident'}
-                onChange={() => setFlagKind('incident')}
-              />
-              <span>
-                ⚡ Escalate to incident
-                <em>this ticket becomes the parent — bumps to P1, similar open
-                tickets link under it, the company-wide banner goes up, and new
-                matching reports absorb automatically</em>
-              </span>
-            </label>
+            {me?.role === 'admin' && (
+              <label className="flag-option">
+                <input
+                  type="radio"
+                  name={`flag-${ticketId}`}
+                  checked={flagKind === 'incident'}
+                  onChange={() => setFlagKind('incident')}
+                />
+                <span>
+                  ⚡ Escalate to incident <em className="flag-admin-only">admin</em>
+                  <em>this ticket becomes the parent — bumps to P1, similar open
+                  tickets link under it, the company-wide banner goes up, and new
+                  matching reports absorb automatically</em>
+                </span>
+              </label>
+            )}
             <textarea
               className="flag-note"
               rows={2}

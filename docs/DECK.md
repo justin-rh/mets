@@ -55,7 +55,7 @@ New Ticket dialog (subject optional, no category picker).*
   with the error code read *from the image*.
 - **Three "Zoom is down" reports** → one suspected incident, company-wide
   banner, every requester told "you're not alone" — one status change
-  closes them all. And agents don't wait for the detector: **Flag →
+  closes them all. And admins don't wait for the detector: **Flag →
   Escalate to incident** does it instantly, no AI needed.
 - **💡 Suggest fix** → SOTO proposes the resolution *cited from the past
   tickets that fixed it* — 665 resolutions embedded locally as searchable
