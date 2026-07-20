@@ -55,7 +55,7 @@ export const USER_LOCATIONS: { name: string; weight: number }[] = [
 export const locationSlug = (loc: string) =>
   loc.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 
-export const APPS = ['MERP', 'Salesforce', 'Power BI', 'Excel', 'Outlook', 'Zoom', 'Slack', 'TungstenPDF', 'Keeper', 'Concur', 'ADP'];
+export const APPS = ['MERP', 'CRM', 'Power BI', 'Excel', 'Outlook', 'Zoom', 'Slack', 'TungstenPDF', 'Keeper', 'Concur', 'ADP'];
 export const VENDORS = ['TTI', 'Arrow', 'Digi-Key', 'a key supplier', 'our freight carrier'];
 export const DEVICES = ['Dell Latitude laptop', 'Lenovo ThinkPad', 'Dell desktop', 'second monitor', 'Dell docking station', 'Lenovo docking station', 'desk phone'];
 export const PRINTERS = ['the Sales floor HP LaserJet', 'the Accounting Brother printer', 'the shipping label Zebra ZT411', 'the receiving-dock Zebra'];
@@ -67,7 +67,7 @@ export const QUEUES = [
   { slug: 'it-support', name: 'IT Support', description: 'General helpdesk: hardware, software, email, printing, phones (SNOW: IT Service Desk, IT Department, IT Operations, IT Alerts)', policy: 'round_robin' },
   { slug: 'infra-network', name: 'Infrastructure & Network', description: 'Network, VPN, servers, sysadmin, DevOps, warehouse wireless and RF equipment (SNOW: IT Network, IT System Admin, IT Devops)', policy: 'load_based' },
   { slug: 'merp', name: 'MERP', description: 'MERP — the in-house ERP: order entry, inventory, pricing, EDI, patches (SNOW: MERP, EDI)', policy: 'manual' },
-  { slug: 'apps-erp', name: 'Business Applications', description: 'Salesforce, quoting tools, SaaS administration, integrations (SNOW: IT Saas)', policy: 'manual' },
+  { slug: 'apps-erp', name: 'Business Applications', description: 'CRM, quoting tools, SaaS administration, integrations (SNOW: IT Saas)', policy: 'manual' },
   { slug: 'security-access', name: 'Security & Access', description: 'Account access, permissions, MFA, security incidents (SNOW: IT Cyber Security)', policy: 'round_robin' },
   { slug: 'data-reporting', name: 'Data & Reporting', description: 'Reports, dashboards, data extracts, Power BI (SNOW: Data Team, Product Manager Data Analytics)', policy: 'manual' },
   { slug: 'product-pricing', name: 'Product & Pricing', description: 'Part data, pricing updates, product content and catalog (SNOW: Pricing, Product Data, Product Owners, Digital Product Owner, PMA)', policy: 'manual' },
@@ -94,7 +94,7 @@ export const CATEGORIES: { name: string; queue: string; description: string }[] 
   { name: 'Network & VPN', queue: 'infra-network', description: 'Connectivity, Wi-Fi, VPN access and performance, site-to-site links' },
   { name: 'Warehouse Tech', queue: 'infra-network', description: 'RF scanners, warehouse wireless, label print stations, conveyor-adjacent systems' },
   { name: 'MERP', queue: 'merp', description: 'MERP, the in-house ERP: order entry, inventory, pricing, EDI transactions, user accounts, patches and performance' },
-  { name: 'Business Apps', queue: 'apps-erp', description: 'Salesforce, quoting tools, and integrations between business systems (excluding MERP itself)' },
+  { name: 'Business Apps', queue: 'apps-erp', description: 'CRM, quoting tools, and integrations between business systems (excluding MERP itself)' },
   { name: 'Access & Accounts', queue: 'security-access', description: 'Password resets, account lockouts, permission/share access requests, group membership' },
   { name: 'Security', queue: 'security-access', description: 'Phishing reports, suspicious activity, MFA problems, CrowdStrike alerts and quarantines, Keeper vault issues, security policy questions' },
   { name: 'Data & Reporting', queue: 'data-reporting', description: 'Report requests and fixes, dashboards, data extracts, Power BI access' },
@@ -112,7 +112,7 @@ export const CATEGORIES: { name: string; queue: string; description: string }[] 
 ];
 
 export const TAGS = [
-  'vpn', 'onboarding', 'printer', 'merp', 'edi', 'rf-scanner', 'salesforce',
+  'vpn', 'onboarding', 'printer', 'merp', 'edi', 'rf-scanner', 'crm',
   'phishing', 'new-hire', 'hardware-refresh', 'project-falcon', 'warehouse',
   'exec-visibility', 'recurring', 'alerts',
   // warehouse functions (location tags come from USER_LOCATIONS slugs)
@@ -124,7 +124,7 @@ export const TAGS = [
 // Manual skill vocabulary — the tools we actually run. Auto skills are
 // derived from resolution history (category names) on top of these.
 export const SKILLS = [
-  'Windows', 'Networking', 'VPN', 'MERP', 'EDI', 'Salesforce', 'Power BI',
+  'Windows', 'Networking', 'VPN', 'MERP', 'EDI', 'CRM', 'Power BI',
   'Microsoft 365', 'Zoom', 'Slack', 'Keeper', 'NinjaOne', 'CrowdStrike',
   'Dell Hardware', 'Lenovo Hardware', 'HP/Brother Printers', 'Zebra Printers',
   'RF Scanners', 'UPS/FedEx Shipping', 'AI Tools', 'Telephony', 'Security',
@@ -219,7 +219,7 @@ export const TEMPLATES: Record<string, TicketTemplate[]> = {
     { s: 'Desk phone no dial tone', d: 'My desk phone at {loc} has no dial tone since this morning. Softphone works but customers call my desk line directly.', t: 'incident',
       c: { reply: 'Your desk phone dropped its registration with the phone system — rebooting it remotely to re-register. Softphone keeps working meanwhile.', ask: 'Dial tone is back and a customer already got through. Thanks!', fix: 'Phone re-registered and test calls confirmed both directions. If it drops again we\'ll replace the handset — this one is on the aging list.' } },
     { s: 'Company phone for new manager', d: 'Requesting a company mobile for our new {dept} manager starting next week, standard sales configuration.', t: 'request',
-      c: { reply: 'Phone is in stock — provisioning it today with the standard sales profile (mail, MDM, Salesforce). It\'ll be ready for day one.', ask: 'Perfect, I\'ll collect it Monday morning before they arrive.', fix: 'Device enrolled, number assigned, and handed over on the start date. Manager confirmed mail and apps working.' } },
+      c: { reply: 'Phone is in stock — provisioning it today with the standard sales profile (mail, MDM, CRM). It\'ll be ready for day one.', ask: 'Perfect, I\'ll collect it Monday morning before they arrive.', fix: 'Device enrolled, number assigned, and handed over on the start date. Manager confirmed mail and apps working.' } },
     { s: 'Voicemail not transcribing', d: 'Voicemail-to-email stopped including transcriptions about a week ago. Attachments still arrive fine.', t: 'incident', pri: [0, 10, 50, 40],
       c: { reply: 'The transcription service license lapsed at renewal — the audio delivery doesn\'t depend on it, which is why attachments kept arriving. Re-activating it now.', note: 'Transcription add-on was dropped from the renewal quote by mistake; vendor re-enabled at no charge for the gap.', ask: 'Today\'s voicemails came with text again. Thanks!', fix: 'Transcription service re-activated and verified on new voicemails. Renewal checklist updated so the add-on can\'t be dropped silently again.' } },
   ],
@@ -268,13 +268,13 @@ export const TEMPLATES: Record<string, TicketTemplate[]> = {
       c: { reply: 'Found it — the vendor changed their quantity-break column from numeric to a range format mid-file. Writing a transform to normalize it and re-running the import today.', note: 'Vendor file format drift at row 8,001; transform handles both formats so future files import either way.', ask: 'Good catch — they didn\'t mention any format change in the transmittal.', fix: 'Import re-run cleanly with the transform — full price list loaded and spot-checked against the vendor file. Ready ahead of the Monday effective date.' } },
   ],
   'Business Apps': [
-    { s: 'Salesforce opportunity sync stuck', d: 'Opportunities updated in Salesforce aren\'t syncing to MERP. Sync log shows errors since about 7am.', t: 'incident', pri: [10, 50, 35, 5],
-      c: { reply: 'The integration user\'s Salesforce session expired at 7am and the sync has been erroring since. Re-authenticating it now — queued changes will flow through in order.', note: 'Integration user password rotated by the security policy; token invalidated. Adding the account to the rotation exception list with cert auth instead.', ask: 'Opportunities from this morning just appeared in MERP. Thanks!', fix: 'Integration re-authenticated and the backlog fully synced. Moved the connection to certificate auth so password rotation can\'t break it again.' } },
+    { s: 'CRM opportunity sync stuck', d: 'Opportunities updated in CRM aren\'t syncing to MERP. Sync log shows errors since about 7am.', t: 'incident', pri: [10, 50, 35, 5],
+      c: { reply: 'The integration user\'s CRM session expired at 7am and the sync has been erroring since. Re-authenticating it now — queued changes will flow through in order.', note: 'Integration user password rotated by the security policy; token invalidated. Adding the account to the rotation exception list with cert auth instead.', ask: 'Opportunities from this morning just appeared in MERP. Thanks!', fix: 'Integration re-authenticated and the backlog fully synced. Moved the connection to certificate auth so password rotation can\'t break it again.' } },
     { s: 'Quote tool rounding wrong', d: 'The quoting tool rounds extended prices differently than MERP, causing pennies-off discrepancies on large-quantity quotes.', t: 'incident', pri: [0, 30, 55, 15],
       c: { reply: 'Confirmed — the quote tool rounds per line and MERP rounds the extended total. Aligning the quote tool to MERP\'s method so the numbers always match.', note: 'Rounding-mode mismatch: line-level round-half-up vs extended-total rounding in MERP. One-line config change, needs regression on big BOM quotes.', ask: 'That explains the penny chase on every large quote. Thanks for digging in.', fix: 'Quote tool rounding aligned with MERP and verified across a set of large-quantity test quotes — totals now match to the cent.' } },
     { s: 'Concur expense report stuck in approval', d: 'An expense report has been sitting in Pending Approval for two weeks; the listed approver left the company last month.', t: 'incident', pri: [0, 20, 55, 25],
       c: { reply: 'The workflow was still pointed at the departed approver. Rerouting the report to your current manager and fixing the approval chain so nothing else queues to the old name.', ask: 'It just moved — manager has it now. Thanks!', fix: 'Report approved after rerouting, and the approval hierarchy updated. Swept Concur for other reports stuck on departed approvers — two more fixed.' } },
-    { s: 'Salesforce access for new rep', d: 'New {dept} team member needs a Salesforce license and addition to the regional sharing group.', t: 'request',
+    { s: 'CRM access for new rep', d: 'New {dept} team member needs a CRM license and addition to the regional sharing group.', t: 'request',
       c: { reply: 'Assigning a license from the pool and adding them to the regional sharing group now — takes effect on their next sign-in.', ask: 'They\'re in and can see the regional pipeline. Thanks!', fix: 'License assigned, sharing group membership verified, and their first login confirmed with the right visibility.' } },
   ],
   'Access & Accounts': [
@@ -496,7 +496,7 @@ export const KB_ARTICLES: { title: string; body: string }[] = [
   },
   {
     title: 'New hire IT setup: what to request and when',
-    body: 'Submit onboarding tickets at least 5 business days before the start date. Include: start date, department, manager, desk location, and any non-standard software. Standard setup includes a laptop, account, email, phone extension, and badge.\n\nMERP, Salesforce, and Power BI access are provisioned separately and need the role or a teammate to mirror. Late requests are handled best-effort and often mean a loaner laptop for week one.',
+    body: 'Submit onboarding tickets at least 5 business days before the start date. Include: start date, department, manager, desk location, and any non-standard software. Standard setup includes a laptop, account, email, phone extension, and badge.\n\nMERP, CRM, and Power BI access are provisioned separately and need the role or a teammate to mirror. Late requests are handled best-effort and often mean a loaner laptop for week one.',
   },
   {
     title: 'Reporting a phishing or suspicious email',
@@ -504,7 +504,7 @@ export const KB_ARTICLES: { title: string; body: string }[] = [
   },
   {
     title: 'Requesting a new report or dashboard',
-    body: 'Include the business question, the audience, the needed refresh frequency, and an example (even a rough spreadsheet) of the desired output. Name the source systems if known — MERP, Salesforce, or both.\n\nOne-time extracts are usually turned around within 2-3 business days. Recurring dashboards go through a short scoping conversation to confirm definitions (what counts as an "open order" differs by team more than you would expect).',
+    body: 'Include the business question, the audience, the needed refresh frequency, and an example (even a rough spreadsheet) of the desired output. Name the source systems if known — MERP, CRM, or both.\n\nOne-time extracts are usually turned around within 2-3 business days. Recurring dashboards go through a short scoping conversation to confirm definitions (what counts as an "open order" differs by team more than you would expect).',
   },
   {
     title: 'Badge access: requests and issues',

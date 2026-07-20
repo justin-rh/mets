@@ -37,8 +37,8 @@ CORE BUSINESS SYSTEMS
 - EDI (850 orders / 855 acks / 856 ASNs / 810 invoices) runs through MERP.
   Failed transactions with a customer or supplier are MERP-queue tickets and
   time-sensitive — unshipped EDI orders miss same-day cutoffs.
-- Salesforce is the CRM; quoting tools and SaaS integrations belong to the
-  Business Applications queue.
+- CRM, quoting tools, and SaaS integrations belong to the Business
+  Applications queue.
 - Databricks is the data platform (tables, schemas, notebooks). Access
   requests get guided intake; broken reports and extracts → Data & Reporting.
 - Power BI is the reporting/dashboard tool → Data & Reporting.
@@ -121,7 +121,7 @@ export const DEFAULT_CORE_ENVIRONMENT_PROFILE = `Master Electronics quick refere
 - The TMP drive (mapped as M:) is the shared network drive; known registry
   fix in the KB.
 - Databricks is the data platform (access requests get guided intake);
-  Power BI → Data & Reporting. Salesforce and quoting tools → Business
+  Power BI → Data & Reporting. CRM and quoting tools → Business
   Applications. UKG (payroll) → People Operations. Concur (expenses) →
   Finance & Accounting.
 - AMAT is the Applied Materials key-account program — anything threatening
@@ -1055,7 +1055,7 @@ class MockProvider implements AIProvider {
       [/quote|order status|sample|c of c/, 'Sales Support'],
       [/scanner|rf |pack station|conveyor/, 'Warehouse Tech'],
       [/merp|\boms\b|edi|price list|erp/, 'MERP'],
-      [/salesforce|quote|concur/, 'Business Apps'],
+      [/\bcrm\b|quote|concur/, 'Business Apps'],
       [/phish|suspicious|mfa|security|clicked/, 'Security'],
       [/crowdstrike|keeper|proofpoint|quarantin|spam/, 'Security'],
       [/password|locked|access|permission|account/, 'Access & Accounts'],
