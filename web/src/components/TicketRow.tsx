@@ -1,7 +1,7 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import type { TicketListItem } from '../api';
-import { TYPE_LABEL, age, initials, slaView } from '../format';
+import { TYPE_LABEL, age, copyToClipboard, initials, slaView } from '../format';
 import { useAwayTag } from '../useAwayTag';
 import { TicketDetail } from './TicketDetail';
 
@@ -20,6 +20,7 @@ export function TicketRow({ ticket: t, selected, expanded, onToggleSelect, onTog
   });
   const sla = slaView(t.sla);
   const isAway = useAwayTag();
+  const [copied, setCopied] = useState(false);
 
   // Drag starts anywhere on the row (>6px movement); a plain click expands.
   // After a drop, the browser still fires a click on the row — swallow it.
@@ -53,7 +54,22 @@ export function TicketRow({ ticket: t, selected, expanded, onToggleSelect, onTog
           }}
         />
         <span className={`type-chip type-${t.type}`}>{TYPE_LABEL[t.type]}</span>
-        <span className="ticket-number">{t.number}</span>
+        <span
+          className={`ticket-number copyable ${copied ? 'copied' : ''}`}
+          title="Click to copy the ticket number"
+          // The row's drag listeners start on pointerdown and a click
+          // expands the row — stop both so the chip is purely copy.
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={async (e) => {
+            e.stopPropagation();
+            if (await copyToClipboard(t.number)) {
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1200);
+            }
+          }}
+        >
+          {t.number}
+        </span>
         <span className="sent-cell">
           {t.sentiment === 'frustrated' && (
             <span className="sent-icon" title="AI read the requester as frustrated — score boosted">😤</span>

@@ -23,6 +23,7 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
   const [showActivity, setShowActivity] = useState(false);
   const [snoozeOpen, setSnoozeOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [numCopied, setNumCopied] = useState(false);
   const [flagOpen, setFlagOpen] = useState(false);
   const [flagKind, setFlagKind] = useState<'wrong_category' | 'needs_approval' | 'misrouted' | 'wrong_user' | 'incident'>('wrong_category');
   const [flagCategoryId, setFlagCategoryId] = useState('');
@@ -599,6 +600,20 @@ export function TicketDetail({ ticketId }: { ticketId: number }) {
           ) : (
             <button className="btn" onClick={() => setSnoozeOpen(true)}>Snooze…</button>
           )}
+          <button
+            className="btn"
+            title="Copy the ticket number (for the API, chat, or search)"
+            onClick={async () => {
+              if (await copyToClipboard(t.number)) {
+                setNumCopied(true);
+                setTimeout(() => setNumCopied(false), 1500);
+              } else {
+                window.prompt('Copy the ticket number:', t.number);
+              }
+            }}
+          >
+            {numCopied ? '✓ Copied' : `⧉ ${t.number}`}
+          </button>
           <button
             className="btn"
             title={`Copy a direct link to ${t.number}`}

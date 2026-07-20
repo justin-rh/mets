@@ -240,6 +240,12 @@ select, textarea, input[type='text'], .modal input {
   white-space: nowrap;
 }
 
+/* Click-to-copy number chip (drag listeners make text selection impossible). */
+.ticket-number.copyable { cursor: copy; border-radius: 4px; padding: 0 3px; margin: 0 -3px; }
+.ticket-number.copyable:hover { background: var(--surface-sunken); outline: 1px solid var(--line); }
+.ticket-number.copied { color: var(--ok); }
+.ticket-number.copied::after { content: ' ✓'; }
+
 .ticket-subject {
   overflow: hidden;
   text-overflow: ellipsis;
