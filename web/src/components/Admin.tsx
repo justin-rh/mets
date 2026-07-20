@@ -135,7 +135,7 @@ function AiCard({ config }: { config: AdminConfig }) {
   useEffect(() => setT(config.aiThresholds), [config.aiThresholds]);
   const save = useMutation({ mutationFn: () => saveAiThresholds(t), onSuccess: () => { setSaved(true); invalidate(); } });
   return (
-    <div className="admin-card admin-card-wide">
+    <div className="admin-card">
       <h3>AI confidence gates</h3>
       <p className="admin-hint">
         At or above <strong>auto-apply</strong>, AI changes apply (audited, revertible).
@@ -155,7 +155,6 @@ function AiCard({ config }: { config: AdminConfig }) {
         <button className="btn primary" disabled={save.isPending} onClick={() => { setSaved(false); save.mutate(); }}>Save gates</button>
         {saved && <span className="admin-saved">Saved</span>}
       </div>
-      <BypassSection config={config} />
     </div>
   );
 }
@@ -516,8 +515,11 @@ function RulesCard({ config }: { config: AdminConfig }) {
     <div className="admin-card admin-card-wide">
       <h3>Routing rules</h3>
       <p className="admin-hint">
-        Evaluated in order on every new ticket, first match wins. Every firing
-        is logged to the ticket's audit trail.
+        Deterministic routing, two flavors. <strong>Field rules</strong> (below)
+        run on every new ticket in order, first match wins, every firing
+        audited — the AI still triages afterward. <strong>AI bypass rules</strong>
+        (bottom) go one further: a text match routes the ticket and skips the
+        model entirely.
       </p>
       <div className="admin-rule-list">
         {config.routingRules.map((r) => (
@@ -554,6 +556,7 @@ function RulesCard({ config }: { config: AdminConfig }) {
           Add rule
         </button>
       </div>
+      <BypassSection config={config} />
     </div>
   );
 }
