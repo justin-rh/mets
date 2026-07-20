@@ -140,6 +140,7 @@ we talk; watch the queue."*
 | Migration off ServiceNow? | CSV import demo (Admin) — history, legacy numbers ride along and stay searchable. |
 | "How would our other systems integrate?" | **/api/playground**: one vanilla-HTML file against the public API. Paste a ticket number → the actual HTTP calls with latency → parsed ticket + raw JSON. Toggle Live, reply in METS, watch it update. Legacy trick: paste an old SNOW number (INC0010081) — imported tickets answer to their old names. Full spec at /api/docs. |
 | One-person bus factor? | Boring stack (one web app, one Postgres), typed end to end, every AI behavior is config not code, docs/ folder; honest-debt list in PROPOSAL.md. |
+| "Can the app itself be in Spanish?" | The content pipeline already is — tickets translate inbound, replies translate back, triage classifies from meaning. The portal *chrome* is a scoped ~2-day roadmap item (the requester surface is ~3 components / ~100 strings), done portal-first because that's where our Spanish speakers live. Agent UI stays English. |
 | Databricks-style guided intake / weekly briefing | Staged on demand: `python scripts\demo-tickets.py databricks`; briefing card on Dashboard. |
 
 ## Deliberate cuts (exist — mention, don't demo)

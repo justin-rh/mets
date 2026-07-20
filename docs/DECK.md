@@ -96,7 +96,9 @@ week-over-week / spend).*
 - **Last round's roadmap, shipped**: similar-ticket grounding and
   AI-suggested fixes went live this weekend — you just saw them.
 - **On the roadmap now**: asset tracking tied to tickets, problem
-  management on top of the weekly briefing, per-feature provider mix
+  management on top of the weekly briefing, a fully bilingual requester
+  portal (ticket *content* already translates both ways — the portal
+  chrome is a scoped ~2-day item), and per-feature provider mix
   (docs/AI-PORTABILITY.md — the vendor is a plug-in, not a foundation).
 - **Two activations, not builds**: Entra SSO and the shared-mailbox
   email adapter are written and dormant — each needs one app
