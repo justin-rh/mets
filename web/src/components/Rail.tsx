@@ -61,10 +61,15 @@ function useDragEdgeScroll(railRef: React.RefObject<HTMLElement | null>) {
 }
 
 /**
- * The visible arrow bars pinned to the rail's edges during a drag. Purely
- * indicators — the cursor band above does the scrolling — but registered as
- * droppables so releasing a ticket on one is a deliberate no-op instead of
- * hitting whatever card sits underneath.
+ * The arrow bars pinned to the rail's edges. Purely indicators — the cursor
+ * band above does the scrolling — but registered as droppables so releasing
+ * a ticket on one is a deliberate no-op instead of hitting whatever card
+ * sits underneath.
+ *
+ * IMPORTANT: these render permanently (dimmed when idle). Mounting them at
+ * drag start shifted the rail layout AFTER dnd-kit had measured its drop
+ * targets, leaving every cached rect ~40px off — drops on the Holding area
+ * (and everything below the bar) landed on stale geometry.
  */
 function RailScrollZone({ dir, hot, id }: {
   dir: 'up' | 'down';
@@ -73,12 +78,11 @@ function RailScrollZone({ dir, hot, id }: {
 }) {
   const { active } = useDndContext();
   const { setNodeRef } = useDroppable({ id });
-  if (!active) return null;
   return (
     <div
       ref={setNodeRef}
-      className={`rail-scroll rail-scroll-${dir} ${hot ? 'over' : ''}`}
-      title="Drag toward this edge to scroll"
+      className={`rail-scroll rail-scroll-${dir} ${active ? 'armed' : ''} ${hot ? 'over' : ''}`}
+      title="Drag a ticket toward this edge to scroll"
     >
       {dir === 'up' ? '▲' : '▼'}
     </div>

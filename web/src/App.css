@@ -525,8 +525,10 @@ select, textarea, input[type='text'], .modal input {
   margin-top: 4px;
 }
 
-/* Drag-scroll zones: appear only mid-drag, stick to the rail's visible
-   edges, and auto-scroll while the dragged ticket hovers over them. */
+/* Drag-scroll zones: always in the layout (mounting them mid-drag shifted
+   the rail AFTER dnd-kit measured its drop targets, breaking every drop
+   below them). Dimmed and slim when idle; prominent while a drag is in
+   flight; amber while actively scrolling. */
 .rail-scroll {
   position: sticky;
   z-index: 6;
@@ -534,16 +536,24 @@ select, textarea, input[type='text'], .modal input {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 34px;
-  border: 1px dashed var(--line-strong);
+  height: 22px;
+  border: 1px dashed transparent;
   border-radius: var(--r);
-  background: var(--surface-card);
+  background: none;
   color: var(--text-muted);
-  font-size: 13px;
+  opacity: 0.35;
+  font-size: 11px;
   user-select: none;
+  transition: opacity .15s ease;
 }
 .rail-scroll-up { top: 0; }
 .rail-scroll-down { bottom: 0; margin-top: auto; }
+.rail-scroll.armed {
+  opacity: 1;
+  border-color: var(--line-strong);
+  background: var(--surface-card);
+  font-size: 13px;
+}
 .rail-scroll.over {
   border-color: var(--accent);
   border-style: solid;

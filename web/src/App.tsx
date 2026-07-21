@@ -325,6 +325,7 @@ export default function App() {
     else if (target === 'assign-auto') bulk.mutate({ ids, action: 'auto_assign', undo: buildUndo(ids, { assigneeId: null }) });
     else if (target === 'assign-expertise') bulk.mutate({ ids, action: 'expertise_assign', undo: buildUndo(ids, { assigneeId: null }) });
     else if (target === 'assign-mentioned') bulk.mutate({ ids, action: 'mentioned_assign', undo: buildUndo(ids, { assigneeId: null }) });
+    else if (target === 'snooze-zone') setSnoozeIds(ids);
     else if (target === 'pin-bar') {
       // Pin, don't mutate: the drop bookmarks the ticket(s) as toolbar tabs.
       const add = ids
