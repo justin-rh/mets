@@ -127,9 +127,12 @@ export default function App() {
     : {
         view, queueId, assigneeId: assigneeFilter, requesterId: requesterFilter,
         sort, search: debouncedSearch,
-        // "My queues" dropdown scope — suppressed for permalinks and the
-        // submitted-by view, which must resolve tickets anywhere.
-        myQueues: queueSel === 'mine' && view !== 'all' ? '1' : undefined,
+        // "My queues" dropdown scope — suppressed for permalinks, the
+        // submitted-by view, and any active search: typing in the search box
+        // means "find this ticket", and the default my-queues scope silently
+        // hiding a match reads as broken search. An explicitly selected
+        // single queue still applies (that's a deliberate filter).
+        myQueues: queueSel === 'mine' && view !== 'all' && !debouncedSearch ? '1' : undefined,
       };
 
   const nlParse = useMutation({
@@ -454,6 +457,7 @@ export default function App() {
           <input
             className="search"
             placeholder="Search… press Enter to ask in plain English"
+            title="Searches every queue (a specifically selected queue still applies) — matches subjects and ticket numbers, including imported ServiceNow numbers"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => {
