@@ -43,6 +43,18 @@ export async function aiRoutes(app: FastifyInstance) {
           .where(eq(schema.categories.name, r.categoryName))
       : [undefined];
 
+    // "eric's ticket" → the requester filter. Only when the name resolves
+    // to exactly one active person — with several Erics, no filter beats
+    // silently filtering to the wrong one.
+    let requesterId: number | undefined;
+    if (r.requesterName) {
+      const { sql } = await import('drizzle-orm');
+      const matches = await db.select({ id: schema.users.id }).from(schema.users)
+        .where(sql`${schema.users.isActive} and ${schema.users.name} ilike ${`%${r.requesterName}%`}`)
+        .limit(2);
+      if (matches.length === 1) requesterId = matches[0]!.id;
+    }
+
     return {
       interpretation: r.interpretation,
       confidence: r.confidence,
@@ -50,6 +62,7 @@ export async function aiRoutes(app: FastifyInstance) {
         view: r.status === 'closed' ? 'closed' : r.status === 'any' ? 'all' : 'open',
         queueId: queueRow?.id,
         categoryId: categoryRow?.id,
+        requesterId,
         tags: r.tags.length ? r.tags.join(',') : undefined,
         olderThanDays: r.olderThanDays ?? undefined,
         newerThanDays: r.newerThanDays ?? undefined,

@@ -274,7 +274,8 @@ export const SearchFilterSchema = z.object({
   queueSlug: z.string().nullable().describe('Exact queue slug from the list, or null'),
   categoryName: z.string().nullable().describe('Exact category name from the list, or null'),
   tags: z.array(z.string()).describe('Exact tags from the list; locations are slugs like phoenix-az. Places in the query map to location tags. Do NOT add topic tags when a category already captures the topic.'),
-  status: z.enum(['open', 'closed', 'any']).describe('open unless the query asks for closed/resolved or all/any'),
+  status: z.enum(['open', 'closed', 'any']).describe("open unless the query asks for closed/resolved/all — or references a past time frame ('last month', 'in June', 'a few weeks ago'), which implies searching closed tickets too: use 'any'"),
+  requesterName: z.string().nullable().describe("The person who FILED the ticket, when the query says so — possessives ('eric's ticket') or 'from Maria'. First or full name exactly as written; null when the query doesn't name a requester"),
   unassignedOnly: z.boolean(),
   priorityAtMost: z.number().nullable().describe('1-4 when the query names a priority or says critical/high; P2-or-higher means 2'),
   olderThanDays: z.number().nullable(),
@@ -769,6 +770,12 @@ Don't invent filters the query doesn't ask for. Topics ("printer",
 "password") belong in categoryName — use tags only for places (location
 slugs) or when the query literally says "tagged X".
 
+Ignore filler ("find", "show me", "ticket(s)") — it is never textSearch.
+Possessives and "from <name>" name the REQUESTER — put the name in
+requesterName, never in textSearch. A past time frame ("last month",
+"back in June") implies the ticket may already be closed: status 'any'
+unless the query says otherwise.
+
 ${coreEnvironmentProfile}
 
 Queues (slug: name):
@@ -1152,6 +1159,7 @@ class MockProvider implements AIProvider {
         categoryName: category,
         tags: tag ? [tag] : [],
         status: q.includes('closed') || q.includes('resolved') ? 'closed' : 'open',
+        requesterName: q.match(/(\w+)'s\b/)?.[1] ?? null,
         unassignedOnly: q.includes('unassigned'),
         priorityAtMost: q.match(/\bp1\b|critical/) ? 1 : q.match(/\bp2\b|high/) ? 2 : null,
         olderThanDays: days ? (Number(days[1] ?? 1)) * mult : null,

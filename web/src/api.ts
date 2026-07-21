@@ -104,7 +104,7 @@ export type ListParams = {
 };
 
 export type NlFilters = Partial<Pick<ListParams,
-  'view' | 'queueId' | 'categoryId' | 'tags' | 'olderThanDays' | 'newerThanDays' | 'priorityAtMost' | 'unassigned' | 'search'>>;
+  'view' | 'queueId' | 'categoryId' | 'tags' | 'olderThanDays' | 'newerThanDays' | 'priorityAtMost' | 'unassigned' | 'search' | 'requesterId'>>;
 export const parseSearch = (query: string) =>
   api<{ interpretation: string; confidence: number; filters: NlFilters }>(
     '/api/search/parse', { method: 'POST', body: JSON.stringify({ query }) });
