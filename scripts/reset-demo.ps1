@@ -8,6 +8,12 @@ $repo = Split-Path -Parent $PSScriptRoot
 Write-Host '== METS demo reset ==' -ForegroundColor Cyan
 Push-Location "$repo\server"
 try {
+    # Sync the schema first — after a git pull the seed may need columns this
+    # database has never seen. No-op when already in sync; --force so a
+    # confirmation prompt can never hang the script (the data is reseeded
+    # from scratch right after anyway).
+    npm run db:push -- --force
+    if ($LASTEXITCODE -ne 0) { throw 'db:push failed' }
     npm run db:seed
     if ($LASTEXITCODE -ne 0) { throw 'seed failed' }
 } finally { Pop-Location }
