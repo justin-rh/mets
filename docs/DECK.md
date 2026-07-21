@@ -1,4 +1,4 @@
-# METS — Judge Deck (5 slides)
+# METS — Judge Deck (6 slides)
 
 Source of truth for the judging deck. Numbers are pulled from the live
 system (dashboard) and docs/PROPOSAL.md — re-check the dashboard the
@@ -71,7 +71,45 @@ be almost all images.*
 
 ---
 
-## Slide 4 — Business impact
+## Slide 4 — Also in the box: what a 15-minute demo can't fit
+
+Two columns of feature one-liners — the cool stuff the timed demo never
+reaches, each phrased as name + payoff:
+
+- **Self-service deflection** — SOTO answers from the KB before the
+  ticket is even filed.
+- **KB auto-drafting** — resolved tickets become draft articles for
+  one-click review, with internal-only visibility control.
+- **Weekly problem briefing** — SOTO reads the whole queue and names the
+  recurring problems worth root-causing.
+- **Draft replies** — grounded in KB articles, edited by the agent,
+  never auto-sent.
+- **Agent chat → ticket** — one click turns a chat thread into a routed
+  ticket; work stops hiding in chat.
+- **Snooze & scheduled wake** — drag to Holding, pick a date; the ticket
+  comes back on its own.
+- **Public API + live playground** — key-scoped REST API; imported
+  tickets still answer to their old ServiceNow numbers.
+- **ServiceNow CSV import** — history, ticket numbers, and requesters
+  ride along on migration day.
+- **Recurring tickets** — the monthly printer PM files, triages, and
+  routes itself on schedule.
+- **AI kill switch + daily budget cap** — one click degrades to keyword
+  rules; spend can never run away.
+- **Merge with a part-number guard** — similar tickets combine;
+  lookalikes with different part numbers don't.
+- **The table stakes, all real** — SLAs, approvals, CSAT, VIP scoring,
+  round-robin assign, templates, RBAC, audit trail.
+
+Closing line (orange, italic): *"Every one of these is running live on
+this network — pick one in Q&A and I'll show it."*
+
+*Purpose: turns Q&A into a menu — judges pick from this slide and every
+answer has a rehearsed 30-second move in RUN-OF-SHOW.md.*
+
+---
+
+## Slide 5 — Business impact
 
 - **~$210k+/year saved** vs the ServiceNow renewal (3-yr TCO scenarios:
   ~$90k–$320k vs ~$950k — PROPOSAL.md).
@@ -91,7 +129,7 @@ week-over-week / spend).*
 
 ---
 
-## Slide 5 — What's next
+## Slide 6 — What's next
 
 - **Last round's roadmap, shipped**: similar-ticket grounding and
   AI-suggested fixes went live this weekend — you just saw them.
@@ -119,10 +157,14 @@ measure → migrate.*
 
 ## Speaker framing (not on slides)
 
-- Slide 4 leads with dollars because that's the ranking criterion; the
+- Slide 4 (Also in the box) is a Q&A menu, not a talking slide — spend
+  ~20 seconds on it ("here's what the demo didn't have time for"), read
+  the orange line, move on. If a judge asks about any item, RUN-OF-SHOW's
+  Q&A back pocket has the 30-second live move.
+- Slide 5 leads with dollars because that's the ranking criterion; the
   "measured, not projected" line is the differentiator against any
   "we'll add AI" pitch.
-- Slide 5's honest-debt bullet preempts "is this production-ready?" —
+- Slide 6's honest-debt bullet preempts "is this production-ready?" —
   answer it before it's asked.
 - If asked about risk: every AI action is audited and revertible; the
   mock adapters mean the system degrades gracefully, never hard-fails.
