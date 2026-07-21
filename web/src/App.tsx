@@ -283,15 +283,15 @@ export default function App() {
             : vars.action === 'mentioned_assign' ? ' (rest: queue at capacity)'
             : '')
           : '';
-        // Expertise/mention picks name the agent so the choice is
-        // explainable at a glance (fit % matches the Suggested avatars;
-        // mention drops fall back to round-robin when nobody is named).
+        // Every assign flavor names the agent so the choice is explainable
+        // at a glance (fit % matches the Suggested avatars; mention drops
+        // fall back to round-robin when nobody is named).
         const who = (r: AssignResult) => {
           const num = ticketRows.find((t) => t.id === r.ticketId)?.number ?? `#${r.ticketId}`;
           return `${num} → ${r.assigneeName}${r.fit != null ? ` (${Math.round(r.fit * 100)}% fit)` : ''}${r.via === 'round_robin' ? ' (no mention — round-robin)' : ''}`;
         };
         const message =
-          vars.action !== 'auto_assign' && assigned.length > 0 && assigned.length <= 3 && assigned[0]?.assigneeName
+          assigned.length > 0 && assigned.length <= 3 && assigned[0]?.assigneeName
             ? `${verb}: ${assigned.map(who).join(' · ')}${suffix}`
             : `${verb}: ${assigned.length} of ${vars.ids.length} ticket${vars.ids.length > 1 ? 's' : ''}${suffix}`;
         toast(message, 'success', assigned.length ? undoAction : undefined, openOne);

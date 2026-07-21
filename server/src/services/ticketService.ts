@@ -555,7 +555,9 @@ export async function autoAssignByExpertise(ticketIds: number[], actor: Actor) {
  * protects the rotation pointer from concurrent assignment.
  */
 export async function autoAssign(ticketIds: number[], actor: Actor) {
-  const results: { ticketId: number; assigneeId: number | null }[] = [];
+  // assigneeName rides along so the client toast can say WHO round-robin
+  // picked, same as the expertise/mention assigns.
+  const results: { ticketId: number; assigneeId: number | null; assigneeName?: string }[] = [];
   for (const ticketId of ticketIds) {
     const assigneeId = await db.transaction(async (tx) => {
       const [t] = await tx
@@ -599,8 +601,12 @@ export async function autoAssign(ticketIds: number[], actor: Actor) {
 
     if (assigneeId != null) {
       await applyTicketChanges(ticketId, { ...actor, type: 'system' }, { assigneeId });
+      const [assignee] = await db.select({ name: users.name }).from(users)
+        .where(eq(users.id, assigneeId));
+      results.push({ ticketId, assigneeId, assigneeName: assignee?.name });
+    } else {
+      results.push({ ticketId, assigneeId });
     }
-    results.push({ ticketId, assigneeId });
   }
   return results;
 }
