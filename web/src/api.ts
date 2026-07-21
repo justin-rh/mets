@@ -322,12 +322,12 @@ export type KbHit = { id: number; title: string; snippet: string; score: number 
 export type KbDraft = { id: number; title: string; createdAt: string; sourceTicket: string | null };
 export type KbIndex = {
   results: KbHit[] | null;
-  articles: { id: number; title: string; updatedAt: string }[] | null;
+  articles: { id: number; title: string; updatedAt: string; internalOnly?: boolean }[] | null;
   drafts: KbDraft[];
 };
 export type KbArticle = {
   id: number; title: string; bodyText: string; updatedAt: string;
-  status: string; sourceTicket: string | null;
+  status: string; sourceTicket: string | null; internalOnly: boolean;
 };
 
 export const searchKb = (q: string) => api<KbIndex>(`/api/kb${q ? `?q=${encodeURIComponent(q)}` : ''}`);
@@ -340,7 +340,7 @@ export const discardArticle = (id: number) =>
   api(`/api/kb/${id}/discard`, { method: 'POST', body: '{}' });
 export const createArticle = (a: { title: string; bodyText: string; publish: boolean }) =>
   api<KbArticle>('/api/kb', { method: 'POST', body: JSON.stringify(a) });
-export const updateArticle = (id: number, a: { title: string; bodyText: string }) =>
+export const updateArticle = (id: number, a: { title?: string; bodyText?: string; internalOnly?: boolean }) =>
   api<KbArticle>(`/api/kb/${id}`, { method: 'PATCH', body: JSON.stringify(a) });
 /** Ask SOTO to draft a KB article from this ticket's thread, right now. */
 export const draftArticleFromTicket = (ticketId: number) =>

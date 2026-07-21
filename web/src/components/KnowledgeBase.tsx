@@ -42,6 +42,16 @@ export function KnowledgeBase() {
     mutationFn: (id: number) => discardArticle(id),
     onSuccess: () => { setOpenId(null); invalidate(); },
   });
+  const visibility = useMutation({
+    mutationFn: ({ id, internalOnly }: { id: number; internalOnly: boolean }) =>
+      updateArticle(id, { internalOnly }),
+    onSuccess: (a) => {
+      toast(a.internalOnly
+        ? `🔒 “${a.title}” is now internal-only — requesters and the self-service bot won't see it`
+        : `👁 “${a.title}” is now visible to requesters`, 'success');
+      invalidate();
+    },
+  });
   const save = useMutation({
     mutationFn: (opts: { publish: boolean }) =>
       editor!.id != null
@@ -105,7 +115,7 @@ export function KnowledgeBase() {
         ))}
         {index?.articles?.map((a) => (
           <button key={a.id} className={`kb-item ${openId === a.id ? 'active' : ''}`} onClick={() => { setEditor(null); setOpenId(a.id); }}>
-            <strong>{a.title}</strong>
+            <strong>{a.title}{a.internalOnly && <span className="kb-internal-badge" title="Hidden from requesters and the self-service bot">🔒</span>}</strong>
           </button>
         ))}
         {index?.results?.length === 0 && <div className="empty">No articles match.</div>}
@@ -163,15 +173,30 @@ export function KnowledgeBase() {
               </div>
             )}
             <div className="kb-article-head">
-              <h2>{article.title}</h2>
+              <h2>
+                {article.title}
+                {article.internalOnly && <span className="kb-internal-badge" title="Hidden from requesters and the self-service bot">🔒 internal</span>}
+              </h2>
               {staff && (
-                <button
-                  className="btn ghost"
-                  title="Edit this article"
-                  onClick={() => setEditor({ id: article.id, title: article.title, body: article.bodyText })}
-                >
-                  ✏️ Edit
-                </button>
+                <>
+                  <button
+                    className="btn ghost"
+                    title={article.internalOnly
+                      ? 'Internal-only: requesters and the self-service bot never see this. Click to make it visible.'
+                      : 'Visible to requesters (and usable by the self-service bot). Click to make it internal-only — for agent-applied fixes like registry edits.'}
+                    disabled={visibility.isPending}
+                    onClick={() => visibility.mutate({ id: article.id, internalOnly: !article.internalOnly })}
+                  >
+                    {article.internalOnly ? '🔒 Internal' : '👁 Public'}
+                  </button>
+                  <button
+                    className="btn ghost"
+                    title="Edit this article"
+                    onClick={() => setEditor({ id: article.id, title: article.title, body: article.bodyText })}
+                  >
+                    ✏️ Edit
+                  </button>
+                </>
               )}
             </div>
             <Md>{article.bodyText}</Md>

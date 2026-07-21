@@ -53,13 +53,15 @@ export async function maybeOfferDeflection(ticketId: number) {
   `)).rows;
   if (linked) return;
 
+  // excludeInternal: the requester is the audience here — internal-only
+  // articles (registry edits, admin procedures) must never be offered.
   const { hybridSearch } = await import('./kb/kbService.js');
-  const hits = await hybridSearch(`${t.subject} ${t.description.slice(0, 300)}`, 1);
+  const hits = await hybridSearch(`${t.subject} ${t.description.slice(0, 300)}`, 1, { excludeInternal: true });
   if (hits.length === 0) return;
   const [article] = await db
-    .select({ id: kbArticles.id, title: kbArticles.title, body: kbArticles.bodyText, status: kbArticles.status })
+    .select({ id: kbArticles.id, title: kbArticles.title, body: kbArticles.bodyText, status: kbArticles.status, internalOnly: kbArticles.internalOnly })
     .from(kbArticles).where(eq(kbArticles.id, hits[0]!.id));
-  if (!article || article.status !== 'published') return; // never self-serve from a draft
+  if (!article || article.status !== 'published' || article.internalOnly) return; // never self-serve drafts or internal fixes
 
   const outcome = await getAIProvider().suggestFix({
     subject: t.subject, description: t.description,

@@ -23,11 +23,16 @@ export async function kbRoutes(app: FastifyInstance) {
           .where(eq(kbArticles.status, 'draft'))
           .orderBy(asc(kbArticles.createdAt))
       : [];
-    if (q.q) return { results: await hybridSearch(q.q, 8), articles: null, drafts };
+    // Requesters never see internal-only articles (registry fixes and other
+    // admin-side procedures); staff see them everywhere, badge-marked.
+    const isRequester = req.userRole === 'requester';
+    if (q.q) return { results: await hybridSearch(q.q, 8, { excludeInternal: isRequester }), articles: null, drafts };
     const all = await db
-      .select({ id: kbArticles.id, title: kbArticles.title, updatedAt: kbArticles.updatedAt })
+      .select({ id: kbArticles.id, title: kbArticles.title, updatedAt: kbArticles.updatedAt, internalOnly: kbArticles.internalOnly })
       .from(kbArticles)
-      .where(eq(kbArticles.status, 'published'))
+      .where(isRequester
+        ? and(eq(kbArticles.status, 'published'), eq(kbArticles.internalOnly, false))
+        : eq(kbArticles.status, 'published'))
       .orderBy(asc(kbArticles.title));
     return { results: null, articles: all, drafts };
   });
@@ -50,13 +55,13 @@ export async function kbRoutes(app: FastifyInstance) {
       .select({
         id: kbArticles.id, title: kbArticles.title, bodyText: kbArticles.bodyText,
         status: kbArticles.status, updatedAt: kbArticles.updatedAt,
-        sourceTicket: tickets.number,
+        internalOnly: kbArticles.internalOnly, sourceTicket: tickets.number,
       })
       .from(kbArticles)
       .leftJoin(tickets, eq(tickets.id, kbArticles.sourceTicketId))
       .where(eq(kbArticles.id, id));
     if (!article) return reply.status(404).send({ error: 'article not found' });
-    if (article.status !== 'published') requireStaff(req);
+    if (article.status !== 'published' || article.internalOnly) requireStaff(req);
     return article;
   });
 
@@ -84,6 +89,7 @@ export async function kbRoutes(app: FastifyInstance) {
     const body = z.object({
       title: z.string().trim().min(3).max(200).optional(),
       bodyText: z.string().trim().min(20).max(20_000).optional(),
+      internalOnly: z.boolean().optional(),
     }).parse(req.body);
     const [updated] = await db.update(kbArticles)
       .set({ ...body, updatedAt: new Date() })

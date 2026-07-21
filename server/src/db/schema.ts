@@ -371,6 +371,10 @@ export const kbArticles = pgTable('kb_articles', {
   bodyText: text('body_text').notNull(),
   bodyHtml: text('body_html'),
   status: kbStatus('status').notNull().default('draft'),
+  // Hidden from requesters: excluded from their KB access AND from the
+  // self-service deflection bot (registry edits, admin-side procedures).
+  // Agents see these everywhere, marked with a lock.
+  internalOnly: boolean('internal_only').notNull().default(false),
   authorId: bigint('author_id', { mode: 'number' }).references(() => users.id),
   // Set when AI drafted this from a resolved ticket.
   sourceTicketId: bigint('source_ticket_id', { mode: 'number' }).references(() => tickets.id),

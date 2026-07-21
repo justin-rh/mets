@@ -405,6 +405,7 @@ async function main() {
   await db.insert(kbArticles).values(
     KB_ARTICLES.map((a) => ({
       title: a.title, bodyText: a.body, status: 'published' as const,
+      internalOnly: a.internalOnly ?? false,
       authorId: pick(agents).id,
     })),
   );

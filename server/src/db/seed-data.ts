@@ -453,7 +453,9 @@ export const REQUESTER_REPLIES = [
   'Adding a bit more detail: it only seems to happen in the mornings.',
 ];
 
-export const KB_ARTICLES: { title: string; body: string }[] = [
+// internalOnly: hidden from requesters and the self-service deflection bot
+// (registry edits and other admin-side procedures agents apply, not users).
+export const KB_ARTICLES: { title: string; body: string; internalOnly?: boolean }[] = [
   {
     title: 'How to connect to the VPN',
     body: 'Open the ZScaler client from the system tray and sign in with your Microsoft account, approving the MFA prompt.\n\nIf the client repeatedly disconnects, first test your home internet stability, then try switching the client to the TCP fallback profile under Settings. If issues persist across networks, open a ticket with the Network & VPN category and include the approximate times of the drops.',
@@ -467,6 +469,7 @@ export const KB_ARTICLES: { title: string; body: string }[] = [
     body: 'Open Settings > Printers, click Add Device, and select the printer named for your floor and area (for example SALES-RICOH-2F). Printers are location-restricted, so map the one physically nearest your desk.\n\nFor warehouse Zebra label printers, do not map them directly — label printing is configured through the pack station software. Open a ticket with Printing & Labels if a pack station cannot print.',
   },
   {
+    internalOnly: true, // registry edit — an agent-applied fix, never self-service
     title: 'Fixing TMP folder / M: drive access (\\\\windx\\tmp)',
     body: 'When the TMP share (the M: drive, \\\\windx\\tmp) will not connect, the usual cause is the SMB security-signature requirement on the workstation. The fix is a registry change and requires administrator rights — IT staff only.\n\nOpen Registry Editor (regedit) and navigate to HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Services\\LanmanWorkstation\\Parameters — you can copy and paste the path into the address bar, keeping "Computer\\" at the front. Look for a value named RequireSecuritySignature. If it is not there, create it: right-click the background of the right-hand pane, choose New > DWORD (32-bit) Value, and name it RequireSecuritySignature. Set its value to 0.\n\nReboot the machine (or restart the Workstation service) and reconnect to \\\\windx\\tmp. If the M: drive still does not appear, re-map it: File Explorer > This PC > Map network drive > choose M: and enter \\\\windx\\tmp.',
   },

@@ -48,9 +48,16 @@ function orTsQuery(query: string): string {
 
 /**
  * Hybrid search: Postgres FTS and pgvector cosine ranks merged with
- * reciprocal-rank fusion (k=60).
+ * reciprocal-rank fusion (k=60). excludeInternal drops internal-only
+ * articles — the requester-facing surfaces (portal KB access, the
+ * deflection bot) must never see them.
  */
-export async function hybridSearch(query: string, limit = 5): Promise<KbHit[]> {
+export async function hybridSearch(
+  query: string,
+  limit = 5,
+  opts: { excludeInternal?: boolean } = {},
+): Promise<KbHit[]> {
+  const internalClause = opts.excludeInternal ? sql`and not a.internal_only` : sql``;
   const orQuery = orTsQuery(query);
   const fts = orQuery.length === 0 ? { rows: [] } : await db.execute(sql`
     select a.id, a.title,
@@ -61,7 +68,7 @@ export async function hybridSearch(query: string, limit = 5): Promise<KbHit[]> {
              setweight(to_tsvector('english', a.body_text), 'B'),
              to_tsquery('english', ${orQuery})) desc) as rank
     from kb_articles a
-    where a.status = 'published'
+    where a.status = 'published' ${internalClause}
       and (setweight(to_tsvector('english', a.title), 'A') ||
            setweight(to_tsvector('english', a.body_text), 'B'))
           @@ to_tsquery('english', ${orQuery})
@@ -88,7 +95,7 @@ export async function hybridSearch(query: string, limit = 5): Promise<KbHit[]> {
         order by embedding <=> ${JSON.stringify(qv)}::vector
         limit 1
       ) c on true
-      where a.status = 'published'
+      where a.status = 'published' ${internalClause}
       order by v.min_dist
     `);
     vecRows = vec.rows as any;

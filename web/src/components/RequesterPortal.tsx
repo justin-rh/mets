@@ -4,7 +4,7 @@ import {
   fetchTicket, fetchTickets, fetchUsers, postComment, submitCsat,
   type TicketListItem,
 } from '../api';
-import { age, fmtDateTime } from '../format';
+import { age, copyToClipboard, fmtDateTime } from '../format';
 import { AttachmentStrip, usePasteAttach } from './Attachments';
 import { IncidentBanner } from './IncidentBanner';
 import { Md } from './Md';
@@ -68,6 +68,7 @@ function PortalTicket({ t, expanded, onToggle }: {
 }) {
   const qc = useQueryClient();
   const [reply, setReply] = useState('');
+  const [copied, setCopied] = useState(false);
   const pasteAttach = usePasteAttach(t.id);
   const { data: detail } = useQuery({
     queryKey: ['ticket', t.id],
@@ -91,13 +92,35 @@ function PortalTicket({ t, expanded, onToggle }: {
   return (
     <div className={`portal-ticket ${expanded ? 'expanded' : ''}`}>
       <button className="portal-ticket-row" onClick={onToggle}>
-        <span className="ticket-number">{t.number}</span>
+        <span
+          className={`ticket-number copyable ${copied ? 'copied' : ''}`}
+          title="Click to copy the ticket number"
+          // The row itself is a button that expands the ticket — stop the
+          // click here so the chip is purely copy.
+          onClick={async (e) => {
+            e.stopPropagation();
+            if (await copyToClipboard(t.number)) {
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1200);
+            }
+          }}
+        >
+          {t.number}
+        </span>
         <span className="portal-subject">{t.subject}</span>
+        <span className="portal-assignee" title={t.assignee ? `${t.assignee.name} is working this ticket` : 'Waiting for an agent to pick this up'}>
+          {t.assignee ? `👤 ${t.assignee.name}` : 'unassigned'}
+        </span>
         <span className={`status-chip portal-status-${t.status.category}`}>{t.status.name}</span>
         <span className="portal-age">{age(t.updatedAt)}</span>
       </button>
       {expanded && detail && (
         <div className="portal-detail">
+          {detail.assignee && (
+            <div className="portal-assignee-line">
+              👤 <strong>{detail.assignee.name}</strong> is working this ticket
+            </div>
+          )}
           <div className="description"><Md>{detail.description}</Md></div>
           <AttachmentStrip ticketId={t.id} attachments={detail.attachments ?? []} />
           {pendingApproval && (
