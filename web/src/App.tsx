@@ -541,13 +541,17 @@ export default function App() {
         </button>
         {assigneeFilter && (
           <span className="filter-chip">
-            Assigned: {meta?.agents.find((a) => a.id === assigneeFilter)?.name ?? `#${assigneeFilter}`}
+            <span className="filter-chip-text">
+              Assigned: {meta?.agents.find((a) => a.id === assigneeFilter)?.name ?? `#${assigneeFilter}`}
+            </span>
             <button onClick={() => setAssigneeFilter(undefined)} title="Clear filter">✕</button>
           </span>
         )}
         {requesterFilter && (
           <span className="filter-chip">
-            Submitted by: {meta?.agents.find((a) => a.id === requesterFilter)?.name ?? `user #${requesterFilter}`}
+            <span className="filter-chip-text">
+              Submitted by: {meta?.agents.find((a) => a.id === requesterFilter)?.name ?? `user #${requesterFilter}`}
+            </span>
             <button
               onClick={() => {
                 setRequesterFilter(undefined);
@@ -563,7 +567,7 @@ export default function App() {
         )}
         {nlFilter && (
           <span className="filter-chip nl-chip" title={nlFilter.interpretation}>
-            ✨ {nlFilter.interpretation}
+            <span className="filter-chip-text">✨ {nlFilter.interpretation}</span>
             <button onClick={() => setNlFilter(null)} title="Clear AI search">✕</button>
           </span>
         )}

@@ -1853,10 +1853,20 @@ select, textarea, input[type='text'], .modal input {
   font-size: 12px;
   font-weight: 600;
   margin-left: 8px;
+  min-width: 0;
+}
+/* Long chip text (an AI-search interpretation can run to a sentence)
+   ellipsizes so the clear ✕ never gets pushed out of reach. */
+.filter-chip-text {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .filter-chip button {
   border: none; background: none; cursor: pointer;
   color: var(--text-muted); font-size: 11px; padding: 0 2px;
+  flex-shrink: 0;
 }
 .filter-chip button:hover { color: var(--alarm); }
 
