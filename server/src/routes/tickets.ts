@@ -83,11 +83,16 @@ export async function ticketRoutes(app: FastifyInstance) {
       )`);
     }
     if (q.search) {
-      conds.push(or(
-        ilike(tickets.subject, `%${q.search}%`),
-        ilike(tickets.number, `%${q.search}%`),
-        ilike(tickets.legacyNumber, `%${q.search}%`), // imported SNOW numbers resolve too
-      )!);
+      // Word-AND, not exact phrase: "zebra label" matches "Zebra label
+      // printer offset" even though the words aren't adjacent. Each word
+      // may match the subject or a ticket/legacy number.
+      for (const word of q.search.split(/\s+/).filter(Boolean).slice(0, 8)) {
+        conds.push(or(
+          ilike(tickets.subject, `%${word}%`),
+          ilike(tickets.number, `%${word}%`),
+          ilike(tickets.legacyNumber, `%${word}%`), // imported SNOW numbers resolve too
+        )!);
+      }
     }
     if (q.categoryId) conds.push(eq(tickets.categoryId, q.categoryId));
     for (const tag of (q.tags ?? '').split(',').map((s) => s.trim()).filter(Boolean)) {

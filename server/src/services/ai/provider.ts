@@ -280,7 +280,7 @@ export const SearchFilterSchema = z.object({
   priorityAtMost: z.number().nullable().describe('1-4 when the query names a priority or says critical/high; P2-or-higher means 2'),
   olderThanDays: z.number().nullable(),
   newerThanDays: z.number().nullable(),
-  textSearch: z.string().nullable().describe('Residual free-text to substring-match the subject, ONLY when no category/queue captures it'),
+  textSearch: z.string().nullable().describe("Residual keywords matched against ticket subjects, ONLY when no category/queue captures them. Use the distinctive NOUNS (the system or object: 'monitor', 'keeper') — never verbs, filler, or full phrases; matching is literal, so 'going black' won't match 'goes black'"),
   confidence: z.number().describe('0-1'),
 });
 export type SearchFilterResult = z.infer<typeof SearchFilterSchema>;

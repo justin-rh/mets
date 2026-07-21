@@ -129,6 +129,19 @@ def databricks():
          '   to start using the sales_orders_gold table. 5. Yes, first attempt."\n'
          '   → routes to Data Team with the Question/Answer handoff table in the internal notes (agent view)')
 
+def monitor():
+    # Plant the month-old resolved lookalike (Justin's DisplayLink fix),
+    # then file today's recurrence of the same symptom.
+    hist = req('POST', '/api/demo/monitor-history', {})
+    t = req('POST', '/api/tickets', {
+        'subject': 'One of my monitors keeps going black',
+        'description': 'My second monitor keeps going black — the screen is dark but the mouse cursor still shows when I move it over there. Unplugged and replugged the cable, no change. The other monitor is fine.',
+        'type': 'incident'}, user=requester(8))
+    note('monitor ticket', t['number'],
+         f"MEMORY (live search): expand it → 💡 Suggest fix cites {hist.get('number', 'the month-old ticket')} "
+         f"(your DisplayLink driver comment from a month ago) — or ✨ search "
+         f'"monitor going black tickets from last month"')
+
 def spanish():
     t = req('POST', '/api/tickets', {
         'subject': 'La impresora de etiquetas no funciona',
@@ -142,7 +155,7 @@ def spanish():
 SCENARIOS = {
     'screenshot': screenshot, 'email': email, 'newhire': newhire,
     'tmp': tmp, 'mention': mention, 'autostore': autostore,
-    'databricks': databricks, 'spanish': spanish,
+    'databricks': databricks, 'monitor': monitor, 'spanish': spanish,
 }
 # The 15-minute live slot has room for every beat — stage all eight.
 # (To cut for a shorter take, list names: python scripts/demo-tickets.py spanish tmp)

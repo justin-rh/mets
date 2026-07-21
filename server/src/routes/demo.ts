@@ -5,7 +5,9 @@ import { activeIncidents } from '../services/incidents.js';
 import { createTicketCore } from '../services/ticketService.js';
 import { requireStaff } from './guards.js';
 
-const { users } = schema;
+const { users, tickets, ticketComments, ticketEvents, statuses, teams, categories } = schema;
+
+const MONITOR_HISTORY_SUBJECT = 'Second monitor goes black — only the mouse cursor shows';
 
 // The same Zoom-outage burst the incident-demo script files — three similar
 // reports from three requesters, which SOTO correlates into a suspected
@@ -61,5 +63,69 @@ export async function demoRoutes(app: FastifyInstance) {
       enrichTicket(t.id, 'auto').catch(() => {});
     }
     return { filed: numbers };
+  });
+
+  // Plants the institutional-memory demo history: a month-old RESOLVED
+  // ticket with the same symptom as the fresh demo ticket, fixed by the
+  // calling agent's own comment (DisplayLink driver). Backdating requires
+  // direct inserts — the normal create path stamps "now". The ticket is
+  // embedded immediately so similar-ticket search and 💡 Suggest fix can
+  // cite it without waiting for a boot sweep. Idempotent per reset.
+  app.post('/api/demo/monitor-history', async (req) => {
+    requireStaff(req);
+
+    const [existing] = await db.select({ number: tickets.number }).from(tickets)
+      .where(eq(tickets.subject, MONITOR_HISTORY_SUBJECT));
+    if (existing) return { number: existing.number, existing: true };
+
+    const [resolved] = await db.select().from(statuses)
+      .where(eq(statuses.category, 'resolved')).orderBy(asc(statuses.position)).limit(1);
+    const [queue] = await db.select({ id: teams.id }).from(teams).where(eq(teams.slug, 'it-support'));
+    const [category] = await db.select({ id: categories.id }).from(categories).where(eq(categories.name, 'Hardware'));
+    const [requester] = await db.select({ id: users.id, name: users.name }).from(users)
+      .where(eq(users.role, 'requester')).orderBy(asc(users.id)).offset(7).limit(1);
+    if (!resolved || !queue || !requester) {
+      throw Object.assign(new Error('seed data missing (status/queue/requester)'), { statusCode: 500 });
+    }
+
+    const DAY = 86_400_000;
+    const createdAt = new Date(Date.now() - 32 * DAY);
+    const respondedAt = new Date(createdAt.getTime() + 3 * 3_600_000);
+    const resolvedAt = new Date(createdAt.getTime() + 26 * 3_600_000);
+
+    const [t] = await db.insert(tickets).values({
+      subject: MONITOR_HISTORY_SUBJECT,
+      description: 'My second monitor keeps going black — the screen is dark but the mouse cursor still shows up on it when I move over. The other monitor works fine. Started after the Windows update this week. Both are plugged into the docking station.',
+      type: 'incident', priority: 3, source: 'portal',
+      statusId: resolved.id, queueId: queue.id, categoryId: category?.id ?? null,
+      requesterId: requester.id,
+      createdAt, updatedAt: resolvedAt, firstRespondedAt: respondedAt, resolvedAt,
+    }).returning();
+
+    await db.insert(ticketEvents).values([
+      { ticketId: t!.id, actorId: requester.id, actorType: 'user', eventType: 'created', createdAt },
+      {
+        ticketId: t!.id, actorId: req.userId, actorType: 'user', eventType: 'status_changed',
+        field: 'status', oldValue: 'Open', newValue: resolved.name, createdAt: resolvedAt,
+      },
+    ]);
+    await db.insert(ticketComments).values([
+      {
+        ticketId: t!.id, authorId: req.userId, visibility: 'public', source: 'agent',
+        bodyText: `Figured it out — that monitor runs through the dock's DisplayLink adapter, and the Windows update wiped its driver (classic symptom: black screen but the cursor still renders). Downloaded the DisplayLink driver from displaylink.com/downloads, installed, rebooted — monitor came straight back. Marking this resolved.`,
+        createdAt: resolvedAt,
+      },
+      {
+        ticketId: t!.id, authorId: requester.id, visibility: 'public', source: 'portal',
+        bodyText: 'That did it — both monitors working again. Thank you!',
+        createdAt: new Date(resolvedAt.getTime() + 40 * 60_000),
+      },
+    ]);
+
+    // Straight into the semantic memory — no waiting for the boot sweep.
+    const { embedTicket } = await import('../services/kb/kbService.js');
+    await embedTicket(t!.id).catch(() => {});
+
+    return { number: t!.number, requester: requester.name };
   });
 }

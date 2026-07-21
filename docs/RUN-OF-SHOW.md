@@ -33,11 +33,10 @@ say it in the open, land every beat on it, repeat it in the close:
 - [ ] Dashboard numbers match whatever the deck quotes (accuracy %, spend).
 - [ ] Sanity pass: file one throwaway ticket, watch the signals reveal,
       confirm routing. Reset again if anything looks off.
-- [ ] Find the **suggest-fix hero ticket**: open "FedEx rate quotes failing
-      in shipping software" (or similar open ticket with resolved
-      lookalikes), press 💡 Suggest fix once NOW — the result caches, so
-      the live click is instant even if the API hiccups. Verify it cites
-      past tickets.
+- [ ] **Memory-beat hero**: the staged monitor ticket. Press 💡 Suggest
+      fix once NOW — the result caches, so the live click is instant even
+      if the API hiccups. Verify it cites the month-old DisplayLink
+      ticket. (Backup hero: the FedEx-rates ticket, same pre-cache move.)
 - [ ] Cheat sheet on paper: the Spanish AND Databricks ticket numbers +
       their requesters' names (two portal acting-as switches), the
       Databricks paste-reply block from demo-tickets.py's cheat sheet,
@@ -117,12 +116,20 @@ children cascade closed, banner clears.
   the auto-declaration be the Q&A encore.
 
 ### 5:30–6:30 · Institutional memory (~60s)
-Open the hero ticket → **💡 Suggest fix** (cached = instant) → SOTO's
-proposed fix **citing the past tickets it came from** ("Worked before in
-T-…"), with an honest caveat → **↳ Insert into reply**. Line: *"This was
-on my roadmap slide last round — it shipped. Every resolution this team
-has ever made is now working capital: 665 resolved tickets are embedded
-as searchable memory, locally, for free."*
+Open the staged **monitor ticket** ("One of my monitors keeps going
+black") → *"I remember fixing something like this…"* → **✨ search:
+"monitor going black tickets from last month"** → the month-old
+resolved ticket surfaces, with **your own comment**: the DisplayLink
+driver fix. Then back on the fresh ticket: **💡 Suggest fix** (cached =
+instant) — SOTO already found that ticket itself and proposes the
+driver fix **citing it**, with an honest caveat → **↳ Insert into
+reply**. Line: *"That's my fix from a month ago, found two ways —
+by me asking in plain English, and by SOTO before I even asked. Every
+resolution this team has ever made is now working capital: 665 resolved
+tickets embedded as searchable memory, locally, for free."*
+
+- *Fallback:* the FedEx-rates ticket (cheat sheet) has an equally good
+  cached suggestion citing four past tickets.
 
 ### 6:30–7:45 · Guided intake — the Databricks ticket (~75s)
 Expand the staged **"Databricks problem"** ticket: deliberately vague,
